@@ -158,4 +158,313 @@ class PenjaminanTransactionRepository
 
         return $query->first();
     }
+
+    public function getMltAdditionalDocument(string $trxNo)
+    {
+        $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
+            ->join('multiguna_transaction as mt', 'tph.trx_no', '=', 'mt.trx_no')
+            ->join('multiguna_debitur as md', 'md.multiguna_trx_id', '=', 'mt.id_multiguna')
+            ->where('tph.trx_no', $trxNo);
+        $debiturCount = (clone $base)->count();
+        $pfJsonMatch = $debiturCount === 1
+            ? "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = tph.no_surat_permohonan"
+            : "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = md.no_sp_detail";
+
+        $rows = (clone $base)
+            ->join('penjaminan_flow as pf', function ($join) use ($pfJsonMatch) {
+                $join->on('pf.trx_no', '=', 'tph.trx_no')
+                    ->where('pf.trx_status', '=', 'AD')
+                    ->whereRaw($pfJsonMatch);
+            })
+            ->select([
+                'tph.trx_no',
+                'tph.no_surat_permohonan',
+                'tph.trx_status',
+                'md.debitur_name',
+                'md.no_sp_detail',
+                'md.no_sp_core_debitur',
+                'pf.additional_document',
+            ])
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+        $rows->transform(function ($row) {
+            $row->additional_document = $row->additional_document
+                ? json_decode($row->additional_document, true)
+                : null;
+
+            return $row;
+        });
+
+        return $rows->count() === 1
+            ? $rows->first()
+            : $rows;
+    }
+
+    public function  getSrtbAdditionalDoc(string $trxNo)
+    {
+        $rows = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
+            ->join('surety_bond_transaction as sbt', 'sbt.trx_no', '=', 'tph.trx_no')
+            ->join('penjaminan_flow as pf', function ($join) {
+                $join->on('pf.trx_no', '=', 'tph.trx_no')
+                    ->where('pf.trx_status', '=', 'AD')
+                    ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NoSuratPermohonan')) = tph.no_surat_permohonan");
+            })
+            ->where('tph.trx_no', $trxNo)
+            ->select([
+                'tph.trx_no',
+                'tph.no_surat_permohonan',
+                'tph.trx_status',
+                'sbt.obligee_name',
+                'sbt.principal_name',
+                'pf.additional_document',
+                'pf.created_at',
+            ])
+            ->get();
+        if ($rows->isEmpty()) {
+            return null;
+        }
+        $rows = $rows->map(function ($row) {
+            $row->additional_document = $row->additional_document
+                ? json_decode($row->additional_document, true)
+                : null;
+            return $row;
+        });
+        return  $rows->first();
+    }
+
+    public function getCstbbAdditionalDocument(string $trxNo)
+    {
+        $rows = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
+            ->join('custom_bond_transaction as cbt', 'cbt.trx_no', '=', 'tph.trx_no')
+            ->join('penjaminan_flow as pf', function ($join) {
+                $join->on('pf.trx_no', '=', 'tph.trx_no')
+                    ->where('pf.trx_status', '=', 'AD')
+                    ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NoSuratPermohonan')) = tph.no_surat_permohonan");
+            })
+            ->where('tph.trx_no', $trxNo)
+            ->select([
+                'tph.trx_no',
+                'tph.no_surat_permohonan',
+                'tph.trx_status',
+                'cbt.obligee_name',
+                'cbt.principal_name',
+                'pf.additional_document',
+                'pf.created_at',
+            ])
+            ->get();
+        if ($rows->isEmpty()) {
+            return null;
+        }
+        $rows = $rows->map(function ($row) {
+            $row->additional_document = $row->additional_document
+                ? json_decode($row->additional_document, true)
+                : null;
+            return $row;
+        });
+        return  $rows->first();
+    }
+
+    public function getKmkAdditionalDocument(string $trxNo)
+    {
+        $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
+            ->join('multiguna_trx_kredit_mikro_kecil as mtkmk', 'tph.trx_no', '=', 'mtkmk.trx_no')
+            ->join('trx_debitur as td', 'td.kredit_mikro_trx_id', '=', 'mtkmk.id_multiguna_kredit_mikro_kecil')
+            ->where('tph.trx_no', $trxNo);
+        $debiturCount = (clone $base)->count();
+        $pfJsonMatch = $debiturCount === 1
+            ? "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = tph.no_surat_permohonan"
+            : "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = md.no_sp_detail";
+
+        $rows = (clone $base)
+            ->join('penjaminan_flow as pf', function ($join) use ($pfJsonMatch) {
+                $join->on('pf.trx_no', '=', 'tph.trx_no')
+                    ->where('pf.trx_status', '=', 'AD')
+                    ->whereRaw($pfJsonMatch);
+            })
+            ->select([
+                'tph.trx_no',
+                'tph.no_surat_permohonan',
+                'tph.trx_status',
+                'md.debitur_name',
+                'md.no_sp_detail',
+                'md.no_sp_core_debitur',
+                'pf.additional_document',
+            ])
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+        $rows->transform(function ($row) {
+            $row->additional_document = $row->additional_document
+                ? json_decode($row->additional_document, true)
+                : null;
+            return $row;
+        });
+
+        return $rows->count() === 1 ? $rows->first() : $rows;
+    }
+
+    public function getKreditUsahaAdditionalDocument(string $trxNo) {
+         $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
+            ->join('kredit_usaha_transaction as kut', 'tph.trx_no', '=', 'kut.trx_no')
+            ->join('trx_debitur as td', 'td.kredit_usaha_trx_id', '=', 'kut.id_kredit_usaha_transaction')
+            ->where('tph.trx_no', $trxNo);
+        $debiturCount = (clone $base)->count();
+        $pfJsonMatch = $debiturCount === 1
+            ? "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = tph.no_surat_permohonan"
+            : "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = td.no_sp_detail";
+
+        $rows = (clone $base)
+            ->join('penjaminan_flow as pf', function ($join) use ($pfJsonMatch) {
+                $join->on('pf.trx_no', '=', 'tph.trx_no')
+                    ->where('pf.trx_status', '=', 'AD')
+                    ->whereRaw($pfJsonMatch);
+            })
+            ->select([
+                'tph.trx_no',
+                'tph.no_surat_permohonan',
+                'tph.trx_status',
+                'td.nama_nasabah as debitur_name',
+                'td.no_sp_detail',
+                'td.no_sp_core_debitur',
+                'pf.additional_document',
+            ])
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+        $rows->transform(function ($row) {
+            $row->additional_document = $row->additional_document
+                ? json_decode($row->additional_document, true)
+                : null;
+            return $row;
+        });
+
+        return $rows->count() === 1 ? $rows->first() : $rows;
+    }
+
+    public function getKreditUsahaRakyatAdditionalDocument(string $trxNo) {
+        $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
+            ->join('kur_transaction as kt', 'tph.trx_no', '=', 'kt.trx_no')
+            ->join('trx_debitur as td', 'td.kur_trx_id', '=', 'kt.id_kur')
+            ->where('tph.trx_no', $trxNo);
+        $debiturCount = (clone $base)->count();
+        $pfJsonMatch = $debiturCount === 1
+            ? "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = tph.no_surat_permohonan"
+            : "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = td.no_sp_detail";
+
+        $rows = (clone $base)
+            ->join('penjaminan_flow as pf', function ($join) use ($pfJsonMatch) {
+                $join->on('pf.trx_no', '=', 'tph.trx_no')
+                    ->where('pf.trx_status', '=', 'AD')
+                    ->whereRaw($pfJsonMatch);
+            })
+            ->select([
+                'tph.trx_no',
+                'tph.no_surat_permohonan',
+                'tph.trx_status',
+                'td.nama_nasabah as debitur_name',
+                'td.no_sp_detail',
+                'td.no_sp_core_debitur',
+                'pf.additional_document',
+            ])
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+        $rows->transform(function ($row) {
+            $row->additional_document = $row->additional_document
+                ? json_decode($row->additional_document, true)
+                : null;
+            return $row;
+        });
+
+        return $rows->count() === 1 ? $rows->first() : $rows;
+    }
+
+    public function getKKPBJAdditionalDocument(string $trxNo) {
+         $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
+            ->join('multiguna_trx_kreditkonstruksi as mtk', 'tph.trx_no', '=', 'mtk.trx_no')
+            ->join('trx_debitur_construction as tdc', 'tdc.id_multiguna_konstruksi', '=', 'mtk.id_multiguna_konstruksi')
+            ->where('tph.trx_no', $trxNo);
+        $debiturCount = (clone $base)->count();
+        $pfJsonMatch = $debiturCount === 1
+            ? "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = tph.no_surat_permohonan"
+            : "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = tdc.no_sp_detail";
+
+        $rows = (clone $base)
+            ->join('penjaminan_flow as pf', function ($join) use ($pfJsonMatch) {
+                $join->on('pf.trx_no', '=', 'tph.trx_no')
+                    ->where('pf.trx_status', '=', 'AD')
+                    ->whereRaw($pfJsonMatch);
+            })
+            ->select([
+                'tph.trx_no',
+                'tph.no_surat_permohonan',
+                'tph.trx_status',
+                'tdc.nama_nasabah as debitur_name',
+                'tdc.no_sp_detail',
+                'tdc.no_sp_core_debitur',
+                'pf.additional_document',
+            ])
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+        $rows->transform(function ($row) {
+            $row->additional_document = $row->additional_document
+                ? json_decode($row->additional_document, true)
+                : null;
+            return $row;
+        });
+
+        return $rows->count() === 1 ? $rows->first() : $rows;
+    }
+
+    public function getKPRAdditionalDocument(string $trxNo) {
+         $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
+            ->join('multiguna_trx_kpr as mtk', 'tph.trx_no', '=', 'mtk.trx_no')
+            ->join('trx_debitur_kpr as tdk', 'tdk.id_multiguna_kpr', '=', 'mtk.id_multiguna_kpr')
+            ->where('tph.trx_no', $trxNo);
+        $debiturCount = (clone $base)->count();
+        $pfJsonMatch = $debiturCount === 1
+            ? "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = tph.no_surat_permohonan"
+            : "JSON_UNQUOTE(JSON_EXTRACT(pf.additional_document, '$.NomorSpDetail')) = tdk.no_sp_detail";
+
+        $rows = (clone $base)
+            ->join('penjaminan_flow as pf', function ($join) use ($pfJsonMatch) {
+                $join->on('pf.trx_no', '=', 'tph.trx_no')
+                    ->where('pf.trx_status', '=', 'AD')
+                    ->whereRaw($pfJsonMatch);
+            })
+            ->select([
+                'tph.trx_no',
+                'tph.no_surat_permohonan',
+                'tph.trx_status',
+                'tdk.nama_nasabah as debitur_name',
+                'tdk.no_sp_detail',
+                'tdk.no_sp_core_debitur',
+                'pf.additional_document',
+            ])
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+        $rows->transform(function ($row) {
+            $row->additional_document = $row->additional_document
+                ? json_decode($row->additional_document, true)
+                : null;
+            return $row;
+        });
+
+        return $rows->count() === 1 ? $rows->first() : $rows;
+    }
 }

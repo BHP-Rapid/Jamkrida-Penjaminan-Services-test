@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Helpers\ApiResponse;
 use App\Helpers\ZipHelper;
 use App\Repositories\PenjaminanTransactionRepository;
 use Illuminate\Support\Facades\Validator;
@@ -242,5 +243,69 @@ class PenjaminanTransactionService
             ], 200);
         } catch (Exception $ex) {
         }
+    }
+
+
+    public function getAdditionalDocProduct(Request $req)
+    {
+        $validator = Validator::make(
+            $req->query(),
+            [
+                'trx_no'  => ['required', 'string'],
+                'product' => ['required', 'string', 'in:mlt,srtb,cstb,kmk,ku,kur,kpr,kkpbj'],
+            ],
+            [
+                'trx_no.required'  => 'trx_no is required',
+                'product.required' => 'product is required',
+                'product.in'       => 'product must be one of: mlt,srtb,cstb,kmk,ku,kur,kpr,kkpbj',
+            ]
+        );
+
+        if ($validator->fails()) {
+            return ApiResponse::validation($validator->errors());
+        }
+
+        $trxNo  = $req->query('trx_no');
+        $product = $req->query('product');
+
+        switch ($product) {
+            case 'mlt':
+                $result = $this->repository->getMltAdditionalDocument($trxNo);
+                break;
+            case 'srtb':
+                $result = $this->repository->getSrtbAdditionalDoc($trxNo);
+                break;
+            case 'cstb':
+                $result = $this->repository->getCstbbAdditionalDocument($trxNo);
+                break;
+            case 'kmk':
+                $result = $this->repository->getKmkAdditionalDocument($trxNo);
+                break;
+            case 'ku':
+                $result = $this->repository->getKreditUsahaAdditionalDocument($trxNo);
+                break;
+            case 'kur':
+                $result = $this->repository->getKreditUsahaRakyatAdditionalDocument($trxNo);
+                break;
+            case 'kkpbj':
+                $result = $this->repository->getKKPBJAdditionalDocument($trxNo);
+                break;
+            case 'kpr':
+                $result = $this->repository->getKPRAdditionalDocument($trxNo);
+                break;
+
+            default:
+                return ApiResponse::error('Invalid product', 422);
+        }
+
+        if (empty($result)) {
+            return ApiResponse::error('Data tidak ditemukan', 404);
+        }
+
+
+        return ApiResponse::success(
+            $result,
+            'Get additional document success'
+        );
     }
 }
