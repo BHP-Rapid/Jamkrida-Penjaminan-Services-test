@@ -53,4 +53,14 @@ class PenjaminanTransactionController extends Controller
             return ApiResponse::error($e->getMessage(), 500);
         }
     }
+
+    public function  GetDetailCertificateByID(Request $req): JsonResponse
+    {
+        try {
+            $result = $this->penjaminanService->getDetailCertificateByID($req);
+            return ApiResponse::success($result);
+        } catch (\Exception $e) {
+            return ApiResponse::error($e->getMessage(), 500);
+        }
+    }
 }

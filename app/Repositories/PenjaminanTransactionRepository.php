@@ -308,8 +308,9 @@ class PenjaminanTransactionRepository
         return $rows->count() === 1 ? $rows->first() : $rows;
     }
 
-    public function getKreditUsahaAdditionalDocument(string $trxNo) {
-         $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
+    public function getKreditUsahaAdditionalDocument(string $trxNo)
+    {
+        $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
             ->join('kredit_usaha_transaction as kut', 'tph.trx_no', '=', 'kut.trx_no')
             ->join('trx_debitur as td', 'td.kredit_usaha_trx_id', '=', 'kut.id_kredit_usaha_transaction')
             ->where('tph.trx_no', $trxNo);
@@ -348,7 +349,8 @@ class PenjaminanTransactionRepository
         return $rows->count() === 1 ? $rows->first() : $rows;
     }
 
-    public function getKreditUsahaRakyatAdditionalDocument(string $trxNo) {
+    public function getKreditUsahaRakyatAdditionalDocument(string $trxNo)
+    {
         $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
             ->join('kur_transaction as kt', 'tph.trx_no', '=', 'kt.trx_no')
             ->join('trx_debitur as td', 'td.kur_trx_id', '=', 'kt.id_kur')
@@ -388,8 +390,9 @@ class PenjaminanTransactionRepository
         return $rows->count() === 1 ? $rows->first() : $rows;
     }
 
-    public function getKKPBJAdditionalDocument(string $trxNo) {
-         $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
+    public function getKKPBJAdditionalDocument(string $trxNo)
+    {
+        $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
             ->join('multiguna_trx_kreditkonstruksi as mtk', 'tph.trx_no', '=', 'mtk.trx_no')
             ->join('trx_debitur_construction as tdc', 'tdc.id_multiguna_konstruksi', '=', 'mtk.id_multiguna_konstruksi')
             ->where('tph.trx_no', $trxNo);
@@ -428,8 +431,9 @@ class PenjaminanTransactionRepository
         return $rows->count() === 1 ? $rows->first() : $rows;
     }
 
-    public function getKPRAdditionalDocument(string $trxNo) {
-         $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
+    public function getKPRAdditionalDocument(string $trxNo)
+    {
+        $base = PenjaminanTransaction::from('transaction_penjaminan_header as tph')
             ->join('multiguna_trx_kpr as mtk', 'tph.trx_no', '=', 'mtk.trx_no')
             ->join('trx_debitur_kpr as tdk', 'tdk.id_multiguna_kpr', '=', 'mtk.id_multiguna_kpr')
             ->where('tph.trx_no', $trxNo);
@@ -466,5 +470,142 @@ class PenjaminanTransactionRepository
         });
 
         return $rows->count() === 1 ? $rows->first() : $rows;
+    }
+
+    public function getDetailCertifiedByIDMLT(string $trxNo)
+    {
+        $query = PenjaminanTransaction::join('multiguna_transaction as mt', 'transaction_penjaminan_header.trx_no', '=', 'mt.trx_no')
+            ->join('multiguna_debitur as md', 'md.multiguna_trx_id', '=', 'mt.id_multiguna')
+            ->where('transaction_penjaminan_header.trx_no', $trxNo)
+            ->select([
+                'transaction_penjaminan_header.trx_no',
+                'transaction_penjaminan_header.no_surat_permohonan',
+                'md.nik',
+                'md.debitur_name as full_name',
+                'md.no_sp_detail',
+                'md.no_sp_core_debitur as sp_polis',
+            ]);
+        $result = $query->get();
+    }
+
+    public function getDetailCertifiedByIDSrtb(string $trxNo)
+    {
+        $query = PenjaminanTransaction::join('surety_bond_transaction as sbt', 'transaction_penjaminan_header.trx_no', '=', 'sbt.trx_no')
+            // ->join('surety_bond_transaction as sbt', 'sbt.multiguna_trx_id', '=', 'mt.id_multiguna')
+            ->where('transaction_penjaminan_header.trx_no', $trxNo)
+            ->select([
+                'transaction_penjaminan_header.trx_no',
+                'transaction_penjaminan_header.no_surat_permohonan',
+                'sbt.principal_name as full_name',
+                'sbt.obligee_name',
+                'sbt.sp_polis',
+                // 'md.no_sp_core_debitur',
+            ]);
+        $result = $query->get();
+        if ($result->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data tidak ditemukan',
+                'data' => null,
+            ], 204);
+        }
+    }
+
+    public function getDetailCertifiedByIDCstb(string $trxNo)
+    {
+        $query = PenjaminanTransaction::join('custom_bond_transaction as cbt', 'transaction_penjaminan_header.trx_no', '=', 'cbt.trx_no')
+            ->where('transaction_penjaminan_header.trx_no', $trxNo)
+            ->select([
+                'transaction_penjaminan_header.trx_no',
+                'transaction_penjaminan_header.no_surat_permohonan',
+                'cbt.principal_name as full_name',
+                'cbt.obligee_name',
+                'cbt.sp_polis',
+            ]);
+        $result = $query->get();
+    }
+
+    public function getDetailCertifiedByIDKmk(string $trxNo)
+    {
+        $query = PenjaminanTransaction::join('multiguna_trx_kredit_mikro_kecil as mtkmk', 'transaction_penjaminan_header.trx_no', '=', 'mtkmk.trx_no')
+            ->join('trx_debitur as td', 'mtkmk.id_multiguna_kredit_mikro_kecil', '=', 'td.kredit_mikro_trx_id')
+            ->join('institution as i', 'i.institution_id', '=', 'td.institution_id')
+            ->where('transaction_penjaminan_header.trx_no', $trxNo)
+            ->select([
+                'transaction_penjaminan_header.trx_no',
+                'transaction_penjaminan_header.no_surat_permohonan',
+                'i.nik',
+                'td.nama_nasabah as full_name',
+                'td.no_sp_detail',
+                'td.no_sp_core_debitur as sp_polis',
+            ]);
+        $result = $query->get();
+    }
+
+    public function getDetailCertifiedByIDKU(string $trxNo)
+    {
+        $query = PenjaminanTransaction::join('multiguna_trx_kredit_mikro_kecil as mtkmk', 'transaction_penjaminan_header.trx_no', '=', 'mtkmk.trx_no')
+            ->join('trx_debitur as td', 'mtkmk.id_multiguna_kredit_mikro_kecil', '=', 'td.kredit_mikro_trx_id')
+            ->join('institution as i', 'i.institution_id', '=', 'td.institution_id')
+            ->where('transaction_penjaminan_header.trx_no', $trxNo)
+            ->select([
+                'transaction_penjaminan_header.trx_no',
+                'transaction_penjaminan_header.no_surat_permohonan',
+                'i.nik',
+                'td.nama_nasabah as full_name',
+                'td.no_sp_detail',
+                'td.no_sp_core_debitur as sp_polis',
+            ]);
+        $result = $query->get();
+    }
+
+    public function getDetailCertifiedByIDKur(string $trxNo)
+    {
+        $query = PenjaminanTransaction::join('kur_transaction as kt', 'transaction_penjaminan_header.trx_no', '=', 'kt.trx_no')
+            ->join('trx_debitur as td', 'kt.id_kur', '=', 'td.kur_trx_id')
+            ->join('institution as i', 'i.institution_id', '=', 'td.institution_id')
+            ->where('transaction_penjaminan_header.trx_no', $trxNo)
+            ->select([
+                'transaction_penjaminan_header.trx_no',
+                'transaction_penjaminan_header.no_surat_permohonan',
+                'i.nik',
+                'td.nama_nasabah as full_name',
+                'td.no_sp_detail',
+                'td.no_sp_core_debitur as sp_polis',
+            ]);
+        $result = $query->get();
+    }
+
+    public function getDetailCertifiedByIDKkpbj(string $trxNo)
+    {
+        $query = PenjaminanTransaction::join('multiguna_trx_kreditkonstruksi as mtk', 'transaction_penjaminan_header.trx_no', '=', 'mtk.trx_no')
+            ->join('trx_debitur_construction as tdc', 'mtk.id_multiguna_konstruksi', '=', 'td.id_multiguna_konstruksi')
+            ->join('institution as i', 'i.institution_id', '=', 'tdc.institution_id')
+            ->where('transaction_penjaminan_header.trx_no', $trxNo)
+            ->select([
+                'transaction_penjaminan_header.trx_no',
+                'transaction_penjaminan_header.no_surat_permohonan',
+                'i.nik',
+                'tdc.nama_proyek as full_name',
+                'tdc.no_sp_detail',
+                'tdc.no_sp_core_debitur as sp_polis',
+            ]);
+        $result = $query->get();
+    }
+
+    public function getDetailCertifiedByIDKpr(string $trxNo)
+    {
+        $query = PenjaminanTransaction::join('multiguna_trx_kredit_mikro_kecil as mtkmk', 'transaction_penjaminan_header.trx_no', '=', 'mtkmk.trx_no')
+            ->join('trx_debitur as td', 'mtkmk.id_multiguna_kredit_mikro_kecil', '=', 'td.kredit_mikro_trx_id')
+            ->where('transaction_penjaminan_header.trx_no',$trxNo)
+            ->select([
+                'transaction_penjaminan_header.trx_no',
+                'transaction_penjaminan_header.no_surat_permohonan',
+                'td.nik',
+                'td.nama_nasabah as full_name',
+                'td.no_sp_detail',
+                'td.no_sp_core_debitur as sp_polis',
+            ]);
+        $result = $query->get();
     }
 }

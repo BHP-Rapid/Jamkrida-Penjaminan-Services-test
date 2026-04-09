@@ -308,4 +308,46 @@ class PenjaminanTransactionService
             'Get additional document success'
         );
     }
+
+    public function getDetailCertificateByID(Request $req)
+    {
+        $validator = Validator::make($req->all(), [
+            'trx_no' => 'required',
+            'product' => 'required',
+        ]);
+        if ($validator->fails()) {
+            return ApiResponse::validation($validator->errors());
+        }
+        $input = $validator->validated();
+        switch ($input['product']) {
+            case 'mlt':
+                $result = $this->repository->getDetailCertifiedByIDMLT($input['trx_no']);
+                break;
+            case 'srtb':
+                $result = $this->repository->getDetailCertifiedByIDSrtb($input['trx_no']);
+            case 'cstb':
+                $result = $this->repository->getDetailCertifiedByIDCstb($input['trx_no']);
+            case 'kmk':
+                $result = $this->repository->getDetailCertifiedByIDKmk($input['trx_no']);
+                break;
+            case 'ku':
+                $result = $this->repository->getDetailCertifiedByIDKU($input['trx_no']);
+                break;
+            case 'kur':
+                $result = $this->repository->getDetailCertifiedByIDKur($input['trx_no']);
+                break;
+            case 'kkpbj':
+                $result = $this->repository->getDetailCertifiedByIDKkpbj($input['trx_no']);
+                break;
+            case 'kpr':
+                $result = $this->repository->getDetailCertifiedByIDKpr($input['trx_no']);
+                break;
+            default:
+                return ApiResponse::error('Invalid product', 422);
+        }
+        if (empty($result)) {
+            return ApiResponse::error('Data tidak ditemukan', 404);
+        }
+        return ApiResponse::success($result, 'Success get data');
+    }
 }
