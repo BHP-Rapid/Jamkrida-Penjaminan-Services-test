@@ -4,9 +4,11 @@ namespace App\Http\Controllers\CustomBondServices;
 
 use App\Http\Controllers\Controller;
 use App\Services\CustomBondServices\CustomBond as CustomBondServicesCustomBondTransactionService;
+use App\Services\PenjaminanService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Foundation\Validation\ValidatesRequests;
+use Exception;
 
 class CustomBondTransactionController extends Controller
 {
@@ -119,6 +121,31 @@ class CustomBondTransactionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function ApprovePenjaminanCSTB(Request $request)
+    {
+        $trx_no = $request->trxNo;
+        // dd($trx_no);
+        $method = $request->method();
+        $fullUrl = $request->fullUrl();
+        try {
+            (new PenjaminanService())->approveCSTBPenjaminan(
+                $trx_no,
+                auth('sanctum')->user()->user_id,
+                auth('sanctum')->user()->name,
+                "Perorangan"
+            );
+            return response()->json([
+                'success' => true,
+                'message' => 'Penjaminan Custom Bond successfully approved.'
+            ]);
+        } catch (Exception $ex) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error while approving Penjaminan Custom Bond (' . $ex->getMessage() . ')'
             ], 500);
         }
     }
