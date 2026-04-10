@@ -15,3 +15,4 @@ Route::prefix('/v2/penjaminan/multiguna')->group(function () {
 Route::get('/v2/penjaminan/penjaminan-custom-bond-byid', [CustomBondTransactionController::class, 'show']);
 Route::post('/v2/penjaminan/custom-bond/create', [CustomBondTransactionController::class, 'store']);
 Route::post('/v2/penjaminan/custom-bond/update-draft/{trxNo}', [CustomBondTransactionController::class, 'updateDraft']);
+Route::post('/v2/penjaminan/custom-bond/approved-penjaminan', [CustomBondTransactionController::class, 'ApprovePenjaminanCSTB']);
