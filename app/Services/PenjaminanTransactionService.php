@@ -6,15 +6,9 @@ use App\Helpers\ApiResponse;
 use App\Helpers\ZipHelper;
 use App\Repositories\PenjaminanTransactionRepository;
 use Illuminate\Support\Facades\Validator;
-use App\Models\PenjaminanTransaction;
-use App\Models\PenjaminanLampiranDtl;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-
 
 
 class PenjaminanTransactionService
@@ -261,9 +255,9 @@ class PenjaminanTransactionService
             ]
         );
 
-        if ($validator->fails()) {
-            return ApiResponse::validation($validator->errors());
-        }
+        // if ($validator->fails()) {
+        //     return ApiResponse::validation($validator->errors());
+        // }
 
         $trxNo  = $req->query('trx_no');
         $product = $req->query('product');
@@ -316,7 +310,7 @@ class PenjaminanTransactionService
             'product' => 'required',
         ]);
         if ($validator->fails()) {
-            return ApiResponse::validation($validator->errors());
+            // return ApiResponse::validation($validator->errors());
         }
         $input = $validator->validated();
         switch ($input['product']) {
