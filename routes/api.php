@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CustomBondServices\CustomBondTransactionController;
 use App\Http\Controllers\MultigunaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PenjaminanTransactionController;
@@ -11,3 +12,7 @@ Route::prefix('/v2/penjaminan/multiguna')->group(function () {
     Route::get('/detail/{id}', [MultigunaController::class, 'show']);
 });
 
+Route::get('/v2/penjaminan/penjaminan-custom-bond-byid', [CustomBondTransactionController::class, 'show']);
+Route::post('/v2/penjaminan/custom-bond/create', [CustomBondTransactionController::class, 'store']);
+Route::post('/v2/penjaminan/custom-bond/update-draft/{trxNo}', [CustomBondTransactionController::class, 'updateDraft']);
+Route::post('/v2/penjaminan/custom-bond/approved-penjaminan', [CustomBondTransactionController::class, 'ApprovePenjaminanCSTB']);
