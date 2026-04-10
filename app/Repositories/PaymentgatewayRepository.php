@@ -20,6 +20,16 @@ class PaymentgatewayRepository
                 'sbt.*',
                 'inst.*'
             ])
-            ->first(); // ✅ object
+            ->first();
+    }
+
+    public function getTenorByProductId(string $productId)
+    {
+        return SuretyBondTenorSchedule::where('id_trx_product', $productId)->first();
+    }
+
+    public function getLastPaymentByInvoiceId(string $invoiceId)
+    {
+        return TrxSrtbPaymentGateway::where('srtb_invoice_id', $invoiceId)->orderByDesc('srtb_payment_id')->first();
     }
 }
