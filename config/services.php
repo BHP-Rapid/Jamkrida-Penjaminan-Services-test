@@ -34,5 +34,10 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'secure' => [
+        'key' => env('AES_SECRET_KEY', 'bQ6Gs0OjSN0q119PYytRlYMvQ+3Ue71wTEa/0ldiH3M='),
+        'hash_key' => env('SECURE_HASH_KEY'),
+
+    ],
 
 ];
