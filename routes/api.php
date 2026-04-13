@@ -25,3 +25,6 @@ Route::get('/v2/penjaminan/surety-bond/detail', [SuretyBondTransactionController
 Route::post('/v2/penjaminan/surety-bond/create', [SuretyBondTransactionController::class, 'store']);
 Route::post('/v2/penjaminan/surety-bond/update-draft/{trxNo}', [SuretyBondTransactionController::class, 'update']);
 Route::post('/v2/penjaminan/surety-bond/submit-draft/{trxNo}', [SuretyBondTransactionController::class, 'submitDraft']);
+Route::post('/v2/penjaminan/surety-bond/approved-penjaminan', [SuretyBondTransactionController::class, 'approvePenjaminannSB']);
+Route::get('/v2/penjaminan/detail-payment-surety-bond', [SuretyBondTransactionController::class, 'getDetailPaymentSrtb']);
+Route::post('/v2/penjaminan/surety-bond/upload-bukti-bayar-manual', [SuretyBondTransactionController::class, 'uploadPembayaranManual']);

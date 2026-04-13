@@ -79,4 +79,46 @@ class SuretyBondTransactionController extends Controller
             return $this->errorResponse($e);
         }
     }
+
+    public function approvePenjaminanSB(Request $request)
+    {
+        try {
+            $message = $this->service->handleApprovePenjaminanSB($request);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message
+            ]);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    public function getDetailPaymentSrtb(Request $request)
+    {
+        try {
+            $data = $this->service->handleGetDetailPaymentSrtb($request);
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    public function uploadPembayaranManual(Request $request)
+    {
+        try {
+            $message = $this->service->handleUploadPembayaranManual($request);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message
+            ]);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e);
+        }
+    }
 }
