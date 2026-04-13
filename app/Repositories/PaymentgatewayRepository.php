@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\PenjaminanTransaction;
 use App\Models\SuretyBondTenorSchedule;
+use App\Models\TrxPaymentGateway;
 use App\Models\TrxSrtbPaymentGateway;
 
 class PaymentgatewayRepository
@@ -33,5 +34,10 @@ class PaymentgatewayRepository
     public function getLastPaymentByInvoiceId(string $invoiceId)
     {
         return TrxSrtbPaymentGateway::where('srtb_invoice_id', $invoiceId)->orderByDesc('srtb_payment_id')->first();
+    }
+
+    public function cancelPaymentMlt(string $orderId)
+    {
+        return TrxPaymentGateway::where('order_id', $orderId)->orderByDesc('srtb_payment_id')->first();
     }
 }
