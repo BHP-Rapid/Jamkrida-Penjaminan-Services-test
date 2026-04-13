@@ -4,7 +4,10 @@ namespace App\Services;
 
 use App\Helpers\AesHelper;
 use App\Helpers\ApiResponse;
+use App\Helpers\GenerateInvoiceMidtrans;
+use App\Models\TrxSrtbInvoiceHeader;
 use App\Repositories\PaymentgatewayRepository;
+use App\Services\PaymentGateway\PaymentHandlerFactory;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +26,6 @@ class PaymentGatewayService
     public function createPayment(Request $request): JsonResponse
     {
         try {
-            // 🔥 CONFIG MIDTRANS
             Config::$serverKey    = config('midtrans.server_key');
             Config::$isProduction = (bool) config('midtrans.is_production', false);
             Config::$isSanitized  = true;
@@ -42,6 +44,9 @@ class PaymentGatewayService
             $debiturList =  $input['debiturList'];
             if ($input['product'] === 'srtb') {
                 $results = $this->handlePaymentSrtb($input, $nowJakarta, $debiturList, $key);
+            }
+            if ($input['product'] === 'cstb') {
+                // $result = $this->handlePaymentCstb()
             }
 
             DB::commit();
@@ -78,11 +83,8 @@ class PaymentGatewayService
         $checkPayment = null;
         if (!empty($normalInvoice) && !empty($collateralInvoice)) {
             $totalIjp = (int) $normalInvoice['amount'] + $collateralInvoice['amount'];
-            $getDataTenor = SuretyBondTenorSchedule::where('id_trx_product', $dataHeader->id_trx_product)
-                ->first();
-            $checkPayment = TrxSrtbPaymentGateway::where('srtb_invoice_id', $getDataTenor->invoice_id)
-                ->orderBy('srtb_payment_id', 'desc')
-                ->first();
+            $getDataTenor = $this->repository->getTenorByProductId($dataHeader->id_trx_product);
+            $checkPayment = $this->repository->getLastPaymentByInvoiceId($getDataTenor->invoice_id);
             if (empty($checkPayment)) {
                 $invoiceHeaderSrtb = TrxSrtbInvoiceHeader::create([
                     'srtb_schedule_id' => $getDataTenor->srtb_schedule_id,
@@ -109,11 +111,8 @@ class PaymentGatewayService
         } else if (!empty($normalInvoice) && empty($collateralInvoice)) {
             // dd('test2');
             $totalIjp = (int) $normalInvoice['amount'];
-            $getDataTenor = SuretyBondTenorSchedule::where('id_trx_product', $dataHeader->id_trx_product)
-                ->first();
-            $checkPayment = TrxSrtbPaymentGateway::where('srtb_invoice_id', $getDataTenor->invoice_id)
-                ->orderBy('srtb_payment_id', 'desc')
-                ->first();
+            $getDataTenor = $this->repository->getTenorByProductId($dataHeader->id_trx_product);
+            $checkPayment = $this->repository->getLastPaymentByInvoiceId($getDataTenor->invoice_id);
             if (empty($checkPayment)) {
                 $invoiceHeaderSrtb = TrxSrtbInvoiceHeader::create([
                     'srtb_schedule_id' => $getDataTenor->srtb_schedule_id,
@@ -137,12 +136,8 @@ class PaymentGatewayService
                 'name'  => "IJP dengan Nomor Permohonan {$dataHeader->no_surat_permohonan}",
             ];
         } else if (empty($normalInvoice) && !empty($collateralInvoice)) {
-            // dd('test3');
-            $getDataTenor = SuretyBondTenorSchedule::where('id_trx_product', $dataHeader->id_trx_product)
-                ->first();
-            $checkPayment = TrxSrtbPaymentGateway::where('srtb_invoice_id', $getDataTenor->invoice_id)
-                ->orderBy('srtb_payment_id', 'desc')
-                ->first();
+            $getDataTenor = $this->repository->getTenorByProductId($dataHeader->id_trx_product);
+            $checkPayment = $this->repository->getLastPaymentByInvoiceId($getDataTenor->invoice_id);
             if (empty($checkPayment)) {
                 $invoiceHeaderSrtb = TrxSrtbInvoiceHeader::create([
                     'srtb_schedule_id' => $getDataTenor->srtb_schedule_id,
@@ -167,40 +162,145 @@ class PaymentGatewayService
                 'name'  => "Collateral dengan Nomor Permohonan {$dataHeader->no_surat_permohonan}",
             ];
         }
+        $params = [
+            'transaction_details' => [
+                'order_id'     => $orderId,
+                'gross_amount' => $totalIjp,
+            ],
+            'customer_details' => $customers,
+            'item_details'     => $items,
+        ];
+        if (empty($checkPayment)) {
+            $created = $this->createNewPayment($params, $input['product'], $invoiceHeaderSrtb, $orderId, $totalIjp, $nowJakarta);
+            $results[] = [
+                'status' => 'Unpaid',
+                'order_id' => $created['order_id'],
+                'redirect_url' => $created['redirect_url'],
+                'token' => $created['token'],
+            ];
+        } else {
+            $invoiceHeader = TrxSrtbInvoiceHeader::where('srtb_invoice_id', $checkPayment->srtb_invoice_id)->first();
+            $updated = $this->updateNewPayment($params,  $input['product'], $invoiceHeader, $orderId, $totalIjp, $nowJakarta);
+            $results[] = [
+                'status' => 'Unpaid',
+                'order_id' => $updated['order_id'],
+                'redirect_url' => $updated['redirect_url'],
+                'token' => $updated['token']
+            ];
+        }
     }
 
-    // private function handleMltPayment(array $input, $nowJakarta)
-    // {
-    //     $results = [];
-    //     $tenorId = $input['tenorId'];
-    //     $idList = collect($input['debiturList'])
-    //         ->pluck('IdDebitur')
-    //         ->filter()
-    //         ->values()
-    //         ->all();
-    //     $dataHeader = PenjaminanTransaction::query()
-    //         ->from('transaction_penjaminan_header as tph')
-    //         ->join('multiguna_transaction as mt', 'tph.trx_no', '=', 'mt.trx_no')
-    //         ->where('tph.trx_no', $input['trx_no'])
-    //         ->where('tph.no_surat_permohonan', $input['noSuratPermohonan'])
-    //         ->select(['tph.*', 'mt.*'])
-    //         ->first();
 
-    //     if (!$dataHeader) {
-    //         throw new Exception('Data tidak ditemukan');
-    //     }
 
-    //     $dataDebitur = MultigunaDebitur::where('multiguna_trx_id', $dataHeader->id_multiguna)
-    //         ->whereIn('id_trx_debitur', $idList)
-    //         ->get();
 
-    //     if ($dataDebitur->isEmpty()) {
-    //         throw new Exception('Data Debitur tidak ditemukan');
-    //     }
+    private function createNewPayment(array $params, string $product, mixed $invoiceFP, string $orderId, int|float $ijp, $nowJakarta): array
+    {
+        $snap = GenerateInvoiceMidtrans::createSnapToken($params);
+        if (!$snap['success']) {
+            throw new \RuntimeException(
+                "Midtrans Snap error ({$snap['http_status']}): " .
+                    ($snap['message'] ?? 'Unknown error')
+            );
+        }
 
-    //     if ($dataDebitur->count() > 1) {
-    //         return $this->handleMultipleDebitur($dataHeader, $dataDebitur, $tenorId, $nowJakarta);
-    //     }
-    //     return $this->handleSingleDebitur($dataHeader, $dataDebitur, $tenorId, $nowJakarta);
-    // }
+        $snapToken = $snap['token'];
+        $combineToken = $snap['redirect_url'];
+
+        $handler = PaymentHandlerFactory::make($product);
+
+        $handler->create(
+            $invoiceFP,
+            $ijp,
+            $orderId,
+            $snapToken,
+            $combineToken,
+            $nowJakarta
+        );
+
+        return [
+            'token' => $snapToken,
+            'redirect_url' => $combineToken,
+            'order_id' => $orderId,
+        ];
+    }
+
+
+    private function updateNewPayment(array $params, string $product, mixed $invoiceFP, string $orderId, int | float $ijp, $nowJakarta): array
+    {
+        // $audit = new AuditTransactionService();
+        $snap = GenerateInvoiceMidtrans::createSnapToken($params);
+
+        if (!$snap['success']) {
+            throw new \RuntimeException(
+                "Midtrans Snap error ({$snap['http_status']}): " .
+                    ($snap['message'] ?? 'Unknown error')
+            );
+        }
+        $snapToken    = $snap['token'];
+        $combineToken = $snap['redirect_url'];
+
+        // Resolve Handler Based On Product
+        $handler = PaymentHandlerFactory::make($product);
+
+        // Update Existing Payment Record
+        $handler->update(
+            $invoiceFP,
+            $ijp,
+            $orderId,
+            $snapToken,
+            $combineToken,
+            $nowJakarta
+        );
+
+        return [
+            'success'      => true,
+            'token'        => $snapToken,
+            'redirect_url' => $combineToken,
+            'order_id'     => $orderId,
+        ];
+        // if (!$snap['success']) {
+        //     throw new \RuntimeException(
+        //         "Midtrans Snap error ({$snap['http_status']}): " .
+        //             ($snap['message'] ?? 'Unknown error')
+        //     );
+        //     $auditPayload = [
+        //         'body' => $params,
+        //         'midtrans' => [
+        //             'endpoint'    => $snap['redirect_url'] ?? null,
+        //             'http_status' => $snap['http_status'] ?? null,
+        //             'success'     => (bool) ($snap['success'] ?? false),
+        //             'message'     => $snap['message'] ?? null,
+        //             'raw'         => $snap['raw'] ?? null,
+        //             'order_id'    => $orderId,
+        //             'product'     => $product,
+        //             'action'      => 'update_payment',
+        //         ],
+        //     ];
+        //     $isSuccess = (bool) $snap['success'];
+        //     // $auditOk = $audit->logAuditTrail(
+        //     //     'POST',
+        //     //     $snap['redirect_url'] ?? null,
+        //     //     null,
+        //     //     auth('sanctum')->user()->email,
+        //     //     auth('sanctum')->user()->role,
+        //     //     json_encode($auditPayload),
+        //     //     auth('sanctum')->user()->user_id,
+        //     //     auth('sanctum')->user()->name,
+        //     //     $snap['success'] ? true :  false
+        //     // );
+
+        //     // if (!$auditOk) {
+        //     //     throw new \Exception("Failed to insert audit trail record.");
+        //     // }
+        //     // if (!$snap['success']) {
+        //     //     return response()->json([
+        //     //         'success' => false,
+        //     //         'message' => "Midtrans Snap error ({$snap['http_status']}): " . ($snap['message'] ?? 'Unknown error'),
+        //     //         'errors'  => $snap['raw'] ?? null,
+        //     //     ], 500);
+        //     // }
+
+        // }
+
+    }
 }

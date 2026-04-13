@@ -3,6 +3,8 @@
 namespace App\Repositories;
 
 use App\Models\PenjaminanTransaction;
+use App\Models\SuretyBondTenorSchedule;
+use App\Models\TrxSrtbPaymentGateway;
 
 class PaymentgatewayRepository
 {
