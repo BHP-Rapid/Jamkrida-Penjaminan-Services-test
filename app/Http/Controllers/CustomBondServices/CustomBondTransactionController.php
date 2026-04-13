@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\CustomBondServices;
 
+use App\Helpers\AesHelper;
 use App\Http\Controllers\Controller;
+use App\Models\PenjaminanTransaction;
 use App\Services\CustomBondServices\CustomBond as CustomBondServicesCustomBondTransactionService;
 use App\Services\PenjaminanService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Exception;
+use Illuminate\Support\Facades\Log;
 
 class CustomBondTransactionController extends Controller
 {
@@ -147,6 +150,156 @@ class CustomBondTransactionController extends Controller
                 'success' => false,
                 'message' => 'Error while approving Penjaminan Custom Bond (' . $ex->getMessage() . ')'
             ], 500);
+        }
+    }
+
+    public function uploadPembayaranManual(Request $request)
+    {
+        $this->validate($request, [
+            'trx_no' => 'required|string|max:50',
+            'amount' => 'required|numeric',
+            'selected_items' => 'required|string',
+            'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
+        ]);
+
+        $service = new CustomBondServicesCustomBondTransactionService;
+
+        try {
+            $result = $service->processUploadPembayaranManual($request);
+
+            return response()->json([
+                'success' => true,
+                'message' => $result
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], $e->getCode() ?: 500);
+        }
+    }
+
+    public function submitDraft(Request $request, string $trxNo)
+    {
+        $this->validate($request, [
+            'data.noSuratPermohonan' => 'required|string|max:50',
+            'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
+            'data.jenisBond' => 'required|string|max:8',
+            'data.jenisPernyataan' => 'required|string|max:50',
+            'data.skemaPenalty' => 'required|string|max:50',
+            'data.sektor' => 'required|string|max:50',
+            'data.namaPrincipal' => 'required|string|max:255',
+            'data.namaObligee' => 'required|string|max:255',
+            'data.isBast' => 'required|boolean',
+            'data.namaProyek' => 'required|string|max:100',
+            'data.nilaiProyek' => 'required|numeric|min:0',
+            'data.nilaiBond' => 'required|numeric|min:0',
+            'data.nilaiBondPersentase' => 'required|numeric|min:0',
+            'data.periodeAwalBerlaku' => 'required|date_format:Y-m-d',
+            'data.periodeAkhirBerlaku' => 'required|date_format:Y-m-d',
+            'data.jangkaWaktu' => 'required|numeric|min:0',
+            'data.propinsi' => 'required|string|max:50',
+            'data.jenisSuratPerjanjian' => 'required|string|max:64',
+            'data.noSuratPerjanjian' => 'required|string|max:64',
+            'data.tglSuratPerjanjian' => 'required|date_format:Y-m-d',
+            'data.lampiranEdit' => 'nullable|array',
+            'data.lampiranEdit.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'data.lampiranEdit.*.lampiran_id' => 'required|string',
+            'data.tarif' => 'nullable|numeric|min:0'
+        ]);
+
+        $service = new CustomBondServicesCustomBondTransactionService();
+
+        try {
+            return $service->processSubmitDraft($request, $trxNo);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], $e->getCode() ?: 500);
+        }
+    }
+
+    public function GetDetailPaymentCstb(Request $request)
+    {
+        $key = base64_decode(config('services.secure.key'));
+        // dd($request);
+        try {
+            $no_surat_permohonan = $request->query('no_surat_permohonan');
+            $trx_no              = $request->query('trx_no');
+            $isSplit             = (int) $request->query('is_split', null);
+            $data = [];
+            $resultPending = [];
+            $dataPending = PenjaminanTransaction::query()
+                ->from('transaction_penjaminan_header as tph')
+                ->join('custom_bond_transaction as cbt', 'tph.trx_no', '=', 'cbt.trx_no')
+                ->join('institution as inst', 'cbt.id_institution', '=', 'inst.id')
+                ->join('custombond_tenor_schedule as cts', 'cbt.id_bond', '=', 'cts.id_bond')
+                ->where('tph.trx_no', $trx_no)
+                ->where('cts.status', 'Pending')
+                ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+                ->where('tph.sp_split', $isSplit)
+                ->select([
+                    'cts.cstb_schedule_id',
+                    'cts.id_bond',
+                    'inst.id_number',
+                    'inst.id_type',
+                    'inst.full_name',
+                    'cts.amount',
+                    'cts.invoice_number',
+                    'cts.due_date',
+                    'cts.status',
+                    'cts.tenor_sequence'
+                ])->first();
+            $dataPending
+                ? $resultPending[] = [
+                    'schedule_id'     => $dataPending->cstb_schedule_id,
+                    'id_trx_product'  => $dataPending->id_trx_product,
+                    'id_number'       => AesHelper::decrypt($dataPending->id_number, $key),
+                    'id_type'         => $dataPending->id_type,
+                    'full_name'       => $dataPending->full_name,
+                    'amount'          => $dataPending->amount,
+                    'invoice_number'  => $dataPending->invoice_number,
+                    'due_date'        => $dataPending->due_date,
+                    'status'          => $dataPending->status,
+                    'tenor_sequence'  => $isSplit ? $dataPending->tenor_sequence : 0,
+                ]
+                : $dataPending = [];
+
+            $dataUnpaid  = PenjaminanTransaction::query()
+                ->from('transaction_penjaminan_header as tph')
+                ->join('custom_bond_transaction as cbt', 'tph.trx_no', '=', 'cbt.trx_no')
+                ->join('institution as inst', 'cbt.id_institution', '=', 'inst.id')
+                ->join('custombond_tenor_schedule as cts', 'cts.id_bond', '=', 'cbt.id_bond')
+                ->join('trx_cstb_invoice_header as tcih', 'tcih.cstb_schedule_id', '=', 'cts.cstb_schedule_id')
+                ->join('trx_cstb_payment_gateway as tcpg', 'tcpg.cstb_invoice_id', '=', 'tcih.cstb_invoice_id')
+                ->where('tph.trx_no', $trx_no)
+                ->where('tcih.status', 'Unpaid')
+                ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+                ->where('tph.sp_split', $isSplit)
+                ->select([
+                    'tcpg.order_id',
+                    'tcpg.cstb_payment_id as payment_id',
+                    'tph.trx_no',
+                    'tcpg.payment_amount_ijp as total_amount',
+                    'tcpg.order_payment_token'
+                ])
+                ->get();
+            $data = [
+                'dataHeader' => [
+                    'data_pending' => $resultPending,
+                    'data_unpaid' => $dataUnpaid
+                ]
+            ];
+            return response()->json($data);
+        } catch (Exception $e) {
+            Log::error("Error fetching payment details", [
+                'exception' => $e,
+                'trx_no' => $trx_no ?? null,
+                'no_surat_permohonan' => $no_surat_permohonan ?? null
+            ]);
+
+            return response()->json(['message' => $e->getMessage()], 500);
         }
     }
 }
