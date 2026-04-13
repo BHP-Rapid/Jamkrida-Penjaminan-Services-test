@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Helpers\AesHelper;
 use App\Helpers\ApiResponse;
 use App\Repositories\PaymentgatewayRepository;
 use Carbon\Carbon;
@@ -40,7 +41,7 @@ class PaymentGatewayService
             DB::beginTransaction();
             $debiturList =  $input['debiturList'];
             if ($input['product'] === 'srtb') {
-                $results = $this->handlePaymentSrtb($input, $nowJakarta, $debiturList,$key);
+                $results = $this->handlePaymentSrtb($input, $nowJakarta, $debiturList, $key);
             }
 
             DB::commit();
@@ -50,7 +51,7 @@ class PaymentGatewayService
         }
     }
 
-    private function handlePaymentSrtb(array $input, $nowJakarta, array $debiturList,string $key)
+    private function handlePaymentSrtb(array $input, $nowJakarta, array $debiturList, string $key)
     {
         $dataHeader = $this->repository->getDetailSrtb(
             $input['trx_no'],
@@ -75,6 +76,97 @@ class PaymentGatewayService
         $collateralInvoice = collect($debiturList)->first(fn($x) => !empty($x['isCollateral']));
         $invoiceHeaderSrtb = null;
         $checkPayment = null;
+        if (!empty($normalInvoice) && !empty($collateralInvoice)) {
+            $totalIjp = (int) $normalInvoice['amount'] + $collateralInvoice['amount'];
+            $getDataTenor = SuretyBondTenorSchedule::where('id_trx_product', $dataHeader->id_trx_product)
+                ->first();
+            $checkPayment = TrxSrtbPaymentGateway::where('srtb_invoice_id', $getDataTenor->invoice_id)
+                ->orderBy('srtb_payment_id', 'desc')
+                ->first();
+            if (empty($checkPayment)) {
+                $invoiceHeaderSrtb = TrxSrtbInvoiceHeader::create([
+                    'srtb_schedule_id' => $getDataTenor->srtb_schedule_id,
+                    'invoice_scope' => 'Merge Payment',
+                    'total_amount' => $totalIjp,
+                    'status' => 'Unpaid',
+                    'created_at' => $nowJakarta,
+                    'tenor_sequence' => $input['tenorId'],
+                    'is_manual' => 0
+                ]);
+                $getDataTenor->update([
+                    'status' => 'Unpaid',
+                    'amount' => (int) $normalInvoice['amount']  ?? 0,
+                    'status_collateral' => 'Unpaid',
+                    'collateral_amount' => $collateralInvoice['amount'] ?? 0,
+                ]);
+            }
+            $items[] = [
+                'id'       => (string) $dataHeader->no_surat_permohonan . '-' . ($normalInvoice['invoiceNumber'] ?? ''),
+                'price'    => $totalIjp,
+                'quantity' => 1,
+                'name'  => "IJP dan Premi Permohonan {$dataHeader->no_surat_permohonan}",
+            ];
+        } else if (!empty($normalInvoice) && empty($collateralInvoice)) {
+            // dd('test2');
+            $totalIjp = (int) $normalInvoice['amount'];
+            $getDataTenor = SuretyBondTenorSchedule::where('id_trx_product', $dataHeader->id_trx_product)
+                ->first();
+            $checkPayment = TrxSrtbPaymentGateway::where('srtb_invoice_id', $getDataTenor->invoice_id)
+                ->orderBy('srtb_payment_id', 'desc')
+                ->first();
+            if (empty($checkPayment)) {
+                $invoiceHeaderSrtb = TrxSrtbInvoiceHeader::create([
+                    'srtb_schedule_id' => $getDataTenor->srtb_schedule_id,
+                    'invoice_scope' => 'Permohonan IJP Payment',
+                    'total_amount' => $totalIjp,
+                    'status' => 'Unpaid',
+                    'created_at' => $nowJakarta,
+                    'tenor_sequence' => $input['tenorId'],
+                    'is_manual' => 0
+                ]);
+                $getDataTenor->update([
+                    'status' => 'Unpaid',
+                    'amount' => $totalIjp ?? 0,
+
+                ]);
+            }
+            $items[] = [
+                'id'       => (string) $dataHeader->no_surat_permohonan . '-' . ($normalInvoice['invoiceNumber'] ?? ''),
+                'price'    => $totalIjp,
+                'quantity' => 1,
+                'name'  => "IJP dengan Nomor Permohonan {$dataHeader->no_surat_permohonan}",
+            ];
+        } else if (empty($normalInvoice) && !empty($collateralInvoice)) {
+            // dd('test3');
+            $getDataTenor = SuretyBondTenorSchedule::where('id_trx_product', $dataHeader->id_trx_product)
+                ->first();
+            $checkPayment = TrxSrtbPaymentGateway::where('srtb_invoice_id', $getDataTenor->invoice_id)
+                ->orderBy('srtb_payment_id', 'desc')
+                ->first();
+            if (empty($checkPayment)) {
+                $invoiceHeaderSrtb = TrxSrtbInvoiceHeader::create([
+                    'srtb_schedule_id' => $getDataTenor->srtb_schedule_id,
+                    'invoice_scope' => 'Collateral Payment',
+                    'total_amount' => $collateralInvoice['amount'],
+                    'status' => 'Unpaid',
+                    'created_at' => $nowJakarta,
+                    'tenor_sequence' => $input['tenorId'],
+                    'is_manual' => 0
+                ]);
+                $getDataTenor->update([
+                    'status_collateral' => 'Unpaid',
+                    'collateral_amount' => $collateralInvoice['amount'] ?? 0,
+                ]);
+            }
+            $amount = (int) ($collateralInvoice['amount'] ?? 0);
+            $totalIjp += $amount;
+            $items[] = [
+                'id'       => (string) $dataHeader->no_surat_permohonan . '-' . ($collateralInvoice['invoiceNumber'] ?? ''),
+                'price'    => $amount,
+                'quantity' => 1,
+                'name'  => "Collateral dengan Nomor Permohonan {$dataHeader->no_surat_permohonan}",
+            ];
+        }
     }
 
     // private function handleMltPayment(array $input, $nowJakarta)
