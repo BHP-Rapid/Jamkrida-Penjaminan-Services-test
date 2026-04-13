@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use App\Models\SuretyBondTransaction;
+use Illuminate\Http\Request;
 
 class SuretyBond
 {
@@ -284,7 +285,7 @@ class SuretyBond
             : false;
 
         if ($isBastPenjaminan) {
-            $this->validateBast($request);
+            $this->validateBastStore($request);
         }
 
         [$hasLampiran, $duplicateLampiranId] = $this->validateLampiran($penjaminanPayload);
@@ -438,7 +439,7 @@ class SuretyBond
         }
     }
 
-    private function validateBast($request)
+    private function validateBastStore($request)
     {
         validator($request->all(), [
             'data.noSuratBast' => 'required|string|max:50',
@@ -542,5 +543,408 @@ class SuretyBond
         }
 
         return $result;
+    }
+
+    public function handleUpdate($request, $trxNo)
+    {
+        $user = auth('sanctum')->user();
+
+        $this->validateUpdate($request);
+
+        $penjaminanPayload = collect($request->data)->toArray();
+
+        if (array_key_exists('institution_data', $penjaminanPayload)) {
+            unset($penjaminanPayload['institution_data']);
+        }
+
+        [$lampiranExist, $duplicateLampiranId] = $this->validateLampiranEdit($penjaminanPayload);
+
+        if ($duplicateLampiranId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Duplicate lampiran id.'
+            ], 422);
+        }
+
+        $isBast = $penjaminanPayload['isBast'] ?? false;
+
+        if ($isBast) {
+            $this->validateBastUpdate($request);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $header = PenjaminanTransaction::where('trx_no', $trxNo)
+                ->select('trx_no', 'trx_status')
+                ->first();
+
+            $detail = SuretyBondTransaction::where('trx_no', $trxNo)
+                ->select('id_trx_product')
+                ->first();
+
+            if ($header && $detail && $header->trx_status == 'D') {
+
+                $fallback = function ($key, $default = null) use ($penjaminanPayload) {
+                    return array_key_exists($key, $penjaminanPayload)
+                        ? $penjaminanPayload[$key]
+                        : $default;
+                };
+
+                $now = Carbon::now('Asia/Jakarta');
+
+                PenjaminanTransaction::where('trx_no', $trxNo)
+                    ->update([
+                        'no_surat_permohonan' => $fallback('noSuratPermohonan'),
+                        'tanggal_surat_permohonan' => $fallback('tglSuratPermohonan'),
+                        'sp_split' => $fallback('isSplit'),
+                        'updated_by_id' => $user->user_id,
+                        'updated_by_name' => $user->name,
+                        'updated_at' => $now
+                    ]);
+
+                SuretyBondTransaction::where('trx_no', $trxNo)
+                    ->update($this->buildUpdateDetailPayload($penjaminanPayload, $fallback, $now));
+
+                if ($lampiranExist) {
+                    $attachments = $this->handleLampiranUpdate($penjaminanPayload, $trxNo);
+
+                    if (!empty($attachments)) {
+                        DB::table('penjaminan_lampiran_dtl')->insert($attachments);
+                    }
+                }
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Penjaminan Surety Bond successfully updated.'
+                ]);
+            } else if ($header && $detail) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data is not draft.'
+                ], 422);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Penjaminan data is not found.'
+                ], 400);
+            }
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function validateUpdate($request)
+    {
+        validator($request->all(), [
+            'data.noSuratPermohonan' => 'required|string|max:50',
+            'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
+            'data.isSplit' => 'nullable|boolean',
+            'data.jenisBond' => 'required|string|max:8',
+            'data.jenisPernyataan' => 'nullable|string|max:50',
+            'data.skemaPenalty' => 'nullable|string|max:50',
+            'data.sektor' => 'nullable|string|max:50',
+            'data.namaPrincipal' => 'nullable|string|max:255',
+            'data.namaObligee' => 'nullable|string|max:255',
+            'data.isBast' => 'nullable|boolean',
+            'data.namaProyek' => 'nullable|string|max:100',
+            'data.nilaiProyek' => 'nullable|numeric|min:0',
+            'data.nilaiBond' => 'nullable|numeric|min:0',
+            'data.nilaiBondPersentase' => 'nullable|numeric|min:0',
+            'data.periodeAwalBerlaku' => 'nullable|date_format:Y-m-d',
+            'data.periodeAkhirBerlaku' => 'nullable|date_format:Y-m-d',
+            'data.jangkaWaktu' => 'nullable|numeric|min:0',
+            'data.propinsi' => 'nullable|string|max:50',
+            'data.jenisSuratPerjanjian' => 'nullable|string|max:64',
+            'data.noSuratPerjanjian' => 'nullable|string|max:64',
+            'data.tglSuratPerjanjian' => 'nullable|date_format:Y-m-d',
+            'data.lampiranEdit' => 'nullable|array',
+            'data.lampiranEdit.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'data.lampiranEdit.*.lampiran_id' => 'required|string',
+        ])->validate();
+    }
+
+    private function validateBastUpdate($request)
+    {
+        validator($request->all(), [
+            'data.noSuratBast' => 'required|string|max:50',
+            'data.tglSuratBast' => 'required|date'
+        ])->validate();
+    }
+
+    private function validateLampiranEdit($payload)
+    {
+        $exist = isset($payload['lampiranEdit']) && !empty($payload['lampiranEdit']);
+        $duplicate = false;
+
+        if ($exist) {
+            $ids = array_column($payload['lampiranEdit'], 'lampiran_id');
+            $duplicate = count($ids) !== count(array_unique($ids));
+        }
+
+        return [$exist, $duplicate];
+    }
+
+    private function buildUpdateDetailPayload($payload, $fallback, $now)
+    {
+        return [
+            'jenis_bond' => $fallback('jenisBond'),
+            'jenis_persyaratan' => $fallback('jenisPernyataan'),
+            'skema_penalty' => $fallback('skemaPenalty'),
+            'jenis_surat_perjanjian' => $fallback('jenisSuratPerjanjian'),
+            'no_surat_perjanjian' => $fallback('noSuratPerjanjian'),
+            'tgl_surat_perjanjian' => $fallback('tglSuratPerjanjian'),
+            'sektor' => $fallback('sektor'),
+            'principal_name' => $fallback('namaPrincipal'),
+            'obligee_name' => $fallback('namaObligee'),
+            'is_bast' => $fallback('isBast'),
+            'no_surat_bast' => ($payload['isBast'] ?? false) ? $fallback('noSuratBast') : null,
+            'bast_date' => ($payload['isBast'] ?? false) ? $fallback('tglSuratBast') : null,
+            'project_name' => $fallback('namaProyek'),
+            'project_amount' => $fallback('nilaiProyek'),
+            'amount_bond' => $fallback('nilaiBond'),
+            'bond_percentage' => $fallback('nilaiBondPersentase'),
+            'start_period_date' => $fallback('periodeAwalBerlaku'),
+            'end_period_date' => $fallback('periodeAkhirBerlaku'),
+            'total_day' => $fallback('jangkaWaktu'),
+            'province' => $fallback('propinsi'),
+            'updated_at' => $now,
+            'agunan_amount' => $fallback('nilaiAgunan'),
+        ];
+    }
+
+    private function handleLampiranUpdate($payload, $trxNo)
+    {
+        $existing = PenjaminanLampiranDtl::where('trx_no', $trxNo)
+            ->select('lampiran_id', DB::raw('MAX(version) as version'))
+            ->groupBy('lampiran_id')
+            ->get()
+            ->toArray();
+
+        $result = [];
+
+        foreach ($payload['lampiranEdit'] as $item) {
+            $ext = $item['file']->getClientOriginalExtension();
+            $fn = "{$trxNo}-{$item['lampiran_id']}-srtb-" . uniqid();
+
+            $path = $item['file']->storeAs(
+                'uploads/penjaminan/surety-bond',
+                "$fn.$ext",
+                's3'
+            );
+
+            $searchIndex = array_search(
+                $item['lampiran_id'],
+                array_column($existing, 'lampiran_id')
+            );
+
+            $version = is_numeric($searchIndex)
+                ? $existing[$searchIndex]['version'] + 1
+                : 1;
+
+            $result[] = [
+                'trx_no' => $trxNo,
+                'lampiran_id' => $item['lampiran_id'],
+                'file_name' => $fn,
+                'status_doc' => 'N',
+                'version' => $version,
+                'mime_type' => $item['file']->getMimeType(),
+                'file_info' => $path
+            ];
+        }
+
+        return $result;
+    }
+
+    public function handleSubmitDraft(Request $request, string $trxNo)
+    {
+        $user = auth('sanctum')->user();
+
+        validator($request->all(), [
+            'data.noSuratPermohonan' => 'required|string|max:50',
+            'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
+            'data.isSplit' => 'required|boolean',
+            'data.jenisBond' => 'required|string|max:8',
+            'data.jenisPernyataan' => 'required|string|max:50',
+            'data.skemaPenalty' => 'required|string|max:50',
+            'data.sektor' => 'required|string|max:50',
+            'data.namaPrincipal' => 'required|string|max:255',
+            'data.namaObligee' => 'required|string|max:255',
+            'data.isBast' => 'required|boolean',
+            'data.namaProyek' => 'required|string|max:100',
+            'data.nilaiProyek' => 'required|numeric|min:0',
+            'data.nilaiBond' => 'required|numeric|min:0',
+            'data.nilaiBondPersentase' => 'required|numeric|min:0',
+            'data.periodeAwalBerlaku' => 'required|date_format:Y-m-d',
+            'data.periodeAkhirBerlaku' => 'required|date_format:Y-m-d',
+            'data.jangkaWaktu' => 'required|numeric|min:0',
+            'data.propinsi' => 'required|string|max:50',
+            'data.jenisSuratPerjanjian' => 'required|string|max:64',
+            'data.noSuratPerjanjian' => 'required|string|max:64',
+            'data.tglSuratPerjanjian' => 'required|date_format:Y-m-d',
+            'data.lampiranEdit' => 'nullable|array',
+            'data.lampiranEdit.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'data.lampiranEdit.*.lampiran_id' => 'required|string',
+        ])->validate();
+
+        $payload = collect($request->data)->toArray();
+
+        if (array_key_exists('institution_data', $payload)) {
+            unset($payload['institution_data']);
+        }
+
+        $lampiranExist = array_key_exists('lampiranEdit', $payload) && $payload['lampiranEdit'];
+
+        $duplicateLampiranId = false;
+
+        if ($lampiranExist) {
+            $ids = array_column($payload['lampiranEdit'], 'lampiran_id');
+            $duplicateLampiranId = count(array_unique($ids)) != count($ids);
+        }
+
+        if ($duplicateLampiranId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Duplicate lampiran id.'
+            ], 422);
+        }
+
+        if ($payload['isBast'] == true) {
+            validator($request->all(), [
+                'data.noSuratBast' => 'required|string|max:50',
+                'data.tglSuratBast' => 'required|date'
+            ])->validate();
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $header = PenjaminanTransaction::where('trx_no', $trxNo)
+                ->select('trx_no', 'trx_status')->first();
+
+            $detail = SuretyBondTransaction::where('trx_no', $trxNo)
+                ->select('id_trx_product')->first();
+
+            if ($header && $detail && $header->trx_status == 'D') {
+
+                PenjaminanTransaction::where('trx_no', $trxNo)->update([
+                    'no_surat_permohonan' => $payload['noSuratPermohonan'],
+                    'tanggal_surat_permohonan' => $payload['tglSuratPermohonan'],
+                    'sp_split' => $payload['isSplit'],
+                    'trx_status' => 'NA',
+                    'updated_by_id' => $user->user_id,
+                    'updated_by_name' => $user->name
+                ]);
+
+                SuretyBondTransaction::where('trx_no', $trxNo)->update([
+                    'jenis_bond' => $payload['jenisBond'],
+                    'jenis_persyaratan' => $payload['jenisPernyataan'],
+                    'skema_penalty' => $payload['skemaPenalty'],
+                    'jenis_surat_perjanjian' => $payload['jenisSuratPerjanjian'],
+                    'no_surat_perjanjian' => $payload['noSuratPerjanjian'],
+                    'tgl_surat_perjanjian' => $payload['tglSuratPerjanjian'],
+                    'sektor' => $payload['sektor'],
+                    'principal_name' => $payload['namaPrincipal'],
+                    'obligee_name' => $payload['namaObligee'],
+                    'is_bast' => $payload['isBast'],
+                    'no_surat_bast' => $payload['isBast'] ? $payload['noSuratBast'] : null,
+                    'bast_date' => $payload['isBast'] ? $payload['tglSuratBast'] : null,
+                    'project_name' => $payload['namaProyek'],
+                    'project_amount' => $payload['nilaiProyek'],
+                    'amount_bond' => $payload['nilaiBond'],
+                    'bond_percentage' => $payload['nilaiBondPersentase'],
+                    'start_period_date' => $payload['periodeAwalBerlaku'],
+                    'end_period_date' => $payload['periodeAkhirBerlaku'],
+                    'total_day' => $payload['jangkaWaktu'],
+                    'province' => $payload['propinsi'],
+                    'agunan_amount' => $payload['nilaiAgunan']
+                ]);
+
+                $savedAttachments = [];
+
+                if ($lampiranExist) {
+                    $existing = PenjaminanLampiranDtl::where('trx_no', $trxNo)
+                        ->select('lampiran_id', DB::raw('MAX(version) as version'))
+                        ->groupBy('lampiran_id')
+                        ->get()
+                        ->toArray();
+
+                    foreach ($payload['lampiranEdit'] as $item) {
+                        $file = $item['file'];
+                        $ext = $file->getClientOriginalExtension();
+                        $fn = "{$trxNo}-{$item['lampiran_id']}-srtb-" . uniqid();
+
+                        $path = $file->storeAs(
+                            'uploads/penjaminan/surety-bond',
+                            "$fn.$ext",
+                            's3'
+                        );
+
+                        $index = array_search(
+                            $item['lampiran_id'],
+                            array_column($existing, 'lampiran_id')
+                        );
+
+                        $version = is_numeric($index)
+                            ? $existing[$index]['version'] + 1
+                            : 1;
+
+                        $savedAttachments[] = [
+                            'trx_no' => $trxNo,
+                            'lampiran_id' => $item['lampiran_id'],
+                            'file_name' => $fn,
+                            'status_doc' => 'N',
+                            'version' => $version,
+                            'mime_type' => $file->getMimeType(),
+                            'file_info' => $path
+                        ];
+                    }
+                }
+
+                if (!empty($savedAttachments)) {
+                    DB::table('penjaminan_lampiran_dtl')->insert($savedAttachments);
+                }
+
+                PenjaminanFlow::create([
+                    'trx_no' => $trxNo,
+                    'trx_status' => 'NA',
+                    'created_at' => Carbon::now('Asia/Jakarta'),
+                    'created_by_id' => $user->user_id,
+                    'created_by_name' => $user->name,
+                    'updated_at' => null
+                ]);
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Penjaminan Surety Bond successfully submitted.'
+                ]);
+            } elseif ($header && $detail) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data is not draft.'
+                ], 422);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Penjaminan surety bond data is not found.'
+                ], 400);
+            }
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 }

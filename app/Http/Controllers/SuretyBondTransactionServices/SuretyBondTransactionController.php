@@ -16,15 +16,67 @@ class SuretyBondTransactionController extends Controller
         $this->service = $service;
     }
 
+    private function errorResponse(\Exception $e)
+    {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], $e->getCode() ?: 500);
+    }
+
     public function show(Request $request)
     {
-        $result = $this->service->handleShow($request);
+        try {
+            $data = $this->service->handleShow($request);
 
-        return response()->json($result['response'], $result['status']);
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e);
+        }
     }
 
     public function store(Request $request)
     {
-        return $this->service->handleStore($request);
+        try {
+            $message = $this->service->handleStore($request);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message
+            ]);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    public function update(Request $request, $trxNo)
+    {
+        try {
+            $message = $this->service->handleUpdate($request, $trxNo);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message
+            ]);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    public function submitDraft(Request $request, $trxNo)
+    {
+        try {
+            $message = $this->service->handleSubmitDraft($request, $trxNo);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message
+            ]);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e);
+        }
     }
 }

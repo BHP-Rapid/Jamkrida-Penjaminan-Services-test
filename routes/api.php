@@ -23,3 +23,5 @@ Route::get('/v2/penjaminan/detail-payment-custom-bond', [CustomBondTransactionCo
 
 Route::get('/v2/penjaminan/surety-bond/detail', [SuretyBondTransactionController::class, 'show']);
 Route::post('/v2/penjaminan/surety-bond/create', [SuretyBondTransactionController::class, 'store']);
+Route::post('/v2/penjaminan/surety-bond/update-draft/{trxNo}', [SuretyBondTransactionController::class, 'update']);
+Route::post('/v2/penjaminan/surety-bond/submit-draft/{trxNo}', [SuretyBondTransactionController::class, 'submitDraft']);
