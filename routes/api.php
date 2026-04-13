@@ -16,3 +16,6 @@ Route::get('/v2/penjaminan/penjaminan-custom-bond-byid', [CustomBondTransactionC
 Route::post('/v2/penjaminan/custom-bond/create', [CustomBondTransactionController::class, 'store']);
 Route::post('/v2/penjaminan/custom-bond/update-draft/{trxNo}', [CustomBondTransactionController::class, 'updateDraft']);
 Route::post('/v2/penjaminan/custom-bond/approved-penjaminan', [CustomBondTransactionController::class, 'ApprovePenjaminanCSTB']);
+Route::post('/v2/penjaminan/custom-bond/upload-bukti-bayar-manual', [CustomBondTransactionController::class, 'uploadPembayaranManual']);
+Route::post('/v2/penjaminan/custom-bond/submit-draft/{trxNo}', [CustomBondTransactionController::class, 'submitDraft']);
+Route::get('/v2/penjaminan/detail-payment-custom-bond', [CustomBondTransactionController::class, 'GetDetailPaymentCstb']);
