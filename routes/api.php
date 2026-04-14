@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CustomBondServices\CustomBondTransactionController;
+use App\Http\Controllers\KreditMikroKecilServices\KreditMikroKecilController;
 use App\Http\Controllers\MultigunaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PenjaminanTransactionController;
@@ -33,3 +34,9 @@ Route::post('/v2/penjaminan/surety-bond/submit-draft/{trxNo}', [SuretyBondTransa
 Route::post('/v2/penjaminan/surety-bond/approved-penjaminan', [SuretyBondTransactionController::class, 'approvePenjaminannSB']);
 Route::get('/v2/penjaminan/detail-payment-surety-bond', [SuretyBondTransactionController::class, 'getDetailPaymentSrtb']);
 Route::post('/v2/penjaminan/surety-bond/upload-bukti-bayar-manual', [SuretyBondTransactionController::class, 'uploadPembayaranManual']);
+
+Route::post('/v2/penjaminan/kredit-mikro-kecil/create', [KreditMikroKecilController::class, 'store']);
+Route::post('/v2/penjaminan/kredit-mikro-kecil/approve-penjaminan', [KreditMikroKecilController::class, 'ApprovePenjaminanKMK']);
+Route::get('/v2/penjaminan/template-base/download-template', [KreditMikroKecilController::class, 'DownloadTemplateKMK']);
+Route::put('/v2/penjaminan/kredit-mikro-kecil/update-draft/{trxNo}', [KreditMikroKecilController::class, 'updateDraft']);
+Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-full-kmk', [KreditMikroKecilController::class, 'GetDetailPaymentKMK']);
