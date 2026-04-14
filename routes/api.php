@@ -1,13 +1,16 @@
 <?php
 
+use App\Http\Controllers\CustomBondServices\CustomBondTransactionController;
 use App\Http\Controllers\MultigunaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PenjaminanTransactionController;
+use App\Http\Controllers\SuretyBondTransactionServices\SuretyBondTransactionController;
 
 Route::get('/penjaminan/penjaminan-data', [PenjaminanTransactionController::class, 'index']);
 Route::get('/penjaminan/detail-additional-document', [PenjaminanTransactionController::class, 'getAdditionalDocProduct']);
 Route::get('/penjaminan/detail-certified-permohonan', [PenjaminanTransactionController::class, 'GetDetailCertificateByID']);
 
+Route::get('/penjaminan/detail-certified-permohonan', [PenjaminanTransactionController::class, 'GetDetailCertificateByID']);
 
 
 // PENJAMINAN MULTIGUNA
@@ -15,17 +18,18 @@ Route::prefix('/v2/penjaminan/multiguna')->group(function () {
     Route::get('/detail/{id}', [MultigunaController::class, 'show']);
 });
 
-// Route::post('/v2/penjaminan/multiguna/create', [MultigunaTransactionController::class, 'store']);
-// Route::post('/v2/penjaminan/multiguna/approve-penjaminan', [MultigunaTransactionController::class, 'ApprovePenjaminanMultiguna']);
-// Route::post('/v2/penjaminan/full-payment-multiguna', [MultigunaTransactionController::class, 'MultigunaPayment']);
-// Route::post('/v2/penjaminan/payment-multiguna-split', [MultigunaTransactionController::class, 'MultigunaPaymentSplit']);
+Route::get('/v2/penjaminan/penjaminan-custom-bond-byid', [CustomBondTransactionController::class, 'show']);
+Route::post('/v2/penjaminan/custom-bond/create', [CustomBondTransactionController::class, 'store']);
+Route::post('/v2/penjaminan/custom-bond/update-draft/{trxNo}', [CustomBondTransactionController::class, 'updateDraft']);
+Route::post('/v2/penjaminan/custom-bond/approved-penjaminan', [CustomBondTransactionController::class, 'ApprovePenjaminanCSTB']);
+Route::post('/v2/penjaminan/custom-bond/upload-bukti-bayar-manual', [CustomBondTransactionController::class, 'uploadPembayaranManual']);
+Route::post('/v2/penjaminan/custom-bond/submit-draft/{trxNo}', [CustomBondTransactionController::class, 'submitDraft']);
+Route::get('/v2/penjaminan/detail-payment-custom-bond', [CustomBondTransactionController::class, 'GetDetailPaymentCstb']);
 
-// Route::put('/v2/penjaminan/multiguna/update-draft/{trxNo}', [MultigunaTransactionController::class, 'updateDraft']);
-// Route::get('/v2/penjaminan/payment-status/{orderId}', [MultigunaTransactionController::class, 'getMidTransPayMentStatus']);
-// Route::post('/v2/penjaminan/multiguna/bulk-upload', [BulkUploadPnjV2Controller::class, 'UploadFormDataStaging']);
-// Route::get('/v2/penjaminan/multiguna/bulk-get', [BulkUploadPnjV2Controller::class, 'index']);
-// Route::post('/v2/penjaminan/multiguna/bulk-attachment', [BulkUploadPnjV2Controller::class, 'updateAttachments']);
-// Route::get('/v2/penjaminan/multiguna/bulk-template', [BulkUploadPnjV2Controller::class, 'template']);
-// // Route::post("/v2/penjaminan/multiguna/bulk-validate", [BulkUploadPnjV2Controller::class, 'validateStgData']);
-// Route::get('/v2/penjaminan/multiguna/bulk-getbyid', [BulkUploadPnjV2Controller::class, 'getById']);
-// Route::post('/v2/penjaminan/multiguna/bulk-delete', [BulkUploadPnjV2Controller::class, 'delete']);
+Route::get('/v2/penjaminan/surety-bond/detail', [SuretyBondTransactionController::class, 'show']);
+Route::post('/v2/penjaminan/surety-bond/create', [SuretyBondTransactionController::class, 'store']);
+Route::post('/v2/penjaminan/surety-bond/update-draft/{trxNo}', [SuretyBondTransactionController::class, 'update']);
+Route::post('/v2/penjaminan/surety-bond/submit-draft/{trxNo}', [SuretyBondTransactionController::class, 'submitDraft']);
+Route::post('/v2/penjaminan/surety-bond/approved-penjaminan', [SuretyBondTransactionController::class, 'approvePenjaminannSB']);
+Route::get('/v2/penjaminan/detail-payment-surety-bond', [SuretyBondTransactionController::class, 'getDetailPaymentSrtb']);
+Route::post('/v2/penjaminan/surety-bond/upload-bukti-bayar-manual', [SuretyBondTransactionController::class, 'uploadPembayaranManual']);

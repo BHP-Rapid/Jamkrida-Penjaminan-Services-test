@@ -293,14 +293,10 @@ class PenjaminanTransactionService
         }
 
         if (empty($result)) {
-            return ApiResponse::error('Data tidak ditemukan', 404);
+            throw new \Exception('Data tidak ditemukan', 404);
         }
 
-
-        return ApiResponse::success(
-            $result,
-            'Get additional document success'
-        );
+        return $result;
     }
 
     public function getDetailCertificateByID(Request $req)
@@ -340,8 +336,8 @@ class PenjaminanTransactionService
                 return ApiResponse::error('Invalid product', 422);
         }
         if (empty($result)) {
-            return ApiResponse::error('Data tidak ditemukan', 404);
+            throw new \Exception('Data tidak ditemukan', 404);
         }
-        return ApiResponse::success($result, 'Success get data');
+        return $result;
     }
 }
