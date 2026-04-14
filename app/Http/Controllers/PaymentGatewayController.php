@@ -53,7 +53,7 @@ class PaymentGatewayController extends Controller
                 'order_id'             => $request->input('order_id'),
             ];
             $result = $this->paymentGatewayService->CancelPaymentMidtrans($payload);
-            return ApiResponse::success($result);
+            return ApiResponse::success($result, 'Cancel payment success');
         } catch (ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',
@@ -102,13 +102,16 @@ class PaymentGatewayController extends Controller
             if ($validator->fails()) {
                 throw new ValidationException($validator);
             }
-
-            $key = base64_decode(config('services.secure.key'));
-            $trxNo = $request->input('trx_no');
-            $product = $request->input('product');
-            $noSuratPermohonan = $request->input('no_surat_permohonan');
-            $listDebitur = $request->input('list_debitur');
-            $orderId = $request->input('order_id');
+            $payload = [
+                'key'                  => base64_decode(config('services.secure.key')),
+                'trx_no'               => $request->input('trx_no'),
+                'product'              => $request->input('product'),
+                'no_surat_permohonan'  => $request->input('no_surat_permohonan'),
+                'list_debitur'         => $request->input('list_debitur', []),
+                'order_id'             => $request->input('order_id'),
+            ];
+            $result = $this->paymentGatewayService->CheckPaymentMidtrans($payload);
+            return ApiResponse::success($result, 'Check payment success');
         } catch (ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',

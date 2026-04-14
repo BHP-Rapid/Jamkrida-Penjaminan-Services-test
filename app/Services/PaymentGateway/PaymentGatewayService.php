@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Helpers\AesHelper;
 use App\Helpers\GenerateInvoiceMidtrans;
+use App\Helpers\SendEmailNotification;
+use App\Models\MultigunaTenorSchedule;
 use App\Models\TrxSrtbInvoiceHeader;
 use App\Repositories\PaymentgatewayRepository;
 use App\Services\PaymentGateway\PaymentHandlerFactory;
@@ -12,9 +14,6 @@ use Exception;
 use Illuminate\Support\Facades\DB;
 use Midtrans\Config;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\ValidationException;
-
 
 
 class PaymentGatewayService
@@ -57,9 +56,12 @@ class PaymentGatewayService
         }
     }
 
-    public function CancelPaymentMidtrans(array $payload)
+    public function CancelPaymentMidtrans(array $payload): array
     {
         try {
+            if (!isset($payload['order_id'], $payload['product'])) {
+                throw new Exception('Invalid payload structure', 400);
+            }
             $orderId = $payload['order_id'];
             $product = $payload['product'];
             $nowJakarta = Carbon::now('Asia/Jakarta');
@@ -68,45 +70,109 @@ class PaymentGatewayService
                 case 'mlt':
                     $this->cancelMlt($orderId, $nowJakarta);
                     break;
-
-                // case 'srtb':
-                //     $this->cancelSrtb($orderId, $nowJakarta);
-                //     break;
-
-                // case 'cstb':
-                //     $this->cancelCstb($orderId, $nowJakarta);
-                //     break;
-
-                // case 'kpr':
-                //     $this->cancelKPR($orderId, $nowJakarta);
-                //     break;
-                // case 'ajp':
-                //     $this->cancelAJP($orderId, $nowJakarta);
-                //     break;
-                // case 'kkpbj':
-                //     $this->cancelKKPBJ($orderId, $nowJakarta);
-                //     break;
-
-                // case 'ku':
-                // case 'kur':
-                // case 'kmk':
-                //     $this->cancelDebiturProduct($orderId, $nowJakarta);
-                //     break;
-                // case 'kbg':
-                //     $this->cancelKbg($orderId, $nowJakarta);
-                //     break;
-
                 default:
-                    throw new \Exception('Invalid product', 400);
+                    throw new Exception('Invalid product', 400);
             }
-
             DB::commit();
+            $result = [
+                'order_id' => $orderId,
+                'product'  => $product,
+                'status'   => 'cancelled',
+                'cancelled_at' => $nowJakarta->toDateTimeString(),
+            ];
+            return $result;
         } catch (Exception $ex) {
-            // return ApiResponse::error($ex->getMessage(), 500);
             DB::rollBack();
             throw $ex;
         }
     }
+
+    public function CheckPaymentMidtrans(array $payload): array
+    {
+        try {
+            $key = base64_decode(config('services.secure.key'));
+            $trxNo = $payload['trx_no'];
+            $product = $payload['product'];
+            $noSuratPermohonan = $payload['no_surat_permohonan'];
+            $listDebitur = $payload['list_debitur'];
+            $orderId = $payload['order_id'];
+            $notifications = [];
+            $result = [];
+            DB::beginTransaction();
+            switch ($product) {
+                case 'mlt':
+                    $result = $this->validateMlt($trxNo, $noSuratPermohonan, $orderId, $listDebitur);
+                    $trxName = $this->sendPaymentToCreatio(
+                        $noSuratPermohonan,
+                        $result['payloadCore']
+                    );
+                    $debiturIds = array_map(fn($d) => $d['IdDebitur'], $listDebitur);
+                    $this->repository->updateNoKwitansiByDebiturIds($debiturIds, $trxName);
+                    $notifications = $this->handlePaymentNotifications(
+                        $result['getListDebitur'],
+                        $result['createdById'],
+                        $trxNo,
+                        $noSuratPermohonan,
+                        $key,
+                        $product
+                    );
+                    $this->repository->insertNotifications($notifications);
+                    break;
+                case 'srtb':
+                    break;
+                default:
+                    throw new Exception('Invalid product', 400);
+            }
+
+            return [
+                "orderId" => "Status Pembayaran " . $result["order_status"]['status'],
+            ];
+            DB::commit();
+        } catch (Exception $ex) {
+            throw $ex;
+        }
+    }
+
+    private function validateMlt(string $trxNo, string $noSuratPermohonan, string $orderId, array $listDebitur): array
+    {
+        $dataHeader = $this->repository->getDetailMlt($trxNo, $noSuratPermohonan);
+        if (!$dataHeader) {
+            throw new \Exception(`Data Surat Permohonan $noSuratPermohonan ditemukan`);
+        }
+        $checkOrderId = $this->repository->checkOrderMltById($trxNo, $noSuratPermohonan, $orderId);
+        if (!$checkOrderId) {
+            throw new \Exception(`Data Order ID $orderId ditemukan`);
+        }
+        $order_status = GenerateInvoiceMidtrans::checkSnapStatus($checkOrderId->order_id);
+        $getDetailAfterPayment = (object) $order_status['raw'];
+        $bankType = "";
+        if ($getDetailAfterPayment->payment_type == "bank_transfer") {
+            if (isset($getDetailAfterPayment->va_numbers[0])) {
+                $bankType = $getDetailAfterPayment->va_numbers[0]['bank'];
+                $virtualAccount = $getDetailAfterPayment->va_numbers[0]['va_number'];
+            }
+        }
+        $getListDebitur = $this->repository->getListDebiturMlt($dataHeader->id_multiguna, $listDebitur, $orderId);
+        $payloadCore = [
+            "NoSuratPermohonan" => $dataHeader->no_surat_permohonan,
+            "ListDebitur" => $getListDebitur->map(function ($debitur) {
+                return [
+                    "no_sp_detail" => $debitur->no_sp_detail,
+                    "invoice_number" => $debitur->invoice_number,
+                    "tenor_sequence" => $debitur->tenor_sequence,
+                    "total_amount" => $debitur->total_amount
+                ];
+            })->values()->all(),
+        ];
+        $result = [
+            "createdById" => $dataHeader->created_by_id,
+            "getListDebitur" => $getListDebitur,
+            "payloadCore" => $payloadCore,
+            "orderStatus" => $order_status
+        ];
+        return $result;
+    }
+
 
     private function handlePaymentSrtb(array $input, $nowJakarta, array $debiturList, string $key)
     {
@@ -371,5 +437,89 @@ class PaymentGatewayService
         $this->repository->resetMltScheduleStatus($orderId, $nowJakarta);
         $this->repository->deletePaymentGatewayByOrderId($orderId);
         $this->repository->deleteInvoiceHeaderByInvoiceIds($invoiceIds);
+    }
+
+
+    private function sendPaymentToCreatio(string $noSuratPermohonan, array $payloadCore): string
+    {
+        $creatio = new CreatioService();
+
+        $response = $creatio->request(
+            'post',
+            '/0/rest/PembayaranWebService/PembayaranAutoV2',
+            $payloadCore
+        );
+        if ($response->status() !== 200) {
+            throw new Exception(
+                "Failed to Send Payment Status Integration {$noSuratPermohonan} to Core Creatio API with status: {$response->status()}",
+                500
+            );
+        }
+        $bodyResponse = json_decode($response->body(), true);
+
+        if (!$bodyResponse) {
+            throw new Exception(
+                "Invalid response from Creatio API for {$noSuratPermohonan}",
+                500
+            );
+        }
+        if (($bodyResponse['Success'] ?? false) !== true) {
+            $message = $bodyResponse['Message'] ?? 'Unknown error';
+
+            throw new Exception(
+                "Failed to Send Payment Status Integration {$noSuratPermohonan} to Core Creatio API with message: {$message}",
+                500
+            );
+        }
+        if (empty($bodyResponse['TrxName'])) {
+            throw new Exception(
+                "Creatio API response missing TrxName for {$noSuratPermohonan}",
+                500
+            );
+        }
+        return $bodyResponse['TrxName'];
+    }
+
+
+    private function handlePaymentNotifications(array $debiturList, int|string $createdById, string $trxNo, string $noSuratPermohonan, string $key, string $product): array
+    {
+        $notifications = [];
+        $decryptEmail = fn($value) => $value
+            ? AesHelper::decrypt($value, $key)
+            : null;
+
+        foreach ($debiturList as $deb) {
+            $notifications[] =
+                [
+                    'mitra_user_id' => $createdById,
+                    'title' => "- Peringatan Pembayaran - Order {$trxNo} Telah Berhasil",
+                    'message' => " Halo {$deb->debitur_name},
+
+                            Kami ingin menyampaikan bahwa pembayaran untuk Nomor Surat Permohonan {$noSuratPermohonan}
+                            dengan Nomor Transaksi {$deb->order_id} telah berhasil diproses.
+
+                            Saat ini pembayaran Anda sedang dalam proses validasi oleh Admin.
+                            Silakan melakukan pengecekan secara berkala pada Nomor Surat Permohonan Anda
+                            untuk mengetahui pembaruan status selanjutnya.
+
+                            Terima kasih atas perhatian dan kerja sama Anda.
+                                        ",
+                    'is_read' => false,
+                ];
+
+            $email = $decryptEmail($deb->email_1);
+            if ($email) {
+                SendEmailNotification::sendEmail(
+                    $email,
+                    $deb->debitur_name,
+                    $noSuratPermohonan,
+                    $trxNo,
+                    now()->toDateTimeString(),
+                    $deb->amount
+                );
+            }
+        }
+
+        return $notifications;
     }
 }
