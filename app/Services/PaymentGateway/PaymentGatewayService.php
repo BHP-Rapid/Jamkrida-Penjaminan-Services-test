@@ -119,6 +119,7 @@ class PaymentGatewayService
                     $this->repository->insertNotifications($notifications);
                     break;
                 case 'srtb':
+                    $result = $this->validateSrtb($trxNo, $noSuratPermohonan, $orderId, $listDebitur);
                     break;
                 default:
                     throw new Exception('Invalid product', 400);
@@ -135,6 +136,7 @@ class PaymentGatewayService
 
     private function validateMlt(string $trxNo, string $noSuratPermohonan, string $orderId, array $listDebitur): array
     {
+        $nowJakarta = Carbon::now('Asia/Jakarta');
         $dataHeader = $this->repository->getDetailMlt($trxNo, $noSuratPermohonan);
         if (!$dataHeader) {
             throw new \Exception(`Data Surat Permohonan $noSuratPermohonan ditemukan`);
@@ -152,6 +154,12 @@ class PaymentGatewayService
                 $virtualAccount = $getDetailAfterPayment->va_numbers[0]['va_number'];
             }
         }
+
+        $this->repository->UpdateInvoiceDetailMlt($checkOrderId->invoice_id, $getDetailAfterPayment, $order_status['status'], $nowJakarta);
+        $this->repository->UpdateInvoiceHeaderMlt($checkOrderId->invoice_id, $order_status['status'], $nowJakarta);
+        $this->repository->UpdateTenorInvoiceMlt($checkOrderId->invoice_id, $order_status['status'], $nowJakarta);
+
+
         $getListDebitur = $this->repository->getListDebiturMlt($dataHeader->id_multiguna, $listDebitur, $orderId);
         $payloadCore = [
             "NoSuratPermohonan" => $dataHeader->no_surat_permohonan,
@@ -167,6 +175,75 @@ class PaymentGatewayService
         $result = [
             "createdById" => $dataHeader->created_by_id,
             "getListDebitur" => $getListDebitur,
+            "payloadCore" => $payloadCore,
+            "orderStatus" => $order_status
+        ];
+        return $result;
+    }
+
+    private function validateSrtb(string $trxNo, string $noSuratPermohonan, string $orderId, array $listDebitur): array
+    {
+        $nowJakarta = Carbon::now('Asia/Jakarta');
+        $dataHeader = $this->repository->getDetailSrtb($trxNo, $noSuratPermohonan);
+        if (!$dataHeader) {
+            throw new \Exception(`Data Surat Permohonan $noSuratPermohonan ditemukan`);
+        }
+        $checkOrderId = $this->repository->checkOrderSrtbById($orderId);
+        if (!$checkOrderId) {
+            throw new \Exception(`Data Order ID $orderId ditemukan`);
+        }
+        $order_status = GenerateInvoiceMidtrans::checkSnapStatus($checkOrderId->order_id);
+        $getDetailAfterPayment = (object) $order_status['raw'];
+        $bankType = "";
+        if ($getDetailAfterPayment->payment_type == "bank_transfer") {
+            if (isset($getDetailAfterPayment->va_numbers[0])) {
+                $bankType = $getDetailAfterPayment->va_numbers[0]['bank'];
+                $virtualAccount = $getDetailAfterPayment->va_numbers[0]['va_number'];
+            }
+        }
+
+        $this->repository->UpdateInvoiceDetaiSrtb($checkOrderId->invoice_id, $getDetailAfterPayment, $order_status['status'], $nowJakarta);
+        $this->repository->UpdateInvoiceHeaderSrtb($checkOrderId->invoice_id, $order_status['status'], $nowJakarta);
+
+        foreach ($listDebitur as $deb) {
+            $isCollateral = (bool) $deb['isCollateral'];
+            $row = [
+                'updated_at' => $nowJakarta,
+            ];
+
+            if ($isCollateral) {
+                $invoiceColumn = 'invoice_number_collateral';
+                $row['status_collateral'] = $order_status['status'];
+            } else {
+                $invoiceColumn = 'invoice_number';
+                $row['status'] = $order_status['status'];
+            }
+
+            $this->repository->updateSingleSrtbTenorStatus(
+                $checkOrderId->srtb_schedule_id,
+                $invoiceColumn,
+                $deb['invoiceNumber'],
+                $row
+            );
+        }
+
+        $listDebitur = array_map(function ($item) {
+            $item['invoice_number'] = $item['invoiceNumber'];
+            $item['total_amount'] = $item['amount'];
+            $item['no_sp_detail'] = null;
+            unset($item['amount']);
+            unset($item['isCollateral']);
+            unset($item['invoiceNumber']);
+            return $item;
+        }, $listDebitur);
+
+        $payloadCore = [
+            "NoSuratPermohonan" => $noSuratPermohonan,
+            "ListDebitur" => $listDebitur,
+        ];
+        $result = [
+            "createdById" => $dataHeader->created_by_id,
+            // "getListDebitur" => $getListDebitur,
             "payloadCore" => $payloadCore,
             "orderStatus" => $order_status
         ];

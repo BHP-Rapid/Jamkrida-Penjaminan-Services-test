@@ -8,6 +8,7 @@ use App\Models\PenjaminanTransaction;
 use App\Models\SuretyBondTenorSchedule;
 use App\Models\TrxInvoiceHeader;
 use App\Models\TrxPaymentGateway;
+use App\Models\TrxSrtbInvoiceHeader;
 use App\Models\TrxSrtbPaymentGateway;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +55,17 @@ class PaymentgatewayRepository
                 'mpg.*',
             ])->first();
     }
+
+    public function checkOrderSrtbById($orderId)
+    {
+        return TrxSrtbInvoiceHeader::join('trx_srtb_payment_gateway as tspg', 'tspg.srtb_invoice_id', '=', 'trx_srtb_invoice_header.srtb_invoice_id')
+            ->where('tspg.order_id', $orderId)
+            ->select([
+                'trx_srtb_invoice_header.*',
+                'tspg.*',
+            ])->first();
+    }
+
 
     public function getTenorByProductId(string $productId)
     {
@@ -114,9 +126,31 @@ class PaymentgatewayRepository
             ]);
     }
 
+    public function UpdateInvoiceDetaiSrtb(string $invoiceId, object $getDetailAfterPayment, array $orderStatus, Carbon $nowJakarta): void
+    {
+        TrxSrtbPaymentGateway::where('invoice_id', $invoiceId)
+            ->update([
+                'expiry_date_time' => $getDetailAfterPayment->expiry_time,
+                'status'           => $orderStatus['status'],
+                'settlement_time'  => $getDetailAfterPayment->settlement_time,
+                'transaction_time' => $getDetailAfterPayment->transaction_time,
+                'updated_at'       => $nowJakarta,
+            ]);
+    }
+
     public function UpdateInvoiceHeaderMlt(string $invoiceId, array $orderStatus, Carbon $nowJakarta): void
     {
         TrxInvoiceHeader::where('invoice_id', $invoiceId)
+            ->update([
+                'status'     => $orderStatus['status'],
+                'updated_at' => $nowJakarta,
+                'is_manual'  => 0,
+            ]);
+    }
+
+    public function UpdateInvoiceHeaderSrtb(string $invoiceId, array $orderStatus, Carbon $nowJakarta): void
+    {
+        TrxSrtbInvoiceHeader::where('invoice_id', $invoiceId)
             ->update([
                 'status'     => $orderStatus['status'],
                 'updated_at' => $nowJakarta,
@@ -185,5 +219,23 @@ class PaymentgatewayRepository
         if (!empty($notifications)) {
             NotifMitra::insert($notifications);
         }
+    }
+
+
+    public function updateSingleSrtbTenorStatus(
+        int|string $scheduleId,
+        string $invoiceColumn,
+        string $invoiceNumber,
+        array $row
+    ): void {
+        SuretyBondTenorSchedule::where(
+            'srtb_schedule_id',
+            $scheduleId
+        )
+            ->where(
+                $invoiceColumn,
+                $invoiceNumber
+            )
+            ->update($row);
     }
 }
