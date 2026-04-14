@@ -57,27 +57,11 @@ class PaymentGatewayService
         }
     }
 
-    public function CancelPaymentMidtrans(Request $request)
+    public function CancelPaymentMidtrans(array $payload)
     {
         try {
-            $validator = Validator::make(
-                $request->all(),
-                [
-                    'order_id' => ['required', 'string'],
-                    'trx_no'   => ['required', 'string'],
-                    'product'  => ['nullable', 'string'],
-                ],
-                [
-                    'order_id.required' => 'order_id is required',
-                    'trx_no.required'   => 'trx_no is required',
-                    'product.string'    => 'product must be a string',
-                ]
-            );
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-            $orderId = $request->input('order_id');
-            $product = $request->input('product');
+            $orderId = $payload['order_id'];
+            $product = $payload['product'];
             $nowJakarta = Carbon::now('Asia/Jakarta');
             DB::beginTransaction();
             switch ($product) {
@@ -113,14 +97,14 @@ class PaymentGatewayService
                 //     break;
 
                 default:
-                    DB::rollBack();
-                    return response()->json(['message' => 'Invalid product'], 400);
+                    throw new \Exception('Invalid product', 400);
             }
 
             DB::commit();
         } catch (Exception $ex) {
             // return ApiResponse::error($ex->getMessage(), 500);
-            throw new \Exception($ex->getMessage(), 500);
+            DB::rollBack();
+            throw $ex;
         }
     }
 
@@ -374,37 +358,18 @@ class PaymentGatewayService
     {
         $payment = $this->repository->cancelPaymentMlt($orderId);
         if (!$payment) {
-            return response()->json(['message' => 'Payment not found'], 404);
+            throw new \Exception('Payment not found', 404);
         }
         if (in_array(strtoupper($payment->status), ['PAID', 'SETTLED'])) {
-            return response()->json([
-                'message' => 'Paid payment cannot be cancelled'
-            ], 409);
+            throw new \Exception('Paid payment cannot be cancelled', 409);
         }
-        $invoiceIds = DB::table('transaction_payment_gateway')
-            ->where('order_id', $orderId)
-            ->pluck('invoice_id')
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+        $invoiceIds = $this->repository->getInvoiceIdsByOrderId($orderId);
         if (empty($invoiceIds)) {
-            DB::rollBack();
-            return response()->json(['message' => 'No invoice found for this order_id'], 404);
+            throw new \Exception('No invoice found for this order_id', 404);
         }
-        DB::table('multiguna_tenor_schedule as mts')
-            ->join('transaction_payment_gateway as mpg', 'mpg.invoice_id', '=', 'mts.invoice_id')
-            ->where('mpg.order_id', $orderId)
-            ->update([
-                'mts.status' => 'Pending',
-                'mts.updated_at' => $nowJakarta,
-            ]);
-        DB::table('transaction_payment_gateway')
-            ->where('order_id', $orderId)
-            ->delete();
 
-        DB::table('transaction_invoice_header')
-            ->whereIn('invoice_id', $invoiceIds)
-            ->delete();
+        $this->repository->resetMltScheduleStatus($orderId, $nowJakarta);
+        $this->repository->deletePaymentGatewayByOrderId($orderId);
+        $this->repository->deleteInvoiceHeaderByInvoiceIds($invoiceIds);
     }
 }

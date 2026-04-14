@@ -3,6 +3,7 @@
 use App\Http\Controllers\CustomBondServices\CustomBondTransactionController;
 use App\Http\Controllers\KreditMikroKecilServices\KreditMikroKecilController;
 use App\Http\Controllers\MultigunaController;
+use App\Http\Controllers\PaymentGatewayController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PenjaminanTransactionController;
 use App\Http\Controllers\SuretyBondTransactionServices\SuretyBondTransactionController;
@@ -11,8 +12,10 @@ Route::get('/penjaminan/penjaminan-data', [PenjaminanTransactionController::clas
 Route::get('/penjaminan/detail-additional-document', [PenjaminanTransactionController::class, 'getAdditionalDocProduct']);
 Route::get('/penjaminan/detail-certified-permohonan', [PenjaminanTransactionController::class, 'GetDetailCertificateByID']);
 
-Route::get('/penjaminan/detail-certified-permohonan', [PenjaminanTransactionController::class, 'GetDetailCertificateByID']);
-
+Route::post('/penjaminan/payment-gateway', [PaymentGatewayController::class, 'generatePaymentGateway']);
+Route::post('/penjaminan/cancel-payment', [PaymentGatewayController::class, 'cancelPaymentMidtrans']);
+Route::post('/penjaminan/renew-payment-token', [PaymentGatewayController::class, 'RenewPaymentGateway']);
+Route::post('/penjaminan/validate-payment', [PaymentGatewayController::class, 'CheckPaymentMidtrans']);
 
 // PENJAMINAN MULTIGUNA
 Route::prefix('/v2/penjaminan/multiguna')->group(function () {
