@@ -6,6 +6,7 @@ use App\Models\PenjaminanTransaction;
 use App\Models\SuretyBondTenorSchedule;
 use App\Models\TrxPaymentGateway;
 use App\Models\TrxSrtbPaymentGateway;
+use Illuminate\Support\Facades\DB;
 
 class PaymentgatewayRepository
 {
@@ -39,5 +40,36 @@ class PaymentgatewayRepository
     public function cancelPaymentMlt(string $orderId)
     {
         return TrxPaymentGateway::where('order_id', $orderId)->orderByDesc('srtb_payment_id')->first();
+    }
+
+    public function getInvoiceIdsByOrderId(string $orderId): array
+    {
+        return TrxPaymentGateway::where('order_id', $orderId)
+            ->pluck('invoice_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function resetMltScheduleStatus(string $orderId, $nowJakarta): void
+    {
+        DB::table('multiguna_tenor_schedule as mts')
+            ->join('transaction_payment_gateway as mpg', 'mpg.invoice_id', '=', 'mts.invoice_id')
+            ->where('mpg.order_id', $orderId)
+            ->update([
+                'mts.status' => 'Pending',
+                'mts.updated_at' => $nowJakarta,
+            ]);
+    }
+    public function deletePaymentGatewayByOrderId(string $orderId): void
+    {
+        TrxPaymentGateway::where('order_id', $orderId)->delete();
+    }
+    public function deleteInvoiceHeaderByInvoiceIds(array $invoiceIds): void
+    {
+        DB::table('transaction_invoice_header')
+            ->whereIn('invoice_id', $invoiceIds)
+            ->delete();
     }
 }
