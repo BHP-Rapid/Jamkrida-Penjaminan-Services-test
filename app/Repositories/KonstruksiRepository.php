@@ -47,12 +47,26 @@ class KonstruksiRepository
             ->value('trx_no');
     }
 
+    public function lockPenjaminan($trxNo)
+    {
+        return PenjaminanTransaction::lockForUpdate()
+            ->where('trx_no', $trxNo)
+            ->firstOrFail();
+    }
+
     public function getLatestLoanNumber(string $prefix): ?string
     {
         return TrxDebiturKonstruksi::lockForUpdate()
             ->where('loan_number', 'like', $prefix . '%')
             ->orderBy('loan_number', 'desc')
             ->value('loan_number');
+    }
+
+    public function lockMultigunaTrxKonstruksi($trxNo)
+    {
+        return MultigunaTrxKonstruksi::lockForUpdate()
+            ->where('trx_no', $trxNo)
+            ->firstOrFail();
     }
 
     public function insertInstitutions(array $rows): void
@@ -76,6 +90,11 @@ class KonstruksiRepository
         }
     }
 
+    public function deleteLampiranDetails($trxNo)
+    {
+        return DB::table('penjaminan_lampiran_dtl')->where('trx_no', $trxNo)->delete();
+    }
+
     public function createPenjaminanFlow(array $payload): void
     {
         PenjaminanFlow::create($payload);
@@ -94,5 +113,36 @@ class KonstruksiRepository
     public function getNowJakarta(): Carbon
     {
         return Carbon::now('Asia/Jakarta');
+    }
+    public function updatePenjaminanDraft(PenjaminanTransaction $penjaminan, array $payload): void
+    {
+        $penjaminan->update($payload);
+    }
+
+    public function lampiranData($lampiranLatest)
+    {
+        return DB::table('setting_hdr as a')
+            ->join('setting_product_dtl as b', 'a.id', '=', 'b.hdr_id')
+            ->join('mapping_value as c', 'b.lampiran', '=', 'c.value')
+            ->leftJoinSub($lampiranLatest, 'lt', function ($join) {
+                $join->on('lt.lampiran_id', '=', 'c.value');
+            })
+            ->select(
+                'c.value',
+                'c.label',
+                'c.option2',
+                'lt.file_name',
+                'lt.file_info',
+                'lt.is_additional',
+                'lt.status_doc',
+                'lt.mime_type'
+            )
+            ->where('a.module', 'PENJAMINAN_SETTINGS')
+            ->where('b.product_id', 'cstb')
+            ->where('a.mitra_id', 'MDR')
+            ->where('b.is_mandatory', 1)
+            ->where('c.key', 'lampiran')
+            ->orderBy('c.value', 'asc')
+            ->get();
     }
 }

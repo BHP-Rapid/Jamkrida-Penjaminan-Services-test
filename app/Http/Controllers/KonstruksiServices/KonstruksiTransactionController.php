@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\KonstruksiServices;
 
+use App\Exports\ExcelDataNormatifKKPBJExport;
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Models\TenantMitra;
@@ -12,6 +13,7 @@ use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Maatwebsite\Excel\Facades\Excel;
 
 class KonstruksiTransactionController extends Controller
 {
@@ -31,18 +33,10 @@ class KonstruksiTransactionController extends Controller
             );
 
             if (!$data) {
-                // return response()->json([
-                //     'success' => false,
-                //     'message' => 'Data not found.'
-                // ], 404);
                 return ApiResponse::error("Data Not Found", 404);
             }
 
             return ApiResponse::success($data);
-            // return response()->json([
-            //     'success' => true,
-            //     'data' => $data
-            // ]);
         } catch (ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',
@@ -126,6 +120,90 @@ class KonstruksiTransactionController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error While Insert Custom Bond: ' . $ex->getMessage()
+            ], 500);
+        }
+    }
+
+    //
+    public function updateDraft(Request $request, $trxNo)
+    {
+        $user = auth('sanctum')->user();
+        $debugMsg = 'No tenant mitra data.';
+        $mitraAlias = '';
+        $tenant_ID = '';
+        $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
+            ->select('mitra_id', 'alias', 'tenant_id')
+            ->first();
+        if ($tenantMitraData) {
+            $mitraAlias = $tenantMitraData->alias;
+            $tenant_ID = $tenantMitraData->tenant_id;
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tenant mitra data not found.'
+            ], 404);
+        }
+
+        try {
+            $this->validate($request, [
+                'data.noSuratPermohonan' => 'required|string',
+                'data.pks' => 'required|string',
+                'data.jenisProduk' => 'required|string',
+                'data.bank' => 'required|string',
+                'data.tglSuratPermohonan' => 'required|date',
+                'data.spSplit' => 'required|string',
+                'data.bankCabang' => 'nullable|string',
+                'data.feeBasePercentage' => 'nullable|numeric',
+                'data.teksPenjaminanSp' => 'nullable|string',
+                'data.dataDebitur' => 'nullable|array',
+                'data.dataDebitur.*.attachments' => 'nullable|array',
+                'data.dataDebitur.*.attachments.nik' => 'nullable|string',
+                'data.dataDebitur.*.attachments.uploads' => 'nullable|array',
+                'data.dataDebitur.*.attachments.uploads.*' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+                'data.dataInstitution' => 'nullable|array',
+                'data.tariftarifPercentage' => 'nullable|numeric',
+            ]);
+
+            $dataDebitur = $request->input('data.dataDebitur', []);
+            // Validate debitur data if submitting (not draft)
+            if ($request->data['trx_status'] !== 'D' && !empty($dataDebitur)) {
+                $penjaminanPKSResponse = $this->getPenjaminanPKS();
+                $penjaminanPKSData = $penjaminanPKSResponse->getData(true);
+                if (empty($penjaminanPKSData['Success']) || $penjaminanPKSData['Success'] !== true) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => $penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data'
+                    ], 500);
+                }
+
+                // $selectedPks = $request->data['selectedPks'] ?? $request->data['pks'];
+                // $result = $this->validateDebiturBatch($selectedPks, $penjaminanPKSData, $dataDebitur);
+                // $dataDebitur = $result['dataDebitur'];
+                // if (!$result['success']) {
+                //     return response()->json($result, 422);
+                // }
+            }
+            
+            $result = $this->service->update($request->all(), $user, $mitraAlias, $penjaminanPKSData, $trxNo);
+        } catch (Exception $ex) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error While Updating KKPBJ: ' . $ex->getMessage()
+            ], 500);
+        }
+    }
+
+    public function ExportKonstruksi()
+    {
+        try {
+            $filename = 'data_normatif_' . date('Y-m-d_H-i-s') . '.xlsx';
+            return Excel::download(new ExcelDataNormatifKKPBJExport(), $filename);
+        } catch (\Exception $e) {
+            Log::error("", ['exception' => $e]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error generating Excel file: ' . $e->getMessage()
             ], 500);
         }
     }
