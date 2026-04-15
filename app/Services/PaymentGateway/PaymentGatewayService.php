@@ -137,10 +137,7 @@ class PaymentGatewayService
                     break;
                 case 'cstb':
                     $result = $this->validateCstb($trxNo, $noSuratPermohonan, $orderId, $listDebitur);
-                    $trxName = $this->sendPaymentToCreatio(
-                        $noSuratPermohonan,
-                        $result['payloadCore']
-                    );
+                    $trxName = $this->sendPaymentToCreatio($noSuratPermohonan, $result['payloadCore']);
                     $this->repository->updateNoKwitansiByDebiturIds($debiturIds, $trxName, $product);
                     $notifications = $this->handlePaymentNotifications(
                         $result['getListDebitur'],
