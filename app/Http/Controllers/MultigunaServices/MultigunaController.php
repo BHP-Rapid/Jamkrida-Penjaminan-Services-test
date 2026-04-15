@@ -29,10 +29,7 @@ class MultigunaController extends Controller
             ->first();
 
         if (!$tenantMitraData) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tenant mitra data not found.'
-            ], 404);
+            return ApiResponse::error('Tenant Mitra not found for the authenticated user', 404);
         }
 
         $mitraAlias = $tenantMitraData->alias;
@@ -59,10 +56,7 @@ class MultigunaController extends Controller
 
             if ($request->data['trx_status'] == 'D') {
                 if ($request->has('data.dataDebitur') || $request->has('data.dataInstitution')) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Excel tidak boleh diisi Jika dalam Ingin Save as Draft'
-                    ], 500);
+                    return ApiResponse::error('Data Debitur and Institution should not be included when trx_status is D', 500);
                 }
             }
 
@@ -70,25 +64,15 @@ class MultigunaController extends Controller
             $penjaminanPKSData = $penjaminanPKSResponse->getData(true);
 
             if (empty($penjaminanPKSData['Success']) || $penjaminanPKSData['Success'] !== true) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data'
-                ], 500);
+                return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
             }
 
             $this->multigunaService->storeMultiguna($request, $user, $mitraAlias, $penjaminanPKSData);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Data berhasil disubmit',
-            ]);
+            return ApiResponse::success([], 'Data berhasil disimpan');
         } catch (Exception $ex) {
             $status = $ex->getCode() === 422 ? 422 : 500;
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error While Insert Multiguna: ' . $ex->getMessage()
-            ], $status);
+            return ApiResponse::error('Error While Storing Multiguna: ' . $ex->getMessage(), $status);
         }
     }
 
@@ -135,10 +119,7 @@ class MultigunaController extends Controller
             ->first();
 
         if ($mitra == null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Mitra not found.'
-            ], 404);
+            return ApiResponse::error('Mitra not found for the authenticated user', 404);
         }
 
         try {
@@ -172,13 +153,11 @@ class MultigunaController extends Controller
                 }));
             }
 
-            return response()->json($apiResBody);
+            return ApiResponse::success($apiResBody['Data'] ?? [], 'PKS data retrieved successfully');
         } catch (Exception $e) {
             Log::error("", ['exception' => $e]);
 
-            return response()->json([
-                'message' => $e->getMessage()
-            ], 500);
+            return ApiResponse::error('Error while retrieving PKS data: ' . $e->getMessage(), 500);
         }
     }
 }

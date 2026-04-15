@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AjpServices\AjpController;
 use App\Http\Controllers\CustomBondServices\CustomBondTransactionController;
 use App\Http\Controllers\KreditMikroKecilServices\KreditMikroKecilController;
 use App\Http\Controllers\MultigunaController;
@@ -21,6 +22,20 @@ Route::post('/penjaminan/validate-payment', [PaymentGatewayController::class, 'C
 Route::prefix('/v2/penjaminan/multiguna')->group(function () {
     Route::get('/detail/{id}', [MultigunaController::class, 'show']);
 });
+
+// PENJAMINAN AJP
+Route::prefix('/v2/penjaminan/ajp')->group(function () {
+    Route::get('/download-template', [AjpController::class, 'downloadAjpTemplate']);
+    Route::post('/create', [AjpController::class, 'storeAjp']);
+    Route::get('/detail/{trx_no}', [AjpController::class, 'show']);
+    Route::get('/detail-payment', [AjpController::class, 'GetDetailPaymentAjp']);
+    Route::get('/detail-payment-list', [AjpController::class, 'GetDetailListPaymentAjp']);
+    Route::post('/upload-bukti-bayar-manual', [AjpController::class, 'uploadPembayaranManual']);
+    Route::post('/approve-penjaminan', [AjpController::class, 'ApprovePenjaminanAJP']);
+    Route::post('/update-draft/{trxNo}', [AjpController::class, 'updateAjp']);
+    Route::get('/debt', [AjpController::class, 'createTrxDebitur']);
+});
+
 
 Route::get('/v2/penjaminan/penjaminan-custom-bond-byid', [CustomBondTransactionController::class, 'show']);
 Route::post('/v2/penjaminan/custom-bond/create', [CustomBondTransactionController::class, 'store']);
