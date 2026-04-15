@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\MultigunaServices;
 
 use App\Helper\ApiResponse;
 use App\Services\CreatioService;
@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Foundation\Validation\ValidatesRequests;
+use App\Http\Controllers\Controller;
 
 
 class MultigunaController extends Controller
