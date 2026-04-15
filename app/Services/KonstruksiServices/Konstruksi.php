@@ -4,12 +4,9 @@ namespace App\Services\KonstruksiServices;
 
 use App\Helper\ValidateDebitur;
 use App\Helpers\AesHelper;
-use App\Models\Institution;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
-use App\Models\v2\MultigunaTrxKonstruksi;
-use App\Models\v2\TrxDebiturKonstruksi;
 use App\Repositories\KonstruksiRepository;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -25,23 +22,16 @@ class Konstruksi
         //
         $key = base64_decode(config('services.secure.key'));
 
-        $penjaminanDetail = PenjaminanTransaction::join('multiguna_trx_kreditkonstruksi as mt', 'transaction_penjaminan_header.trx_no', '=', 'mt.trx_no')
-            ->join('multiguna_trx_kreditkonstruksi', 'transaction_penjaminan_header.trx_no', '=', 'multiguna_trx_kreditkonstruksi.trx_no')
-            ->where('transaction_penjaminan_header.trx_no', $trx_no)
-            ->select('transaction_penjaminan_header.*', 'mt.*')
-            ->first();
+        $penjaminanDetail = $this->repository->getPnjTrx($trx_no);
 
         if (!$penjaminanDetail) {
             return null;
         }
 
-        $rows = DB::table('institution as a')
-            ->join('trx_debitur_construction as b', 'a.institution_id', '=', 'b.institution_id')
-            ->where('b.id_multiguna_konstruksi', $penjaminanDetail->id_multiguna_konstruksi)
-            ->select('b.*', 'a.*')
-            ->get();
+        $rows = $this->repository->getInst($penjaminanDetail->id_multiguna_konstruksi);
 
-        $lampiran = PenjaminanLampiranDtl::where('trx_no', $trx_no)->get();
+        $lampiran = $this->repository->getLampiranDtl($trx_no);
+
         if ($rows->isNotEmpty()) {
             $key = base64_decode(config('services.secure.key'));
             if ($rows) {
@@ -51,7 +41,7 @@ class Konstruksi
             $penjaminanDetail->setAttribute('lampiran', $lampiran);
         }
         // flow multiguna
-        $MultigunaFlow = PenjaminanFlow::where('trx_no', $trx_no)->orderBy('created_at', 'desc')->get();
+        $MultigunaFlow = $this->repository->getFlow($trx_no);
         if ($MultigunaFlow != null) {
             $penjaminanDetail->flowMultiguna = $MultigunaFlow;
         }
@@ -178,10 +168,8 @@ class Konstruksi
             //
             $currentYear = date('Y');
             $currentMonth = date('m');
-            $lastTrx = PenjaminanTransaction::lockForUpdate()
-                ->where('trx_no', 'like', 'PNJ-' . $currentYear . '-' . $currentMonth . '%')
-                ->orderBy('trx_no', 'desc')
-                ->value('trx_no');
+            $lastTrx = $this->repository->getLatestTrxNoByPeriod($currentYear, $currentMonth);
+
             if ($lastTrx) {
                 $lastSequence = intval(substr($lastTrx, -4));
                 $nextSeq = $lastSequence + 1;
@@ -194,7 +182,7 @@ class Konstruksi
             $nowJakarta = $this->repository->getNowJakarta();
             $spSplit = $request->boolean('data.spSplit');
 
-            PenjaminanTransaction::create([
+            $this->repository->createPenjaminanTransaction([
                 'trx_no' => $trxNo,
                 'sp_split' => $spSplit,
                 'no_surat_permohonan' => $request->data['noSuratPermohonan'],
@@ -209,7 +197,7 @@ class Konstruksi
                 'no_rek' => '012312'
             ]);
 
-            $konstruksi = MultigunaTrxKonstruksi::create([
+            $konstruksi = $this->repository->createKonstruksiTransaction([
                 'trx_no' => $trxNo,
                 // 'jenis_product' => $request->['jenisBond'],
                 'jenis_product_description' => 'konstruksi',
@@ -225,10 +213,7 @@ class Konstruksi
             $multigunaId = $konstruksi->getKey();
             $mitraId = $request->data['mitra_id'];
             $prefix = $mitraId . $currentYear;
-            $lastLoan = TrxDebiturKonstruksi::lockForUpdate()
-                ->where('loan_number', 'like', $prefix . '%')
-                ->orderBy('loan_number', 'desc')
-                ->value('loan_number');
+            $lastLoan = $this->repository->getLatestLoanNumber($prefix);
 
             $startSeq = 1;
             if ($lastLoan) {
@@ -257,7 +242,6 @@ class Konstruksi
                     $instId = (string) Str::uuid();
                     $nikHashed = hash_hmac('sha256', $nik, $hashKey);
                     if ($nik) {
-
                         $institutionMap[$nik] = $instId;
                     }
                     return [
@@ -298,9 +282,8 @@ class Konstruksi
                 ->values()
                 ->all();
 
-            if (!empty($rowInstitutions)) {
-                Institution::insert($rowInstitutions);
-            }
+            $this->repository->insertInstitutions($rowInstitutions);
+
             $countDebitur = count($dataDebitur);
             $rows = collect($dataDebitur)->pluck('debitur_multiguna')->filter()
                 ->map(function (array $d, int $idx) use ($request, $multigunaId, $nowJakarta, $prefix, $startSeq, $institutionMap, $key, $countDebitur) {
@@ -348,9 +331,9 @@ class Konstruksi
                 })
                 ->values()
                 ->all();
-            if (!empty($rows)) {
-                TrxDebiturKonstruksi::insert($rows);
-            }
+
+            $this->repository->insertKonstruksiDebitur($rows);
+
             $allFiles = $request->allFiles();
             $debiturFiles = data_get($allFiles, 'data.dataDebitur', []);
             $debiturInputs = $request->input('data.dataDebitur', []);
@@ -425,12 +408,11 @@ class Konstruksi
                     }
                 }
             }
-            if (!empty($savedAttachments)) {
-                DB::table('penjaminan_lampiran_dtl')->insert($savedAttachments);
-                // dd($savedAttachments);
-            }
+
+            $this->repository->insertLampiranDetails($savedAttachments);
+
             if ($request->data['trx_status'] != 'D') {
-                PenjaminanFlow::create([
+                $this->repository->createPenjaminanFlow([
                     'trx_no' => $trxNo,
                     'trx_status' => $request->data['trx_status'],
                     'created_at' => $nowJakarta,

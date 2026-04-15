@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AjpServices\AjpController;
 use App\Http\Controllers\CustomBondServices\CustomBondTransactionController;
+use App\Http\Controllers\KonstruksiServices\KonstruksiTransactionController;
 use App\Http\Controllers\KreditMikroKecilServices\KreditMikroKecilController;
 use App\Http\Controllers\MultigunaController;
 use App\Http\Controllers\MultigunaServices\MultigunaController as MultigunaServicesMultigunaController;
@@ -61,3 +62,15 @@ Route::put('/v2/penjaminan/kredit-mikro-kecil/update-draft/{trxNo}', [KreditMikr
 Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-full-kmk', [KreditMikroKecilController::class, 'GetDetailPaymentKMK']);
 Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-installment-kmk-list', [KreditMikroKecilController::class, 'GetDetailListPaymentKMK']);
 Route::post('/v2/penjaminan/kredit-mikro-kecil/upload-bukti-bayar-manual', [KreditMikroKecilController::class, 'UploadPembayaranManualKMK']);
+
+ //PENJAMINAN KONSTRUKSI
+ Route::post('/v2/penjaminan/konstruksi/create', [KonstruksiTransactionController::class, 'store']);
+ Route::get('/v2/penjaminan/konstruksi/download-template', [KonstruksiTransactionController::class, 'ExportKonstruksi']);
+ Route::get('/v2/penjaminan/konstruksi/detail/{id}', [KonstruksiTransactionController::class, 'show']);
+ Route::post('/v2/penjaminan/konstruksi/update-draft/{trxNo}', [KonstruksiTransactionController::class, 'updateDraft']);
+ Route::post('/v2/penjaminan/konstruksi/approve-penjaminan', [KonstruksiTransactionController::class, 'ApprovePenjaminan']);
+ Route::get('/v2/penjaminan/konstruksi/detail-payment', [KonstruksiTransactionController::class, 'GetDetailPaymentKonstruksi']);
+ Route::get('/v2/penjaminan/konstruksi/detail-payment-list', [KonstruksiTransactionController::class, 'GetDetailListPaymentKonstruksi']);
+
+ Route::post('/v2/penjaminan/konstruksi/upload-bukti-bayar-manual', [KonstruksiTransactionController::class, 'uploadPembayaranManual']);
+ Route::get('/v2/penjaminan/konstruksi/debt', [KonstruksiTransactionController::class, 'createTrxDebitur']);
