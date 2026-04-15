@@ -98,6 +98,7 @@ class PaymentGatewayService
             $orderId = $payload['order_id'];
             $notifications = [];
             $result = [];
+            $debiturIds = array_map(fn($d) => $d['IdDebitur'], $listDebitur);
             DB::beginTransaction();
             switch ($product) {
                 case 'mlt':
@@ -106,8 +107,8 @@ class PaymentGatewayService
                         $noSuratPermohonan,
                         $result['payloadCore']
                     );
-                    $debiturIds = array_map(fn($d) => $d['IdDebitur'], $listDebitur);
-                    $this->repository->updateNoKwitansiByDebiturIds($debiturIds, $trxName);
+
+                    $this->repository->updateNoKwitansiByDebiturIds($debiturIds, $trxName, $product);
                     $notifications = $this->handlePaymentNotifications(
                         $result['getListDebitur'],
                         $result['createdById'],
@@ -116,14 +117,41 @@ class PaymentGatewayService
                         $key,
                         $product
                     );
-                    $this->repository->insertNotifications($notifications);
+
                     break;
                 case 'srtb':
                     $result = $this->validateSrtb($trxNo, $noSuratPermohonan, $orderId, $listDebitur);
+                    $trxName = $this->sendPaymentToCreatio(
+                        $noSuratPermohonan,
+                        $result['payloadCore']
+                    );
+                    $this->repository->updateNoKwitansiByDebiturIds($debiturIds, $trxName, $product);
+                    $notifications = $this->handlePaymentNotifications(
+                        $result['getListDebitur'],
+                        $result['createdById'],
+                        $trxNo,
+                        $noSuratPermohonan,
+                        $key,
+                        $product
+                    );
+                    break;
+                case 'cstb':
+                    $result = $this->validateCstb($trxNo, $noSuratPermohonan, $orderId, $listDebitur);
+                    $trxName = $this->sendPaymentToCreatio($noSuratPermohonan, $result['payloadCore']);
+                    $this->repository->updateNoKwitansiByDebiturIds($debiturIds, $trxName, $product);
+                    $notifications = $this->handlePaymentNotifications(
+                        $result['getListDebitur'],
+                        $result['createdById'],
+                        $trxNo,
+                        $noSuratPermohonan,
+                        $key,
+                        $product
+                    );
                     break;
                 default:
                     throw new Exception('Invalid product', 400);
             }
+            $this->repository->insertNotifications($notifications);
 
             return [
                 "orderId" => "Status Pembayaran " . $result["order_status"]['status'],
@@ -186,7 +214,7 @@ class PaymentGatewayService
         $nowJakarta = Carbon::now('Asia/Jakarta');
         $dataHeader = $this->repository->getDetailSrtb($trxNo, $noSuratPermohonan);
         if (!$dataHeader) {
-            throw new \Exception(`Data Surat Permohonan $noSuratPermohonan ditemukan`);
+            throw new \Exception(`Data Surat Permohonan $noSuratPermohonan tidak ditemukan`);
         }
         $checkOrderId = $this->repository->checkOrderSrtbById($orderId);
         if (!$checkOrderId) {
@@ -202,8 +230,8 @@ class PaymentGatewayService
             }
         }
 
-        $this->repository->UpdateInvoiceDetaiSrtb($checkOrderId->invoice_id, $getDetailAfterPayment, $order_status['status'], $nowJakarta);
-        $this->repository->UpdateInvoiceHeaderSrtb($checkOrderId->invoice_id, $order_status['status'], $nowJakarta);
+        $this->repository->UpdateInvoiceDetailSrtb($checkOrderId->srtb_invoice_id, $getDetailAfterPayment, $order_status['status'], $nowJakarta);
+        $this->repository->UpdateInvoiceHeaderSrtb($checkOrderId->srtb_invoice_id, $order_status['status'], $nowJakarta);
 
         foreach ($listDebitur as $deb) {
             $isCollateral = (bool) $deb['isCollateral'];
@@ -250,6 +278,52 @@ class PaymentGatewayService
         return $result;
     }
 
+    private function validateCstb(string $trxNo, string $noSuratPermohonan, string $orderId, array $listDebitur): array
+    {
+        $nowJakarta = Carbon::now('Asia/Jakarta');
+        $dataHeader = $this->repository->getDetailCstb($trxNo, $noSuratPermohonan);
+        if (!$dataHeader) {
+            throw new \Exception(`Data Surat Permohonan $noSuratPermohonan tidak ditemukan`);
+        }
+        $checkOrderId = $this->repository->checkOrderSrtbById($orderId);
+        if (!$checkOrderId) {
+            throw new \Exception(`Data Order ID $orderId tidak ditemukan`);
+        }
+        $order_status = GenerateInvoiceMidtrans::checkSnapStatus($checkOrderId->order_id);
+        $getDetailAfterPayment = (object) $order_status['raw'];
+        $bankType = "";
+        if ($getDetailAfterPayment->payment_type == "bank_transfer") {
+            if (isset($getDetailAfterPayment->va_numbers[0])) {
+                $bankType = $getDetailAfterPayment->va_numbers[0]['bank'];
+                $virtualAccount = $getDetailAfterPayment->va_numbers[0]['va_number'];
+            }
+        }
+
+        $this->repository->UpdateInvoiceDetailCstb($checkOrderId->id_bond, $getDetailAfterPayment, $order_status['status'], $nowJakarta);
+        $this->repository->UpdateInvoiceHeaderCstb($checkOrderId->id_bond, $order_status['status'], $nowJakarta);
+        $this->repository->UpdateTenorInvoiceCstb($checkOrderId->id_bond, $order_status['status'], $nowJakarta);
+
+        $listDebitur = array_map(function ($item) {
+            $item['invoice_number'] = $item['invoiceNumber'];
+            $item['total_amount'] = $item['amount'];
+            $item['no_sp_detail'] = null;
+            unset($item['amount']);
+            unset($item['isCollateral']);
+            unset($item['invoiceNumber']);
+            return $item;
+        }, $listDebitur);
+        $payloadCore = [
+            "NoSuratPermohonan" => $noSuratPermohonan,
+            "ListDebitur" => $listDebitur,
+        ];
+        $result = [
+            "createdById" => $dataHeader->created_by_id,
+            // "getListDebitur" => $getListDebitur,
+            "payloadCore" => $payloadCore,
+            "orderStatus" => $order_status
+        ];
+        return $result;
+    }
 
     private function handlePaymentSrtb(array $input, $nowJakarta, array $debiturList, string $key)
     {

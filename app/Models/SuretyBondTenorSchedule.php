@@ -24,7 +24,9 @@ class SuretyBondTenorSchedule extends Model
         'amount',
         'collateral_amount',
         'status',
-        'status_collateral'
+        'status_collateral',
+        'kwitansi',
+        'kwitansi_collateral',
     ];
 
     public function transaction()

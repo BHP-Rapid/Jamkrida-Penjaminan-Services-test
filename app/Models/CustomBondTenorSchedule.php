@@ -22,6 +22,7 @@ class CustomBondTenorSchedule extends Model
         'status',
         'updated_at',
         'created_at',
+        'kwitansi',
     ];
 
     public function transaction()

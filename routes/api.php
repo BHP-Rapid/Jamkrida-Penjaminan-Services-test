@@ -4,6 +4,7 @@ use App\Http\Controllers\AjpServices\AjpController;
 use App\Http\Controllers\CustomBondServices\CustomBondTransactionController;
 use App\Http\Controllers\KreditMikroKecilServices\KreditMikroKecilController;
 use App\Http\Controllers\MultigunaController;
+use App\Http\Controllers\MultigunaServices\MultigunaController as MultigunaServicesMultigunaController;
 use App\Http\Controllers\PaymentGatewayController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PenjaminanTransactionController;
@@ -20,7 +21,7 @@ Route::post('/penjaminan/validate-payment', [PaymentGatewayController::class, 'C
 
 // PENJAMINAN MULTIGUNA
 Route::prefix('/v2/penjaminan/multiguna')->group(function () {
-    Route::get('/detail/{id}', [MultigunaController::class, 'show']);
+    Route::get('/detail/{id}', [MultigunaServicesMultigunaController::class, 'show']);
 });
 
 // PENJAMINAN AJP
