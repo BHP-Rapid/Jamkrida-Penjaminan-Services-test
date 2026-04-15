@@ -2,10 +2,13 @@
 
 namespace App\Repositories;
 
+use App\Models\CustomBondTenorSchedule;
 use App\Models\MultigunaTenorSchedule;
 use App\Models\NotifMitra;
 use App\Models\PenjaminanTransaction;
 use App\Models\SuretyBondTenorSchedule;
+use App\Models\TrxCstbInvoiceHeader;
+use App\Models\TrxCstbPaymentGateway;
 use App\Models\TrxInvoiceHeader;
 use App\Models\TrxPaymentGateway;
 use App\Models\TrxSrtbInvoiceHeader;
@@ -42,6 +45,20 @@ class PaymentgatewayRepository
             ->select([
                 'tph.*',
                 'mt.*',
+            ])->first();
+    }
+
+    public function getDetailCstb(string $trxNo, string $noSuratPermohonan)
+    {
+        return PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('custom_bond_transaction as cbt', 'tph.trx_no', '=', 'cbt.trx_no')
+            ->join('institution as i', 'i.id', '=', 'cbt.id_institution')
+            ->where('tph.trx_no', $trxNo)
+            ->where('tph.no_surat_permohonan', $noSuratPermohonan)
+            ->select([
+                'tph.*',
+                'cbt.*',
             ])->first();
     }
 
@@ -126,9 +143,21 @@ class PaymentgatewayRepository
             ]);
     }
 
-    public function UpdateInvoiceDetaiSrtb(string $invoiceId, object $getDetailAfterPayment, array $orderStatus, Carbon $nowJakarta): void
+    public function UpdateInvoiceDetailSrtb(string $invoiceId, object $getDetailAfterPayment, array $orderStatus, Carbon $nowJakarta): void
     {
-        TrxSrtbPaymentGateway::where('invoice_id', $invoiceId)
+        TrxSrtbPaymentGateway::where('srtb_invoice_id', $invoiceId)
+            ->update([
+                'expiry_date_time' => $getDetailAfterPayment->expiry_time,
+                'status'           => $orderStatus['status'],
+                'settlement_time'  => $getDetailAfterPayment->settlement_time,
+                'transaction_time' => $getDetailAfterPayment->transaction_time,
+                'updated_at'       => $nowJakarta,
+            ]);
+    }
+
+    public function UpdateInvoiceDetailCstb(string $invoiceId, object $getDetailAfterPayment, array $orderStatus, Carbon $nowJakarta): void
+    {
+        TrxCstbPaymentGateway::where('cstb_invoice_id', $invoiceId)
             ->update([
                 'expiry_date_time' => $getDetailAfterPayment->expiry_time,
                 'status'           => $orderStatus['status'],
@@ -150,11 +179,30 @@ class PaymentgatewayRepository
 
     public function UpdateInvoiceHeaderSrtb(string $invoiceId, array $orderStatus, Carbon $nowJakarta): void
     {
-        TrxSrtbInvoiceHeader::where('invoice_id', $invoiceId)
+        TrxSrtbInvoiceHeader::where('srtb_schedule_id', $invoiceId)
             ->update([
                 'status'     => $orderStatus['status'],
                 'updated_at' => $nowJakarta,
                 'is_manual'  => 0,
+            ]);
+    }
+
+    public function UpdateInvoiceHeaderCstb(string $invoiceId, array $orderStatus, Carbon $nowJakarta): void
+    {
+        TrxCstbInvoiceHeader::where('cstb_invoice_id', $invoiceId)
+            ->update([
+                'status'     => $orderStatus['status'],
+                'updated_at' => $nowJakarta,
+                'is_manual'  => 0,
+            ]);
+    }
+
+    public function UpdateTenorInvoiceCstb(string $invoiceId, array $orderStatus, Carbon $nowJakarta): void
+    {
+        CustomBondTenorSchedule::where('id_bond', $invoiceId)
+            ->update([
+                'updated_at' => $nowJakarta,
+                'status'     => $orderStatus['status'],
             ]);
     }
 
@@ -207,12 +255,24 @@ class PaymentgatewayRepository
         return $query->get();
     }
 
-    public function updateNoKwitansiByDebiturIds(array $debiturIds, string $trxName): void
+    public function updateNoKwitansiByDebiturIds(array $debiturIds, string $trxName, string $product): void
     {
-        MultigunaTenorSchedule::whereIn('id_trx_debitur', $debiturIds)
-            ->update([
-                'no_kwitansi' => $trxName
-            ]);
+        switch ($product) {
+            case 'mlt':
+                MultigunaTenorSchedule::whereIn('id_trx_debitur', $debiturIds)
+                    ->update([
+                        'no_kwitansi' => $trxName
+                    ]);
+                break;
+            case 'srtb':
+                break;
+            case 'cstb':
+                CustomBondTenorSchedule::whereIn('id_bond', $debiturIds)
+                    ->update([
+                        'no_kwitansi' => $trxName
+                    ]);
+                break;
+        }
     }
     public function insertNotifications(array $notifications): void
     {
