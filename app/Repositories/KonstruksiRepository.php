@@ -2,10 +2,14 @@
 
 namespace App\Repositories;
 
+use App\Models\DebiturTenorSchedule;
 use App\Models\Institution;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
+use App\Models\v2\KonstruksiDebiturInvoiceHeader;
+use App\Models\v2\KonstruksiDebiturPaymentGateway;
+use App\Models\v2\KonstruksiDebiturTenorSchedule;
 use App\Models\v2\MultigunaTrxKonstruksi;
 use App\Models\v2\TrxDebiturKonstruksi;
 use Carbon\Carbon;
@@ -105,9 +109,19 @@ class KonstruksiRepository
         PenjaminanTransaction::create($payload);
     }
 
+    public function invoiceHeaderData(array $payload): KonstruksiDebiturInvoiceHeader
+    {
+        return KonstruksiDebiturInvoiceHeader::create($payload);
+    }
+
     public function createKonstruksiTransaction(array $payload): MultigunaTrxKonstruksi
     {
         return MultigunaTrxKonstruksi::create($payload);
+    }
+
+    public function createKonstruksiPaymentGateway(array $payload): KonstruksiDebiturPaymentGateway
+    {
+        return KonstruksiDebiturPaymentGateway::create($payload);
     }
 
     public function getNowJakarta(): Carbon
@@ -144,5 +158,157 @@ class KonstruksiRepository
             ->where('c.key', 'lampiran')
             ->orderBy('c.value', 'asc')
             ->get();
+    }
+    public function dataHeader($trx_no, $no_surat_permohonan, $isSplit)
+    {
+        PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('multiguna_trx_kreditkonstruksi as kut', 'tph.trx_no', '=', 'kut.trx_no')
+            ->join('trx_debitur_construction as td', 'kut.id_multiguna_konstruksi', '=', 'td.id_multiguna_konstruksi')
+            ->join('konstruksi_debitur_tenor_schedule as dts', 'td.id_trx_debitur_konstruksi', '=', 'dts.id_trx_debitur')
+            ->join('institution as i', 'i.institution_id', '=', 'td.institution_id')
+            ->where('tph.trx_no', $trx_no)
+            ->where('dts.status', 'Pending')
+            ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+            ->where('tph.sp_split', $isSplit)
+            ->select([
+                'kut.id_multiguna_konstruksi',
+                'td.id_trx_debitur_konstruksi',
+                'td.nilai_kredit_per_proyek as plafond_kredit',
+                'i.id_number as nik',
+                'td.nama_proyek as nama_nasabah',
+                'dts.amount',
+                'dts.invoice_number',
+                'dts.due_date',
+                'dts.status'
+            ])
+            ->get();
+    }
+    public function dataHeaderList($trx_no, $no_surat_permohonan, $isSplit)
+    {
+        PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('multiguna_trx_kreditkonstruksi as kut', 'tph.trx_no', '=', 'kut.trx_no')
+            ->where('tph.trx_no', $trx_no)
+            ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+            ->where('tph.sp_split', $isSplit)
+            ->select([
+                'tph.*',
+                'kut.id_multiguna_konstruksi',
+            ])
+            ->first();
+    }
+    public function dataUnpaid($trx_no)
+    {
+        KonstruksiDebiturInvoiceHeader::query()
+            ->from('konstruksi_debitur_invoice_header as dih')
+            // DB::table('konstruksi_debitur_invoice_header as dih')
+            ->join('konstruksi_debitur_tenor_schedule as dts', 'dih.invoice_id', '=', 'dts.invoice_id')
+            ->join('konstruksi_debitur_payment_gateway as dpg', 'dpg.invoice_id', '=', 'dih.invoice_id')
+            ->join('trx_debitur_construction as td', 'td.id_trx_debitur_konstruksi', '=', 'dts.id_trx_debitur')
+            ->where('dih.trx_no', $trx_no)
+            ->where('dih.status', 'Unpaid')
+            ->select(
+                'dpg.payment_id',
+                'dih.invoice_id',
+                'dpg.order_id',
+                'dpg.order_payment_url',
+                'dpg.order_payment_token',
+                'dts.tenor_sequence',
+                'dih.trx_no',
+                'dih.total_amount',
+                DB::raw('COUNT(td.id_trx_debitur_konstruksi) AS total_debitur')
+            )
+            ->groupBy(
+                'dpg.payment_id',
+                'dpg.order_id',
+                'dpg.order_payment_url',
+                'dts.tenor_sequence',
+                'dih.trx_no',
+                'dih.total_amount'
+            )->get();
+    }
+    public function dataDebitur($id_multiguna_konstruksi)
+    {
+        return TrxDebiturKonstruksi::where('id_multiguna_konstruksi', $id_multiguna_konstruksi)
+            ->join('institution as i', 'i.institution_id', '=', 'trx_debitur_construction.institution_id')
+            ->select(
+                'id_trx_debitur_konstruksi',
+                'no_sp_detail',
+                'loan_number',
+                'tanggal_realisasi',
+                'nama_proyek as nama_nasabah',
+                'i.id_number as nik',
+            )
+            ->orderBy('id_trx_debitur_konstruksi', 'asc')
+            ->get();
+    }
+
+    public function schedule($debiturIds)
+    {
+        return KonstruksiDebiturTenorSchedule::whereIn('id_trx_debitur', $debiturIds)
+            ->WhereIn('status', ['Unpaid', 'Pending'])
+            ->select('id_trx_debitur', 'tenor_sequence', 'amount', 'due_date', 'status', 'invoice_number')
+            ->orderBy('tenor_sequence', 'asc')
+            ->get();
+    }
+
+    public function scheduleUnpaid($debiturIds)
+    {
+        return KonstruksiDebiturInvoiceHeader::select(
+            'dpg.payment_id',
+            'dpg.order_id',
+            'dpg.order_payment_url',
+            'dpg.order_payment_token',
+            'dts.tenor_sequence',
+            'konstruksi_debitur_invoice_header.trx_no',
+            'konstruksi_debitur_invoice_header.total_amount',
+            DB::raw('COUNT(td.id_trx_debitur_konstruksi) as total_debitur')
+        )
+            ->join('konstruksi_debitur_tenor_schedule as dts', 'konstruksi_debitur_invoice_header.invoice_id', '=', 'dts.invoice_id')
+            ->join('konstruksi_debitur_payment_gateway as dpg', 'dpg.invoice_id', '=', 'konstruksi_debitur_invoice_header.invoice_id')
+            ->join('trx_debitur_construction as td', 'td.id_trx_debitur_konstruksi', '=', 'dts.id_trx_debitur')
+            // ->where('konstruksi_debitur_invoice_header.invoice_scope', '=', 'Merge Payment')
+            ->where('dts.status', 'Unpaid')
+            ->whereIn('dts.id_trx_debitur', $debiturIds)
+            ->groupBy(
+                'dpg.order_id',
+                'dpg.order_payment_token',
+                'dpg.order_payment_url',
+                'dts.tenor_sequence',
+                'konstruksi_debitur_invoice_header.trx_no',
+                'konstruksi_debitur_invoice_header.total_amount'
+            )
+            ->get();
+    }
+    public function tenorData($arrInvoiceNoTemp, $trx_no)
+    {
+        return DebiturTenorSchedule::query()
+            ->from('multiguna_trx_kreditkonstruksi as kut')
+            ->join('trx_debitur_construction as td', 'td.id_multiguna_konstruksi', '=', 'kut.id_multiguna_konstruksi')
+            ->join('konstruksi_debitur_tenor_schedule as dts', 'dts.id_trx_debitur', '=', 'td.id_trx_debitur_konstruksi')
+            ->select([
+                'kut.id_kredit_usaha',
+                'dts.schedule_id',
+                'dts.id_trx_debitur',
+                'dts.tenor_sequence',
+                'dts.invoice_number',
+                'dts.amount',
+                'td.id_trx_debitur',
+                'td.no_sp_detail',
+            ])
+            ->whereIn('dts.invoice_number', $arrInvoiceNoTemp) //, ['INV-493', 'INV-474'])
+            ->where('kut.trx_no', $trx_no)
+            ->get();
+    }
+    public function mltHeader($trx_no)
+    {
+        return PenjaminanTransaction::where('trx_no', $trx_no)
+            ->select('no_surat_permohonan')->first();
+    }
+
+    public function createLampiranPembayaran(array $payload): PenjaminanLampiranDtl
+    {
+        return PenjaminanLampiranDtl::create($payload);
     }
 }

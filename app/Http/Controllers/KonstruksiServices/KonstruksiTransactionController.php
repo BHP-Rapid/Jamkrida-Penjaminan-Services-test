@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\TenantMitra;
 use App\Services\CreatioService;
 use App\Services\KonstruksiServices\Konstruksi;
+use App\Services\PenjaminanService;
 use Exception;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Http\Request;
@@ -175,16 +176,14 @@ class KonstruksiTransactionController extends Controller
                         'message' => $penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data'
                     ], 500);
                 }
-
-                // $selectedPks = $request->data['selectedPks'] ?? $request->data['pks'];
-                // $result = $this->validateDebiturBatch($selectedPks, $penjaminanPKSData, $dataDebitur);
-                // $dataDebitur = $result['dataDebitur'];
-                // if (!$result['success']) {
-                //     return response()->json($result, 422);
-                // }
             }
-            
+
             $result = $this->service->update($request->all(), $user, $mitraAlias, $penjaminanPKSData, $trxNo);
+            return response()->json([
+                'success' => $result['success'] ?? false,
+                'message' => $result['message'] ?? 'Unknown response',
+                'list_debitur' => $result['list_debitur'] ?? null,
+            ], $result['status'] ?? 200);
         } catch (Exception $ex) {
 
             return response()->json([
@@ -208,6 +207,72 @@ class KonstruksiTransactionController extends Controller
         }
     }
 
+    public function ApprovePenjaminan(Request $request)
+    {
+        $trx_no = $request->trxNo;
+        // dd($trx_no);
+        $method = $request->method();
+        $fullUrl = $request->fullUrl();
+        try {
+            (new PenjaminanService())->approvePenjaminanKonstruksi(
+                $trx_no,
+                auth('sanctum')->user()->user_id,
+                auth('sanctum')->user()->name,
+                "Perorangan"
+            );
+
+            return ApiResponse::success(null, 'Penjaminan Kredit Konstruksi successfully approved.');
+        } catch (Exception $ex) {
+            return ApiResponse::error('Error while approving Penjaminan Kredit Konstruksi (' . $ex->getMessage() . ')', 500);
+        }
+    }
+
+    public function GetDetailPaymentKonstruksi(Request $request)
+    {
+        try {
+            $result = $this->service->GetDetailPaymentKonstruksi($request);
+
+            if (($result['success'] ?? false) !== true) {
+                return ApiResponse::error($result['message'] ?? 'Data tidak ditemukan', $result['status'] ?? 404);
+            }
+
+            return ApiResponse::success($result['data'] ?? [], 'Data retrieved successfully');
+        } catch (Exception $ex) {
+            Log::error("Error fetching AJP payment details", ['exception' => $ex]);
+            return ApiResponse::error('Error fetching AJP payment details (' . $ex->getMessage() . ')', 500);
+        }
+    }
+
+    public function GetDetailListPaymentKonstruksi(Request $request)
+    {
+        try {
+            $result = $this->service->GetDetailListPaymentKonstruksi($request);
+
+            if (($result['success'] ?? false) !== true) {
+                return ApiResponse::error($result['message'] ?? 'Data tidak ditemukan', $result['status'] ?? 404);
+            }
+
+            return ApiResponse::success($result['data'] ?? [], 'Data retrieved successfully');
+        } catch (Exception $ex) {
+            Log::error("Error fetching AJP payment detail list", ['exception' => $ex]);
+
+            return ApiResponse::error('Error fetching AJP payment detail list (' . $ex->getMessage() . ')', 500);
+        }
+    }
+    public function uploadPembayaranManual(Request $request)
+    {
+        $this->validate($request, [
+            'trx_no' => 'required|string|max:50',
+            'amount' => 'required|numeric',
+            'selected_items' => 'required|string',
+            // 'selected_item_old' => 'required|array',
+            // 'selected_item_old.*.amount' => 'required|numeric',
+            // 'selected_item_old.*.invoice_number' => 'required|string|max:50',
+            // 'selected_item_old.*.nik' => 'required|string|max:50'
+            'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
+        ]);
+
+    }
     public function getPenjaminanPKS()
     {
         $mitra_id = auth('sanctum')->user()->mitra_id;

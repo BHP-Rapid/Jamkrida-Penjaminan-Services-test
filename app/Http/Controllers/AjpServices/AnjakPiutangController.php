@@ -197,6 +197,7 @@ class AjpController extends Controller
         }
     }
 
+    //this is only used for debugging purpose ( creating invoice number ) you can comment it or delete it
     public function createTrxDebitur(Request $request)
     {
         try {
