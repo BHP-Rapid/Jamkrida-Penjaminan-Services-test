@@ -4,6 +4,7 @@ use App\Http\Controllers\AjpServices\AjpController;
 use App\Http\Controllers\CustomBondServices\CustomBondTransactionController;
 use App\Http\Controllers\KonstruksiServices\KonstruksiTransactionController;
 use App\Http\Controllers\KreditMikroKecilServices\KreditMikroKecilController;
+use App\Http\Controllers\KURServices\KURTransactionController;
 use App\Http\Controllers\MultigunaController;
 use App\Http\Controllers\MultigunaServices\MultigunaController as MultigunaServicesMultigunaController;
 use App\Http\Controllers\PaymentGatewayController;
@@ -62,6 +63,8 @@ Route::put('/v2/penjaminan/kredit-mikro-kecil/update-draft/{trxNo}', [KreditMikr
 Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-full-kmk', [KreditMikroKecilController::class, 'GetDetailPaymentKMK']);
 Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-installment-kmk-list', [KreditMikroKecilController::class, 'GetDetailListPaymentKMK']);
 Route::post('/v2/penjaminan/kredit-mikro-kecil/upload-bukti-bayar-manual', [KreditMikroKecilController::class, 'UploadPembayaranManualKMK']);
+
+Route::get('/v2/penjaminan/kredit-usaha-rakyat/detail/{id}', [KURTransactionController::class, 'show']);
 
  //PENJAMINAN KONSTRUKSI
  Route::post('/v2/penjaminan/konstruksi/create', [KonstruksiTransactionController::class, 'store']);
