@@ -3,7 +3,7 @@
 namespace App\Services\CustomBondServices;
 
 use App\Helpers\AesHelper;
-use App\Http\Controllers\CustomBondServices\CustomBondTransactionController;
+use App\Helpers\ApiResponse;
 use App\Models\CustomBondTenorSchedule;
 use App\Models\CustomBondTransaction;
 use App\Models\PenjaminanFlow;
@@ -19,6 +19,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Exception;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomBond
 {
@@ -158,82 +159,24 @@ class CustomBond
         })->values()->toArray();
     }
 
-    public function store($request, $user)
+    public function store($payload, $user)
     {
         $institutionIsInserted = false;
-
-        $debugMsg = 'No tenant mitra data.';
         $mitraAlias = '';
-
         $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
             ->select('mitra_id', 'alias')
             ->first();
-
-        if ($tenantMitraData) {
-            $mitraAlias = $tenantMitraData->alias;
-        } else {
+        if (!$tenantMitraData) {
             return [
                 'error' => true,
                 'code' => 404,
                 'message' => 'Tenant mitra data not found.'
             ];
         }
-
-        if (strtolower($request['data']['status']) == 'submit') {
-            validator($request, [
-                'data.jenisBond' => 'required|string|max:8',
-                'data.noSuratPermohonan' => 'required|string|max:50',
-                'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
-                'data.jenisPernyataan' => 'required|string|max:50',
-                'data.skemaPenalty' => 'required|string|max:50',
-                'data.sektor' => 'required|string|max:50',
-                'data.namaPrincipal' => 'required|string|max:255',
-                'data.namaObligee' => 'required|string|max:255',
-                'data.isBast' => 'required|boolean',
-                'data.namaProyek' => 'required|string|max:100',
-                'data.nilaiProyek' => 'required|numeric|min:0',
-                'data.nilaiBond' => 'required|numeric|min:0',
-                'data.nilaiBondPersentase' => 'required|numeric|min:0',
-                'data.periodeAwalBerlaku' => 'required|date_format:Y-m-d',
-                'data.periodeAkhirBerlaku' => 'required|date_format:Y-m-d',
-                'data.jangkaWaktu' => 'required|numeric|min:0',
-                'data.propinsi' => 'required|string|max:50',
-                'data.jenisSuratPerjanjian' => 'required|string|max:64',
-                'data.noSuratPerjanjian' => 'required|string|max:64',
-                'data.tglSuratPerjanjian' => 'required|date_format:Y-m-d',
-                'data.tarif' => 'nullable|numeric|min:0',
-            ])->validate();
-        } else {
-            validator($request, [
-                'data.jenisBond' => 'required|string|max:8',
-                'data.noSuratPermohonan' => 'nullable|string|max:50',
-                'data.tglSuratPermohonan' => 'nullable|date_format:Y-m-d',
-                'data.jenisPernyataan' => 'nullable|string|max:50',
-                'data.skemaPenalty' => 'nullable|string|max:50',
-                'data.sektor' => 'nullable|string|max:50',
-                'data.namaPrincipal' => 'nullable|string|max:255',
-                'data.namaObligee' => 'nullable|string|max:255',
-                'data.isBast' => 'nullable|boolean',
-                'data.namaProyek' => 'nullable|string|max:100',
-                'data.nilaiProyek' => 'nullable|numeric|min:0',
-                'data.nilaiBond' => 'nullable|numeric|min:0',
-                'data.nilaiBondPersentase' => 'nullable|numeric|min:0',
-                'data.periodeAwalBerlaku' => 'nullable|date_format:Y-m-d',
-                'data.periodeAkhirBerlaku' => 'nullable|date_format:Y-m-d',
-                'data.jangkaWaktu' => 'nullable|numeric|min:0',
-                'data.propinsi' => 'nullable|string|max:50',
-                'data.jenisSuratPerjanjian' => 'nullable|string|max:64',
-                'data.noSuratPerjanjian' => 'nullable|string|max:64',
-                'data.tglSuratPerjanjian' => 'nullable|date_format:Y-m-d',
-                'data.tarif' => 'nullable|numeric|min:0'
-            ])->validate();
-        }
-
-        $penjaminanPayload = collect($request['data'])->toArray();
-        $checkIsDeposit = (bool) $penjaminanPayload['isDeposit'];
-
+        $mitraAlias = $tenantMitraData->alias;
+        $penjaminanPayload = $payload['data'] ?? [];
+        $checkIsDeposit = (bool) ($penjaminanPayload['isDeposit'] ?? false);
         $institutionService = new InstitutionService();
-
         $institutionKeys = [
             'full_name',
             'birth_place',
@@ -265,15 +208,14 @@ class CustomBond
             'other_income_currency',
             'other_income_amount'
         ];
-
-        $institutionCollect = collect($request['data']['institutionData']);
-        $institutionPayload = $institutionCollect->only($institutionKeys)->toArray();
+        $institutionData = $penjaminanPayload['institutionData'] ?? [];
+        $institutionPayload = collect($institutionData)
+            ->only($institutionKeys)
+            ->toArray();
 
         $institutionPayload['category'] = 'P';
         $institutionPayload['phone_type'] = '-';
-
-        $trxInsertStatus = $penjaminanPayload['trx_status'] == 'NA' ? 'NA' : 'D';
-
+        $trxInsertStatus = ($penjaminanPayload['trx_status'] ?? null) === 'NA' ? 'NA' : 'D';
         try {
             $institutionService->insertInstitution($institutionPayload, $user->user_id);
             $institutionIsInserted = true;
@@ -296,20 +238,10 @@ class CustomBond
 
             DB::commit();
 
-            return [
-                'success' => true,
-                'message' => 'Data berhasil disubmit',
-            ];
-        } catch (Exception $ex) {
+            return ApiResponse::success(null, 'Store Custom Bond has success');
+        } catch (Exception $e) {
             DB::rollBack();
-
-            if ($institutionIsInserted) {
-                DB::table('institution')
-                    ->where('institution_id', $institutionService->getCreatedInstitutionId())
-                    ->delete();
-            }
-
-            throw $ex;
+            throw $e;
         }
     }
 
@@ -458,156 +390,116 @@ class CustomBond
         }
     }
 
-    public function updateDraft($request, $trxNo, $user)
+    public function updateDraft($payload, $trxNo, $user)
     {
-        $penjaminanPayload = collect($request['data'])->toArray();
-
-        if (array_key_exists('institution_data', $penjaminanPayload)) {
-            unset($penjaminanPayload['institution_data']);
-        }
-
+        $penjaminanPayload = $payload['data'] ?? [];
+        unset($penjaminanPayload['institution_data']);
         $isBastPenjaminan = $penjaminanPayload['isBast'] ?? false;
-
         if ($isBastPenjaminan) {
-            validator($request, [
-                'data.noSuratBast' => 'required|string|max:50',
-                'data.tglSuratBast' => 'required|date'
-            ])->validate();
+            if (empty($penjaminanPayload['noSuratBast']) || empty($penjaminanPayload['tglSuratBast'])) {
+                throw new HttpException(
+                    422,
+                    'No Surat BAST and Tanggal BAST are required when isBast = true'
+                );
+            }
         }
-
         $lampiranExist = !empty($penjaminanPayload['attachments'] ?? []);
-
         if ($lampiranExist) {
-            $lampiranIdMap = array_map(fn($item) => $item['lampiran_id'], $penjaminanPayload['attachments']);
-
-            $duplicateLampiranId = count(array_unique($lampiranIdMap)) !== count($lampiranIdMap);
-
-            if ($duplicateLampiranId) {
-                return [
-                    'error' => true,
-                    'code' => 422,
-                    'message' => 'Duplicate lampiran id.'
-                ];
+            $lampiranIdMap = array_map(
+                fn($item) => $item['lampiran_id'],
+                $penjaminanPayload['attachments']
+            );
+            if (count(array_unique($lampiranIdMap)) !== count($lampiranIdMap)) {
+                throw new HttpException(422, 'Duplicate lampiran id.');
             }
         }
-
         DB::beginTransaction();
+        $penjaminanTrxHeaderData = PenjaminanTransaction::where('trx_no', $trxNo)
+            ->select('trx_no', 'trx_status')
+            ->first();
 
-        try {
-            $penjaminanTrxHeaderData = PenjaminanTransaction::where('trx_no', $trxNo)
-                ->select('trx_no', 'trx_status')
-                ->first();
+        $customBondData = CustomBondTransaction::where('trx_no', $trxNo)
+            ->select('id_bond')
+            ->first();
 
-            $customBondData = CustomBondTransaction::where('trx_no', $trxNo)
-                ->select('id_bond')
-                ->first();
-
-            if (
-                $penjaminanTrxHeaderData &&
-                $customBondData &&
-                $penjaminanTrxHeaderData->trx_status == 'D'
-            ) {
-
-                $fallback = function (string $key, $default = null) use ($penjaminanPayload) {
-                    return array_key_exists($key, $penjaminanPayload)
-                        ? $penjaminanPayload[$key]
-                        : $default;
-                };
-
-                $checkPenjaminanTrans = PenjaminanTransaction::where('trx_no', $trxNo)->first();
-
-                if (!$checkPenjaminanTrans) {
-                    return [
-                        'error' => true,
-                        'code' => 404,
-                        'message' => 'Penjaminan Transaction not found.'
-                    ];
-                }
-
-                $nowJakarta = Carbon::now('Asia/Jakarta');
-
-                PenjaminanTransaction::where('trx_no', $trxNo)->update([
-                    'no_surat_permohonan' => $fallback('noSuratPermohonan'),
-                    'tanggal_surat_permohonan' => $fallback('tglSuratPermohonan'),
-                    'is_split' => $fallback('isSplit'),
-                    'updated_by_id' => $user->user_id,
-                    'updated_by_name' => $user->name,
-                    'updated_at' => $nowJakarta
-                ]);
-
-                $checkCustomBond = CustomBondTransaction::where('trx_no', $trxNo)->first();
-
-                if (!$checkCustomBond) {
-                    return [
-                        'error' => true,
-                        'code' => 404,
-                        'message' => 'Custom Bond Transaction not found.'
-                    ];
-                }
-
-                CustomBondTransaction::where('trx_no', $trxNo)->update([
-                    'trx_no' => $trxNo,
-                    'jenis_bond' => 'cstb',
-                    'jenis_bond_description' => 'Custom Bond',
-                    'jenis_persyaratan' => $penjaminanPayload['jenisPernyataan'],
-                    'skema_penalty' => $penjaminanPayload['skemaPenalty'],
-                    'sektor' => $penjaminanPayload['sektor'],
-                    'document_name' => $penjaminanPayload['documentName'] ?? null,
-                    'document_number' => $penjaminanPayload['documentNumber'] ?? null,
-                    'document_date' => isset($penjaminanPayload['documentDate'])
-                        ? Carbon::parse($penjaminanPayload['documentDate'])->format('Y-m-d')
-                        : null,
-                    'is_bast' => $penjaminanPayload['isBast'],
-                    'no_surat_bast' => $penjaminanPayload['isBast']
-                        ? $penjaminanPayload['noSuratBast']
-                        : null,
-                    'bast_date' => $penjaminanPayload['isBast']
-                        ? Carbon::parse($penjaminanPayload['tglSuratBast'])->format('Y-m-d')
-                        : null,
-                    'project_name' => $penjaminanPayload['namaProyek'],
-                    'project_amount' => $penjaminanPayload['nilaiProyek'],
-                    'amount_bond' => $penjaminanPayload['nilaiBond'],
-                    'no_surat_perjanjian' => $penjaminanPayload['noSuratPerjanjian'],
-                    'bond_percentage' => $penjaminanPayload['nilaiBondPersentase'],
-                    'start_period_date' => Carbon::parse($penjaminanPayload['periodeAwalBerlaku'])->format('Y-m-d'),
-                    'tgl_surat_perjanjian' => Carbon::parse($penjaminanPayload['tglSuratPerjanjian'])->format('Y-m-d'),
-                    'end_period_date' => Carbon::parse($penjaminanPayload['periodeAkhirBerlaku'])->format('Y-m-d'),
-                    'total_day' => $penjaminanPayload['jangkaWaktu'],
-                    'province' => $penjaminanPayload['propinsi'],
-                    'tarif_percentage' => $penjaminanPayload['tarif'] ?? null,
-                    'ijp_amount' => $penjaminanPayload['ijpAmount'] ?? null,
-                    'administrative_amount' => $penjaminanPayload['administrativeAmount'] ?? null,
-                    'stamp_amount' => $penjaminanPayload['stampAmount'] ?? null,
-                    'updated_at' => $nowJakarta,
-                ]);
-
-                $this->handleAttachments($penjaminanPayload, $trxNo, $lampiranExist);
-
-                DB::commit();
-
-                return [
-                    'success' => true,
-                    'message' => 'Penjaminan Surety Bond successfully updated.'
-                ];
-            } elseif ($penjaminanTrxHeaderData && $customBondData) {
-
-                return [
-                    'error' => true,
-                    'code' => 422,
-                    'message' => 'Data is not draft.'
-                ];
-            } else {
-
-                return [
-                    'error' => true,
-                    'code' => 400,
-                    'message' => 'Penjaminan data is not found.'
-                ];
-            }
-        } catch (Exception $e) {
-            DB::rollBack();
-            throw $e;
+        if (!$penjaminanTrxHeaderData || !$customBondData) {
+            throw new HttpException(400, 'Penjaminan data is not found.');
         }
+
+        if ($penjaminanTrxHeaderData->trx_status !== 'D') {
+            throw new HttpException(422, 'Data is not draft.');
+        }
+
+        $fallback = function (string $key, $default = null) use ($penjaminanPayload) {
+            return array_key_exists($key, $penjaminanPayload)
+                ? $penjaminanPayload[$key]
+                : $default;
+        };
+
+        $nowJakarta = Carbon::now('Asia/Jakarta');
+        PenjaminanTransaction::where('trx_no', $trxNo)->update([
+            'no_surat_permohonan' => $fallback('noSuratPermohonan'),
+            'tanggal_surat_permohonan' => $fallback('tglSuratPermohonan'),
+            'is_split' => $fallback('isSplit'),
+            'updated_by_id' => $user->user_id,
+            'updated_by_name' => $user->name,
+            'updated_at' => $nowJakarta
+        ]);
+        CustomBondTransaction::where('trx_no', $trxNo)->update([
+            'trx_no' => $trxNo,
+            'jenis_bond' => 'cstb',
+            'jenis_bond_description' => 'Custom Bond',
+
+            'jenis_persyaratan' => $fallback('jenisPernyataan'),
+            'skema_penalty' => $fallback('skemaPenalty'),
+            'sektor' => $fallback('sektor'),
+
+            'document_name' => $fallback('documentName'),
+            'document_number' => $fallback('documentNumber'),
+            'document_date' => !empty($penjaminanPayload['documentDate'])
+                ? Carbon::parse($penjaminanPayload['documentDate'])->format('Y-m-d')
+                : null,
+
+            'is_bast' => $isBastPenjaminan,
+            'no_surat_bast' => $isBastPenjaminan ? $fallback('noSuratBast') : null,
+            'bast_date' => $isBastPenjaminan && !empty($penjaminanPayload['tglSuratBast'])
+                ? Carbon::parse($penjaminanPayload['tglSuratBast'])->format('Y-m-d')
+                : null,
+
+            'project_name' => $fallback('namaProyek'),
+            'project_amount' => $fallback('nilaiProyek'),
+            'amount_bond' => $fallback('nilaiBond'),
+
+            'no_surat_perjanjian' => $fallback('noSuratPerjanjian'),
+            'bond_percentage' => $fallback('nilaiBondPersentase'),
+
+            'start_period_date' => !empty($penjaminanPayload['periodeAwalBerlaku'])
+                ? Carbon::parse($penjaminanPayload['periodeAwalBerlaku'])->format('Y-m-d')
+                : null,
+
+            'tgl_surat_perjanjian' => !empty($penjaminanPayload['tglSuratPerjanjian'])
+                ? Carbon::parse($penjaminanPayload['tglSuratPerjanjian'])->format('Y-m-d')
+                : null,
+
+            'end_period_date' => !empty($penjaminanPayload['periodeAkhirBerlaku'])
+                ? Carbon::parse($penjaminanPayload['periodeAkhirBerlaku'])->format('Y-m-d')
+                : null,
+
+            'total_day' => $fallback('jangkaWaktu'),
+            'province' => $fallback('propinsi'),
+            'tarif_percentage' => $fallback('tarif'),
+            'ijp_amount' => $fallback('ijpAmount'),
+            'administrative_amount' => $fallback('administrativeAmount'),
+            'stamp_amount' => $fallback('stampAmount'),
+
+            'updated_at' => $nowJakarta,
+        ]);
+        $this->handleAttachments($penjaminanPayload, $trxNo, $lampiranExist);
+        DB::commit();
+        return [
+            'success' => true,
+            'message' => 'Penjaminan Surety Bond successfully updated.'
+        ];
     }
 
     private function handleAttachments($penjaminanPayload, $trxNo, $lampiranExist)

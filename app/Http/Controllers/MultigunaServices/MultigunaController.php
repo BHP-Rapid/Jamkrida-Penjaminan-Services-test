@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\MultigunaServices;
 
-use App\Helper\ApiResponse;
+use App\Helpers\ApiResponse;
 use App\Services\CreatioService;
 use App\Services\MultigunaService\MultigunaService;
 use App\Models\TenantMitra;
@@ -84,7 +84,6 @@ class MultigunaController extends Controller
 
         try {
             $data = $this->multigunaService->getMultigunaDetailWithAttachments($id);
-
             return ApiResponse::success($data, 'Data retrieved successfully');
         } catch (Exception $ex) {
             return ApiResponse::error('Error While Get Data Multiguna: ' . $ex->getMessage(), 500);

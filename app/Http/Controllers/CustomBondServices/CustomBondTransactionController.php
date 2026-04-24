@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\CustomBondServices;
 
 use App\Helpers\AesHelper;
+use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Models\PenjaminanTransaction;
 use App\Services\CustomBondServices\CustomBond as CustomBondServicesCustomBondTransactionService;
@@ -12,6 +13,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Exception;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class CustomBondTransactionController extends Controller
 {
@@ -26,27 +28,17 @@ class CustomBondTransactionController extends Controller
     public function show(Request $request)
     {
         try {
-            $data = $this->service->getDetail(
-                $request->query('trx_no'),
-                $request->query('no_surat_permohonan')
-            );
-
-            if (!$data) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data not found.'
-                ], 404);
+            if (empty($id)) {
+                return ApiResponse::error('ID is required', 400);
             }
-
-            return response()->json([
-                'success' => true,
-                'data' => $data
-            ]);
+            $data = $this->service->getDetail($request->query('trx_no'), $request->query('no_surat_permohonan'));
+            return ApiResponse::success($data, 'Data retrieved successfully');
         } catch (\Exception $ex) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error While Get Data Custom Bond: ' . $ex->getMessage()
-            ], 500);
+            return ApiResponse::error('Error While Get Data Custom Bond:  ' . $ex->getMessage(), 500);
+            // return response()->json([
+            //     'success' => false,
+            //     'message' => 'Error While Get Data Custom Bond: ' . $ex->getMessage()
+            // ], 500);
         }
     }
 
@@ -54,72 +46,140 @@ class CustomBondTransactionController extends Controller
     {
         try {
             $user = auth('sanctum')->user();
-
-            $result = $this->service->store($request->all(), $user);
-
-            if (isset($result['error'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $result['message']
-                ], $result['code']);
+            $status = strtolower($request->input('data.status'));
+            $rules = [
+                'order_id' => ['required', 'string'],
+                'trx_no'   => ['required', 'string'],
+                'product'  => ['nullable', 'string'],
+                'data.jenisBond' => 'required|string|max:8',
+            ];
+            if ($status === 'submit') {
+                $rules = array_merge($rules, [
+                    'data.noSuratPermohonan' => 'required|string|max:50',
+                    'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
+                    'data.jenisPernyataan' => 'required|string|max:50',
+                    'data.skemaPenalty' => 'required|string|max:50',
+                    'data.sektor' => 'required|string|max:50',
+                    'data.namaPrincipal' => 'required|string|max:255',
+                    'data.namaObligee' => 'required|string|max:255',
+                    'data.isBast' => 'required|boolean',
+                    'data.namaProyek' => 'required|string|max:100',
+                    'data.nilaiProyek' => 'required|numeric|min:0',
+                    'data.nilaiBond' => 'required|numeric|min:0',
+                    'data.nilaiBondPersentase' => 'required|numeric|min:0',
+                    'data.periodeAwalBerlaku' => 'required|date_format:Y-m-d',
+                    'data.periodeAkhirBerlaku' => 'required|date_format:Y-m-d',
+                    'data.jangkaWaktu' => 'required|numeric|min:0',
+                    'data.propinsi' => 'required|string|max:50',
+                    'data.jenisSuratPerjanjian' => 'required|string|max:64',
+                    'data.noSuratPerjanjian' => 'required|string|max:64',
+                    'data.tglSuratPerjanjian' => 'required|date_format:Y-m-d',
+                    'data.tarif' => 'nullable|numeric|min:0',
+                ]);
+            } else {
+                $rules = array_merge($rules, [
+                    'data.noSuratPermohonan' => 'nullable|string|max:50',
+                    'data.tglSuratPermohonan' => 'nullable|date_format:Y-m-d',
+                    'data.jenisPernyataan' => 'nullable|string|max:50',
+                    'data.skemaPenalty' => 'nullable|string|max:50',
+                    'data.sektor' => 'nullable|string|max:50',
+                    'data.namaPrincipal' => 'nullable|string|max:255',
+                    'data.namaObligee' => 'nullable|string|max:255',
+                    'data.isBast' => 'nullable|boolean',
+                    'data.namaProyek' => 'nullable|string|max:100',
+                    'data.nilaiProyek' => 'nullable|numeric|min:0',
+                    'data.nilaiBond' => 'nullable|numeric|min:0',
+                    'data.nilaiBondPersentase' => 'nullable|numeric|min:0',
+                    'data.periodeAwalBerlaku' => 'nullable|date_format:Y-m-d',
+                    'data.periodeAkhirBerlaku' => 'nullable|date_format:Y-m-d',
+                    'data.jangkaWaktu' => 'nullable|numeric|min:0',
+                    'data.propinsi' => 'nullable|string|max:50',
+                    'data.jenisSuratPerjanjian' => 'nullable|string|max:64',
+                    'data.noSuratPerjanjian' => 'nullable|string|max:64',
+                    'data.tglSuratPerjanjian' => 'nullable|date_format:Y-m-d',
+                    'data.tarif' => 'nullable|numeric|min:0',
+                ]);
             }
-
-            return response()->json($result);
-        } catch (\Illuminate\Validation\ValidationException $ve) {
-            return response()->json([
-                'message' => $ve->getMessage(),
-                'error' => $ve->errors()
-            ], 422);
+            $validator = Validator::make(
+                $request->all(),
+                $rules,
+                [
+                    'order_id.required' => 'order_id is required',
+                    'trx_no.required'   => 'trx_no is required',
+                    'data.status.required' => 'status is required',
+                    'data.status.in' => 'status must be submit or draft',
+                ]
+            );
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
+            }
+            $payload = $validator->validated();
+            $result = $this->service->store($payload, $user);
+            return ApiResponse::success($result);
+        } catch (\Illuminate\Validation\ValidationException $ex) {
+            return ApiResponse::error('Validation error', 422, $ex->errors());
         } catch (\Exception $ex) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error While Insert Custom Bond: ' . $ex->getMessage()
-            ], 500);
+            return ApiResponse::error(
+                $ex->getMessage(),
+                500
+            );
         }
     }
 
     public function UpdateDraft(Request $request, string $trxNo)
     {
         $user = auth('sanctum')->user();
-
-        $this->validate($request, [
-            'data.trx_status' => 'required|string|in:D,NA',
-            'data.noSuratPermohonan' => 'required|string|max:50',
-            'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
-            'data.jenisPernyataan' => 'nullable|string|max:50',
-            'data.skemaPenalty' => 'nullable|string|max:50',
-            'data.sektor' => 'nullable|string|max:50',
-            'data.namaPrincipal' => 'nullable|string|max:255',
-            'data.namaObligee' => 'nullable|string|max:255',
-            'data.isBast' => 'nullable|boolean',
-            'data.namaProyek' => 'nullable|string|max:100',
-            'data.nilaiProyek' => 'nullable|numeric|min:0',
-            'data.nilaiBond' => 'nullable|numeric|min:0',
-            'data.nilaiBondPersentase' => 'nullable|numeric|min:0',
-            'data.periodeAwalBerlaku' => 'nullable|date_format:Y-m-d',
-            'data.periodeAkhirBerlaku' => 'nullable|date_format:Y-m-d',
-            'data.jangkaWaktu' => 'nullable|numeric|min:0',
-            'data.propinsi' => 'nullable|string|max:50',
-            'data.jenisSuratPerjanjian' => 'nullable|string|max:64',
-            'data.noSuratPerjanjian' => 'nullable|string|max:64',
-            'data.tglSuratPerjanjian' => 'nullable|date_format:Y-m-d',
-            'data.attachments' => 'nullable|array',
-            'data.attachments.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
-            'data.attachments.*.lampiran_id' => 'required|string',
-            'data.tarif' => 'nullable|numeric|min:0'
-        ]);
-
         try {
-            $result = $this->service->updateDraft($request->all(), $trxNo, $user);
+            $validator = Validator::make(
+                $request->all(),
+                [
+                    'data.trx_status' => 'required|string|in:D,NA',
+                    'data.noSuratPermohonan' => 'required|string|max:50',
+                    'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
+                    'data.jenisPernyataan' => 'nullable|string|max:50',
+                    'data.skemaPenalty' => 'nullable|string|max:50',
+                    'data.sektor' => 'nullable|string|max:50',
+                    'data.namaPrincipal' => 'nullable|string|max:255',
+                    'data.namaObligee' => 'nullable|string|max:255',
+                    'data.isBast' => 'nullable|boolean',
+                    'data.namaProyek' => 'nullable|string|max:100',
+                    'data.nilaiProyek' => 'nullable|numeric|min:0',
+                    'data.nilaiBond' => 'nullable|numeric|min:0',
+                    'data.nilaiBondPersentase' => 'nullable|numeric|min:0',
+                    'data.periodeAwalBerlaku' => 'nullable|date_format:Y-m-d',
+                    'data.periodeAkhirBerlaku' => 'nullable|date_format:Y-m-d',
+                    'data.jangkaWaktu' => 'nullable|numeric|min:0',
+                    'data.propinsi' => 'nullable|string|max:50',
+                    'data.jenisSuratPerjanjian' => 'nullable|string|max:64',
+                    'data.noSuratPerjanjian' => 'nullable|string|max:64',
+                    'data.tglSuratPerjanjian' => 'nullable|date_format:Y-m-d',
 
-            if (isset($result['error'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $result['message']
-                ], $result['code']);
+                    'data.attachments' => 'nullable|array',
+                    'data.attachments.*.file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+                    'data.attachments.*.lampiran_id' => 'required|string',
+                    'data.tarif' => 'nullable|numeric|min:0',
+                    'data.institutionData' => 'nullable|array',
+                ],
+                [
+                    'data.trx_status.required' => 'trx_status is required',
+                    'data.trx_status.in' => 'trx_status must be D or NA',
+                    'data.noSuratPermohonan.required' => 'No Surat Permohonan is required',
+                    'data.tglSuratPermohonan.required' => 'Tanggal Surat Permohonan is required',
+                ]
+            );
+
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
             }
-
-            return response()->json($result);
+            $payload = $validator->validated();
+            $result = $this->service->updateDraft($payload, $trxNo, $user);
+            return ApiResponse::success($result);
+        } catch (\Illuminate\Validation\ValidationException $ex) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $ex->errors()
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
