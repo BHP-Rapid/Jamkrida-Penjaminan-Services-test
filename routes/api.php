@@ -70,7 +70,11 @@ Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-full-kmk', [KreditMikroKeci
 Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-installment-kmk-list', [KreditMikroKecilController::class, 'GetDetailListPaymentKMK']);
 Route::post('/v2/penjaminan/kredit-mikro-kecil/upload-bukti-bayar-manual', [KreditMikroKecilController::class, 'UploadPembayaranManualKMK']);
 
-Route::get('/v2/penjaminan/kredit-usaha-rakyat/detail/{id}', [KURTransactionController::class, 'show']);
+// Route::get('/v2/penjaminan/kredit-usaha-rakyat/detail/{id}', [KURTransactionController::class, 'show']);
+Route::prefix('/v2/penjaminan/kredit-usaha-rakyat')->group(function () {
+    Route::post('/create', [KURTransactionController::class, 'store']);
+    Route::get('/detail/{id}', [KURTransactionController::class, 'show']);
+});
 
 //PENJAMINAN KONSTRUKSI
 Route::post('/v2/penjaminan/konstruksi/create', [KonstruksiTransactionController::class, 'store']);
