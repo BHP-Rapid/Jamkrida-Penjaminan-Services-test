@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers\CustomBondServices;
 
-use App\Helpers\AesHelper;
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
-use App\Models\PenjaminanTransaction;
 use App\Services\CustomBondServices\CustomBond as CustomBondServicesCustomBondTransactionService;
 use App\Services\PenjaminanService;
 use Illuminate\Http\Request;
@@ -17,21 +15,14 @@ use Illuminate\Support\Facades\Validator;
 
 class CustomBondTransactionController extends Controller
 {
-    protected $service;
-    use ValidatesRequests;
-
-    public function __construct(CustomBondServicesCustomBondTransactionService $service)
-    {
-        $this->service = $service;
-    }
-
+    public function __construct(protected CustomBondServicesCustomBondTransactionService $customBondService) {}
     public function show(Request $request)
     {
         try {
             if (empty($id)) {
                 return ApiResponse::error('ID is required', 400);
             }
-            $data = $this->service->getDetail($request->query('trx_no'), $request->query('no_surat_permohonan'));
+            $data = $this->customBondService->getDetail($request->query('trx_no'), $request->query('no_surat_permohonan'));
             return ApiResponse::success($data, 'Data retrieved successfully');
         } catch (\Exception $ex) {
             return ApiResponse::error('Error While Get Data Custom Bond:  ' . $ex->getMessage(), 500);
@@ -113,8 +104,10 @@ class CustomBondTransactionController extends Controller
             if ($validator->fails()) {
                 throw new ValidationException($validator);
             }
+
             $payload = $validator->validated();
-            $result = $this->service->store($payload, $user);
+            $result = $this->customBondService->store($payload, $user);
+
             return ApiResponse::success($result);
         } catch (\Illuminate\Validation\ValidationException $ex) {
             return ApiResponse::error('Validation error', 422, $ex->errors());
@@ -171,8 +164,9 @@ class CustomBondTransactionController extends Controller
             if ($validator->fails()) {
                 throw new ValidationException($validator);
             }
+
             $payload = $validator->validated();
-            $result = $this->service->updateDraft($payload, $trxNo, $user);
+            $result = $this->customBondService->updateDraft($payload, $trxNo, $user);
             return ApiResponse::success($result);
         } catch (\Illuminate\Validation\ValidationException $ex) {
             return response()->json([
@@ -215,17 +209,14 @@ class CustomBondTransactionController extends Controller
 
     public function uploadPembayaranManual(Request $request)
     {
-        $this->validate($request, [
-            'trx_no' => 'required|string|max:50',
-            'amount' => 'required|numeric',
-            'selected_items' => 'required|string',
-            'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
-        ]);
-
-        $service = new CustomBondServicesCustomBondTransactionService;
-
+        // $this->validate($request, [
+        //     'trx_no' => 'required|string|max:50',
+        //     'amount' => 'required|numeric',
+        //     'selected_items' => 'required|string',
+        //     'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
+        // ]);
         try {
-            $result = $service->processUploadPembayaranManual($request);
+            $result = $this->customBondService->processUploadPembayaranManual($request);
 
             return response()->json([
                 'success' => true,
@@ -241,125 +232,91 @@ class CustomBondTransactionController extends Controller
 
     public function submitDraft(Request $request, string $trxNo)
     {
-        $this->validate($request, [
-            'data.noSuratPermohonan' => 'required|string|max:50',
-            'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
-            'data.jenisBond' => 'required|string|max:8',
-            'data.jenisPernyataan' => 'required|string|max:50',
-            'data.skemaPenalty' => 'required|string|max:50',
-            'data.sektor' => 'required|string|max:50',
-            'data.namaPrincipal' => 'required|string|max:255',
-            'data.namaObligee' => 'required|string|max:255',
-            'data.isBast' => 'required|boolean',
-            'data.namaProyek' => 'required|string|max:100',
-            'data.nilaiProyek' => 'required|numeric|min:0',
-            'data.nilaiBond' => 'required|numeric|min:0',
-            'data.nilaiBondPersentase' => 'required|numeric|min:0',
-            'data.periodeAwalBerlaku' => 'required|date_format:Y-m-d',
-            'data.periodeAkhirBerlaku' => 'required|date_format:Y-m-d',
-            'data.jangkaWaktu' => 'required|numeric|min:0',
-            'data.propinsi' => 'required|string|max:50',
-            'data.jenisSuratPerjanjian' => 'required|string|max:64',
-            'data.noSuratPerjanjian' => 'required|string|max:64',
-            'data.tglSuratPerjanjian' => 'required|date_format:Y-m-d',
-            'data.lampiranEdit' => 'nullable|array',
-            'data.lampiranEdit.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
-            'data.lampiranEdit.*.lampiran_id' => 'required|string',
-            'data.tarif' => 'nullable|numeric|min:0'
-        ]);
-
-        $service = new CustomBondServicesCustomBondTransactionService();
-
         try {
-            return $service->processSubmitDraft($request, $trxNo);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], $e->getCode() ?: 500);
+            $validator = Validator::make(
+                $request->all(),
+                [
+                    'data.noSuratPermohonan' => 'required|string|max:50',
+                    'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
+                    'data.jenisBond' => 'required|string|max:8',
+                    'data.jenisPernyataan' => 'required|string|max:50',
+                    'data.skemaPenalty' => 'required|string|max:50',
+                    'data.sektor' => 'required|string|max:50',
+                    'data.namaPrincipal' => 'required|string|max:255',
+                    'data.namaObligee' => 'required|string|max:255',
+                    'data.isBast' => 'required|boolean',
+                    'data.namaProyek' => 'required|string|max:100',
+                    'data.nilaiProyek' => 'required|numeric|min:0',
+                    'data.nilaiBond' => 'required|numeric|min:0',
+                    'data.nilaiBondPersentase' => 'required|numeric|min:0',
+                    'data.periodeAwalBerlaku' => 'required|date_format:Y-m-d',
+                    'data.periodeAkhirBerlaku' => 'required|date_format:Y-m-d',
+                    'data.jangkaWaktu' => 'required|numeric|min:0',
+                    'data.propinsi' => 'required|string|max:50',
+                    'data.jenisSuratPerjanjian' => 'required|string|max:64',
+                    'data.noSuratPerjanjian' => 'required|string|max:64',
+                    'data.tglSuratPerjanjian' => 'required|date_format:Y-m-d',
+                    'data.lampiranEdit' => 'nullable|array',
+                    'data.lampiranEdit.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
+                    'data.lampiranEdit.*.lampiran_id' => 'required_with:data.lampiranEdit|string',
+                    'data.tarif' => 'nullable|numeric|min:0'
+                ]
+            );
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
+            }
+            $validated = $validator->validated();
+            $payload = $validated['data'];
+            $result = $this->customBondService->processSubmitDraft($payload, $trxNo);
+            if ($result) {
+                return ApiResponse::success('Penjaminan Custom Bond successfully submitted.');
+            }
+        } catch (ValidationException $ex) {
+            return ApiResponse::error('Validation error', 422, $ex->errors());
+        } catch (\Exception $ex) {
+            return ApiResponse::error(
+                $ex->getMessage(),
+                $ex->getCode() ?: 500
+            );
         }
     }
 
     public function GetDetailPaymentCstb(Request $request)
     {
-        $key = base64_decode(config('services.secure.key'));
-        // dd($request);
         try {
-            $no_surat_permohonan = $request->query('no_surat_permohonan');
-            $trx_no              = $request->query('trx_no');
-            $isSplit             = (int) $request->query('is_split', null);
-            $data = [];
-            $resultPending = [];
-            $dataPending = PenjaminanTransaction::query()
-                ->from('transaction_penjaminan_header as tph')
-                ->join('custom_bond_transaction as cbt', 'tph.trx_no', '=', 'cbt.trx_no')
-                ->join('institution as inst', 'cbt.id_institution', '=', 'inst.id')
-                ->join('custombond_tenor_schedule as cts', 'cbt.id_bond', '=', 'cts.id_bond')
-                ->where('tph.trx_no', $trx_no)
-                ->where('cts.status', 'Pending')
-                ->where('tph.no_surat_permohonan', $no_surat_permohonan)
-                ->where('tph.sp_split', $isSplit)
-                ->select([
-                    'cts.cstb_schedule_id',
-                    'cts.id_bond',
-                    'inst.id_number',
-                    'inst.id_type',
-                    'inst.full_name',
-                    'cts.amount',
-                    'cts.invoice_number',
-                    'cts.due_date',
-                    'cts.status',
-                    'cts.tenor_sequence'
-                ])->first();
-            $dataPending
-                ? $resultPending[] = [
-                    'schedule_id'     => $dataPending->cstb_schedule_id,
-                    'id_trx_product'  => $dataPending->id_trx_product,
-                    'id_number'       => AesHelper::decrypt($dataPending->id_number, $key),
-                    'id_type'         => $dataPending->id_type,
-                    'full_name'       => $dataPending->full_name,
-                    'amount'          => $dataPending->amount,
-                    'invoice_number'  => $dataPending->invoice_number,
-                    'due_date'        => $dataPending->due_date,
-                    'status'          => $dataPending->status,
-                    'tenor_sequence'  => $isSplit ? $dataPending->tenor_sequence : 0,
-                ]
-                : $dataPending = [];
+            $validator = Validator::make($request->all(), [
+                'no_surat_permohonan' => 'required|string|max:100',
+                'trx_no' => 'required|string|max:100',
+                'is_split' => 'nullable|integer|in:0,1'
+            ]);
 
-            $dataUnpaid  = PenjaminanTransaction::query()
-                ->from('transaction_penjaminan_header as tph')
-                ->join('custom_bond_transaction as cbt', 'tph.trx_no', '=', 'cbt.trx_no')
-                ->join('institution as inst', 'cbt.id_institution', '=', 'inst.id')
-                ->join('custombond_tenor_schedule as cts', 'cts.id_bond', '=', 'cbt.id_bond')
-                ->join('trx_cstb_invoice_header as tcih', 'tcih.cstb_schedule_id', '=', 'cts.cstb_schedule_id')
-                ->join('trx_cstb_payment_gateway as tcpg', 'tcpg.cstb_invoice_id', '=', 'tcih.cstb_invoice_id')
-                ->where('tph.trx_no', $trx_no)
-                ->where('tcih.status', 'Unpaid')
-                ->where('tph.no_surat_permohonan', $no_surat_permohonan)
-                ->where('tph.sp_split', $isSplit)
-                ->select([
-                    'tcpg.order_id',
-                    'tcpg.cstb_payment_id as payment_id',
-                    'tph.trx_no',
-                    'tcpg.payment_amount_ijp as total_amount',
-                    'tcpg.order_payment_token'
-                ])
-                ->get();
-            $data = [
-                'dataHeader' => [
-                    'data_pending' => $resultPending,
-                    'data_unpaid' => $dataUnpaid
-                ]
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
+            }
+            $key = base64_decode(config('services.secure.key'));
+            $payload = [
+                'no_surat_permohonan' => $request->query('no_surat_permohonan'),
+                'trx_no' => $request->query('trx_no'),
+                'is_split' => $request->query('is_split'),
             ];
-            return response()->json($data);
+            $no_surat_permohonan = $payload['no_surat_permohonan'];
+            $trx_no = $payload['trx_no'];
+            $isSplit = $payload['is_split'];
+            $result = $this->customBondService->getDetailPaymentCstb($no_surat_permohonan, $trx_no, $isSplit, $key);
+            return ApiResponse::success($result, 'Success get detail payment');
+        } catch (ValidationException $ex) {
+            return ApiResponse::error('Validation error', 422, $ex->errors());
         } catch (Exception $e) {
             Log::error("Error fetching payment details", [
                 'exception' => $e,
-                'trx_no' => $trx_no ?? null,
-                'no_surat_permohonan' => $no_surat_permohonan ?? null
+                'trx_no' => $request->query('trx_no'),
+                'no_surat_permohonan' => $request->query('no_surat_permohonan')
             ]);
 
-            return response()->json(['message' => $e->getMessage()], 500);
+            return ApiResponse::error(
+                $e->getMessage(),
+                $e->getCode() ?: 500
+            );
         }
     }
 }

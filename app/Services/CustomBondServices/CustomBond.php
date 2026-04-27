@@ -16,6 +16,7 @@ use App\Services\CreatioService;
 use App\Services\InstitutionService;
 use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
+use CustomBondRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Exception;
@@ -23,48 +24,26 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomBond
 {
+
+    public function __construct(
+        protected CustomBondRepository $repository
+    ) {}
     public function getDetail($trx_no, $no_surat_permohonan)
     {
         $key = base64_decode(config('services.secure.key'));
-
-        $penjaminanCustomBond = PenjaminanTransaction::join(
-            'custom_bond_transaction as cbt',
-            'transaction_penjaminan_header.trx_no',
-            '=',
-            'cbt.trx_no'
-        )
-            ->where('transaction_penjaminan_header.trx_no', $trx_no)
-            ->where('transaction_penjaminan_header.no_surat_permohonan', $no_surat_permohonan)
-            ->select('transaction_penjaminan_header.*', 'cbt.*')
-            ->first();
-
-        if (!$penjaminanCustomBond) {
+        $result = $this->repository->getDetail($trx_no, $no_surat_permohonan);
+        if (!$result) {
             return null;
         }
-
-        $institutionData = DB::table('institution as a')
-            ->join('custom_bond_transaction as b', 'a.id', '=', 'b.id_institution')
-            ->where('b.id_institution', $penjaminanCustomBond->id_institution)
-            ->select('a.*')
-            ->first();
-
-        if ($institutionData) {
-            $this->decryptInstitution($institutionData, $key);
+        $data = $result['data'];
+        $institution = $result['institution'];
+        if ($institution) {
+            $this->decryptInstitution($institution, $key);
         }
-
         $lampiran = $this->getLampiran($trx_no);
-
-        $penjaminanCustomBond->setAttribute('lampiran', $lampiran);
-
-        $flow = PenjaminanFlow::where('trx_no', $trx_no)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        if ($flow) {
-            $penjaminanCustomBond->institutionData = $institutionData;
-        }
-
-        return $penjaminanCustomBond;
+        $data->setAttribute('lampiran', $lampiran);
+        $data->institutionData = $institution;
+        return $data;
     }
 
     private function decryptInstitution($data, $key)
@@ -88,61 +67,10 @@ class CustomBond
 
     private function getLampiran($trx_no)
     {
-        $penjaminanVersionMax = PenjaminanLampiranDtl::where('trx_no', $trx_no)
-            ->select(
-                'trx_no',
-                'lampiran_id',
-                DB::raw('MAX(version) as latest_version')
-            )
-            ->groupBy('trx_no', 'lampiran_id');
-
-        $lampiranLatest = PenjaminanLampiranDtl::joinSub(
-            $penjaminanVersionMax,
-            'latest',
-            function ($join) {
-                $join->on('penjaminan_lampiran_dtl.trx_no', '=', 'latest.trx_no')
-                    ->on('penjaminan_lampiran_dtl.lampiran_id', '=', 'latest.lampiran_id')
-                    ->on('penjaminan_lampiran_dtl.version', '=', 'latest.latest_version');
-            }
-        )->select(
-            'penjaminan_lampiran_dtl.lampiran_id',
-            'penjaminan_lampiran_dtl.file_name',
-            'penjaminan_lampiran_dtl.file_info',
-            'penjaminan_lampiran_dtl.is_additional',
-            'penjaminan_lampiran_dtl.status_doc',
-            'penjaminan_lampiran_dtl.mime_type',
-            'penjaminan_lampiran_dtl.version'
-        );
-
-        $lampiranData = DB::table('setting_hdr as a')
-            ->join('setting_product_dtl as b', 'a.id', '=', 'b.hdr_id')
-            ->join('mapping_value as c', 'b.lampiran', '=', 'c.value')
-            ->leftJoinSub($lampiranLatest, 'lt', function ($join) {
-                $join->on('lt.lampiran_id', '=', 'c.value');
-            })
-            ->select(
-                'c.value',
-                'c.label',
-                'c.option2',
-                'lt.file_name',
-                'lt.file_info',
-                'lt.is_additional',
-                'lt.status_doc',
-                'lt.mime_type'
-            )
-            ->where('a.module', 'PENJAMINAN_SETTINGS')
-            ->where('b.product_id', 'cstb')
-            ->where('a.mitra_id', 'MDR')
-            ->where('b.is_mandatory', 1)
-            ->where('c.key', 'lampiran')
-            ->orderBy('c.value', 'asc')
-            ->get();
-
+        $lampiranData = $this->repository->getLampiranData($trx_no);
         return $lampiranData->map(function ($att) {
-
             $file = $att->file_info ? json_decode($att->file_info) : null;
             $filePath = $file ? $file->path : null;
-
             return [
                 'file_name' => $att->file_name ?? basename($filePath ?? ''),
                 'file_path' => $filePath,
@@ -247,26 +175,16 @@ class CustomBond
 
     private function handleTransaction($user, $trxInsertStatus, $institutionService, $penjaminanPayload, $mitraAlias)
     {
-        $idInstitution = DB::table('institution')
-            ->where('institution_id', $institutionService->getCreatedInstitutionId())
-            ->select('id')->first();
-
+        $idInstitution = $this->repository->getInstitutionId($institutionService->getCreatedInstitutionId());
         $currentYear = date('Y');
         $currentMonth = date('m');
-
-        $lastTrx = PenjaminanTransaction::lockForUpdate()
-            ->where('trx_no', 'like', 'PNJ-' . $currentYear . '-' . $currentMonth . '%')
-            ->orderBy('trx_no', 'desc')
-            ->value('trx_no');
-
+        $lastTrx = $this->repository->getLastTrx($currentYear, $currentMonth);
         $nextSeq = $lastTrx ? intval(substr($lastTrx, -4)) + 1 : 1;
-
         $trxNo = 'PNJ-' . $currentYear . '-' . $currentMonth . '-' . str_pad($nextSeq, 4, '0', STR_PAD_LEFT);
-
         $permohonanDate = Carbon::parse($penjaminanPayload['tglSuratPermohonan'])->format('Y-m-d');
         $nowJakarta = Carbon::now('Asia/Jakarta');
 
-        PenjaminanTransaction::create([
+        $this->repository->insertPenjaminanTransaction([
             'trx_no' => $trxNo,
             'no_surat_permohonan' => $penjaminanPayload['noSuratPermohonan'],
             'trx_status' => $trxInsertStatus,
@@ -281,7 +199,7 @@ class CustomBond
             'product' => 'cstb',
         ]);
 
-        CustomBondTransaction::create([
+        $this->repository->insertCustomBondTransaction([
             'trx_no' => $trxNo,
             'jenis_bond' => $penjaminanPayload['jenisBond'],
             'jenis_bond_description' => $penjaminanPayload['descriptionBond'],
@@ -316,11 +234,11 @@ class CustomBond
             'created_at' => $nowJakarta,
         ]);
 
+
         if (array_key_exists('attachments', $penjaminanPayload)) {
             foreach ($penjaminanPayload['attachments'] as $item) {
                 $lampiran = $this->lampiranCustomBond($trxNo, 'cstb', $item);
-
-                PenjaminanLampiranDtl::create([
+                $this->repository->insertLampiran([
                     "trx_no" => $trxNo,
                     "lampiran_id" => $lampiran["lampiran_id"],
                     "file_name" => $lampiran["file_name"],
@@ -332,7 +250,7 @@ class CustomBond
             }
         }
 
-        PenjaminanFlow::create([
+        $this->repository->insertFlow([
             'trx_no' => $trxNo,
             'trx_status' => $trxInsertStatus,
             'created_at' => $nowJakarta,
@@ -340,6 +258,8 @@ class CustomBond
             'created_by_name' => $user->name,
             'updated_at' => null
         ]);
+
+        return $trxNo;
     }
 
     public function lampiranCustomBond($trx_no, $product, $lampiran)
@@ -347,20 +267,13 @@ class CustomBond
         try {
             $fn = $trx_no . "-" . $lampiran['lampiran_id'] . "-" . $product;
             $file = $lampiran['file'];
-
-            $fileExisting = PenjaminanLampiranDtl::where('file_name', $fn)
-                ->select('file_info')->first();
-
-            $exist = json_decode($fileExisting);
-
+            $fileExisting = $this->repository->getLampiranByFileName($fn);
+            $exist = $fileExisting ? json_decode($fileExisting->file_info, true) : null;
             if ($file instanceof \Illuminate\Http\UploadedFile) {
-
                 $old_file_path = $exist['path'] ?? null;
-
                 if ($old_file_path) {
                     Storage::disk('s3')->delete($old_file_path);
                 }
-
                 $path = $file->storeAs(
                     'uploads/penjaminan/custom-bond',
                     $fn . "." . $file->getClientOriginalExtension(),
@@ -369,12 +282,10 @@ class CustomBond
             } else {
                 throw new Exception('somethings is wrong with the file');
             }
-
             $file_path = json_encode([
                 "path" => $path,
                 "file_type" => $file->getMimeType()
             ]);
-
             return [
                 "trx_no" => $trx_no,
                 "lampiran_id" => strtolower($lampiran['lampiran_id']),
@@ -414,14 +325,10 @@ class CustomBond
             }
         }
         DB::beginTransaction();
-        $penjaminanTrxHeaderData = PenjaminanTransaction::where('trx_no', $trxNo)
-            ->select('trx_no', 'trx_status')
-            ->first();
+        $data = $this->repository->getDraftData($trxNo);
 
-        $customBondData = CustomBondTransaction::where('trx_no', $trxNo)
-            ->select('id_bond')
-            ->first();
-
+        $penjaminanTrxHeaderData = $data['header'];
+        $customBondData = $data['bond'];
         if (!$penjaminanTrxHeaderData || !$customBondData) {
             throw new HttpException(400, 'Penjaminan data is not found.');
         }
@@ -502,59 +409,7 @@ class CustomBond
         ];
     }
 
-    private function handleAttachments($penjaminanPayload, $trxNo, $lampiranExist)
-    {
-        if (!$lampiranExist) return;
 
-        $lampiranDtlData = PenjaminanLampiranDtl::where('trx_no', $trxNo)
-            ->select('lampiran_id', DB::raw('MAX(version) as version'))
-            ->groupBy('lampiran_id')
-            ->get()
-            ->toArray();
-
-        $savedAttachments = [];
-
-        foreach ($penjaminanPayload['attachments'] as $lampiranEdit) {
-            $ext = $lampiranEdit['file']->getClientOriginalExtension();
-            $unique = uniqid();
-
-            $fn = "{$trxNo}-{$lampiranEdit['lampiran_id']}-cstb-{$unique}";
-
-            $path = $lampiranEdit['file']->storeAs(
-                'uploads/penjaminan/custom-bond',
-                $fn . '.' . $ext,
-                's3'
-            );
-
-            $searchResult = array_search(
-                $lampiranEdit['lampiran_id'],
-                array_column($lampiranDtlData, 'lampiran_id')
-            );
-
-            $newVersion = is_numeric($searchResult)
-                ? $lampiranDtlData[$searchResult]['version'] + 1
-                : 1;
-
-            $file_path = json_encode([
-                "path" => $path,
-                "file_type" => $lampiranEdit['file']->getMimeType()
-            ]);
-
-            $savedAttachments[] = [
-                'trx_no' => $trxNo,
-                'lampiran_id' => $lampiranEdit['lampiran_id'],
-                'file_name' => $fn,
-                'status_doc' => 'N',
-                'version' => $newVersion,
-                'mime_type' => $lampiranEdit['file']->getMimeType(),
-                'file_info' => $file_path
-            ];
-        }
-
-        foreach ($savedAttachments as $item) {
-            PenjaminanLampiranDtl::create($item);
-        }
-    }
 
     public function processUploadPembayaranManual($request)
     {
@@ -727,11 +582,11 @@ class CustomBond
         }
     }
 
-    public function processSubmitDraft($request, $trxNo)
+    public function processSubmitDraft(array $payload, $trxNo)
     {
         $user = auth('sanctum')->user();
 
-        $penjaminanPayload = collect($request->data)->toArray();
+        $penjaminanPayload = $payload;
 
         if (array_key_exists('institution_data', $penjaminanPayload)) {
             unset($penjaminanPayload['institution_data']);
@@ -751,34 +606,28 @@ class CustomBond
         }
 
         if ($duplicateLampiranId) {
-            throw new \Exception('Duplicate lampiran id.', 422);
+            throw new HttpException(422, 'Duplicate lampiran id.');
         }
 
-        $isBastPenjaminan = $penjaminanPayload['isBast'];
-
-        if ($isBastPenjaminan == true) {
-            validator($request->all(), [
-                'data.noSuratBast' => 'required|string|max:50',
-                'data.tglSuratBast' => 'required|date'
-            ])->validate();
+        if ($penjaminanPayload['isBast'] == true) {
+            if (
+                empty($penjaminanPayload['noSuratBast']) ||
+                empty($penjaminanPayload['tglSuratBast'])
+            ) {
+                throw new HttpException(
+                    422,
+                    'No Surat BAST and Tanggal BAST are required when isBast = true'
+                );
+            }
         }
-
-        DB::beginTransaction();
-
-        try {
+        DB::transaction(function () use ($penjaminanPayload, $trxNo, $user, $lampiranExist) {
             $penjaminanTrxHeaderData = PenjaminanTransaction::where('trx_no', $trxNo)
                 ->select('trx_no', 'trx_status')->first();
-
             $customBondData = CustomBondTransaction::where('trx_no', $trxNo)
                 ->select('id_bond')->first();
-
-            if (
-                $penjaminanTrxHeaderData && $customBondData &&
-                $penjaminanTrxHeaderData->trx_status == 'D'
-            ) {
+            if ($penjaminanTrxHeaderData && $customBondData && $penjaminanTrxHeaderData->trx_status == 'D') {
                 $nowJakarta = Carbon::now('Asia/Jakarta');
-
-                $submitTransactionPayload = [
+                PenjaminanTransaction::where('trx_no', $trxNo)->update([
                     'no_surat_permohonan' => $penjaminanPayload['noSuratPermohonan'],
                     'tanggal_surat_permohonan' => $penjaminanPayload['tglSuratPermohonan'],
                     'trx_status' => 'NA',
@@ -786,12 +635,8 @@ class CustomBond
                     'updated_by_id' => $user->user_id,
                     'updated_by_name' => $user->name,
                     'updated_at' => $nowJakarta
-                ];
-
-                PenjaminanTransaction::where('trx_no', $trxNo)
-                    ->update($submitTransactionPayload);
-
-                $submitCustomBondPayload = [
+                ]);
+                CustomBondTransaction::where('trx_no', $trxNo)->update([
                     'jenis_bond' => $penjaminanPayload['jenisBond'],
                     'jenis_bond_description' => $penjaminanPayload['descriptionBond'] ?? 'Custom Bond',
                     'principal_name' => $penjaminanPayload['namaPrincipal'],
@@ -828,21 +673,14 @@ class CustomBond
                     'administrative_amount' => array_key_exists('administrativeAmount', $penjaminanPayload) ? $penjaminanPayload['administrativeAmount'] : null,
                     'stamp_amount' => array_key_exists('stampAmount', $penjaminanPayload) ? $penjaminanPayload['stampAmount'] : null,
                     'updated_at' => $nowJakarta,
-                ];
-
-                CustomBondTransaction::where('trx_no', $trxNo)
-                    ->update($submitCustomBondPayload);
-
+                ]);
                 $savedAttachments = [];
-
                 if ($lampiranExist) {
                     $lampiranDtlData = PenjaminanLampiranDtl::where('trx_no', $trxNo)
                         ->select('lampiran_id', DB::raw('MAX(version) as version'))
                         ->groupBy('lampiran_id')
                         ->get();
-
                     $collectLampiranDtl = collect($lampiranDtlData)->toArray();
-
                     foreach ($penjaminanPayload['lampiranEdit'] as $lampiranEdit) {
                         $ext = $lampiranEdit['file']->getClientOriginalExtension();
                         $unique = uniqid();
@@ -894,27 +732,140 @@ class CustomBond
                     'created_by_name' => $user->name,
                     'updated_at' => null
                 ]);
-
-                DB::commit();
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Penjaminan Custom Bond successfully submitted.'
-                ]);
             } else if ($penjaminanTrxHeaderData && $customBondData) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data is not draft.'
-                ], 422);
+                throw new HttpException(422, 'Data is not draft.');
             } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Penjaminan custom bond data is not found.'
-                ], 400);
+                throw new HttpException(400, 'Penjaminan custom bond data is not found.');
             }
-        } catch (\Exception $e) {
-            DB::rollBack();
-            throw $e;
+        });
+        return true;
+    }
+
+
+    public function getDetailPaymentCstb($no_surat_permohonan, $trx_no, $isSplit, $key)
+    {
+
+        $resultPending = [];
+        $dataPending = PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('custom_bond_transaction as cbt', 'tph.trx_no', '=', 'cbt.trx_no')
+            ->join('institution as inst', 'cbt.id_institution', '=', 'inst.id')
+            ->join('custombond_tenor_schedule as cts', 'cbt.id_bond', '=', 'cts.id_bond')
+            ->where('tph.trx_no', $trx_no)
+            ->where('cts.status', 'Pending')
+            ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+            ->when(!is_null($isSplit), function ($q) use ($isSplit) {
+                $q->where('tph.sp_split', $isSplit);
+            })
+            ->select([
+                'cts.cstb_schedule_id',
+                'cts.id_bond',
+                'inst.id_number',
+                'inst.id_type',
+                'inst.full_name',
+                'cts.amount',
+                'cts.invoice_number',
+                'cts.due_date',
+                'cts.status',
+                'cts.tenor_sequence'
+            ])
+            ->first();
+
+        if ($dataPending) {
+            $resultPending[] = [
+                'schedule_id'    => $dataPending->cstb_schedule_id,
+                'id_number'      => AesHelper::decrypt($dataPending->id_number, $key),
+                'id_type'        => $dataPending->id_type,
+                'full_name'      => $dataPending->full_name,
+                'amount'         => $dataPending->amount,
+                'invoice_number' => $dataPending->invoice_number,
+                'due_date'       => $dataPending->due_date,
+                'status'         => $dataPending->status,
+                'tenor_sequence' => $isSplit ? $dataPending->tenor_sequence : 0,
+            ];
+        }
+
+        $dataUnpaid = PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('custom_bond_transaction as cbt', 'tph.trx_no', '=', 'cbt.trx_no')
+            ->join('institution as inst', 'cbt.id_institution', '=', 'inst.id')
+            ->join('custombond_tenor_schedule as cts', 'cts.id_bond', '=', 'cbt.id_bond')
+            ->join('trx_cstb_invoice_header as tcih', 'tcih.cstb_schedule_id', '=', 'cts.cstb_schedule_id')
+            ->join('trx_cstb_payment_gateway as tcpg', 'tcpg.cstb_invoice_id', '=', 'tcih.cstb_invoice_id')
+            ->where('tph.trx_no', $trx_no)
+            ->where('tcih.status', 'Unpaid')
+            ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+            ->when(!is_null($isSplit), function ($q) use ($isSplit) {
+                $q->where('tph.sp_split', $isSplit);
+            })
+            ->select([
+                'tcpg.order_id',
+                'tcpg.cstb_payment_id as payment_id',
+                'tph.trx_no',
+                'tcpg.payment_amount_ijp as total_amount',
+                'tcpg.order_payment_token'
+            ])
+            ->get();
+        return [
+            'dataHeader' => [
+                'data_pending' => $resultPending,
+                'data_unpaid'  => $dataUnpaid
+            ]
+        ];
+    }
+
+
+    private function handleAttachments($penjaminanPayload, $trxNo, $lampiranExist)
+    {
+        if (!$lampiranExist) return;
+
+        $lampiranDtlData = PenjaminanLampiranDtl::where('trx_no', $trxNo)
+            ->select('lampiran_id', DB::raw('MAX(version) as version'))
+            ->groupBy('lampiran_id')
+            ->get()
+            ->toArray();
+
+        $savedAttachments = [];
+
+        foreach ($penjaminanPayload['attachments'] as $lampiranEdit) {
+            $ext = $lampiranEdit['file']->getClientOriginalExtension();
+            $unique = uniqid();
+
+            $fn = "{$trxNo}-{$lampiranEdit['lampiran_id']}-cstb-{$unique}";
+
+            $path = $lampiranEdit['file']->storeAs(
+                'uploads/penjaminan/custom-bond',
+                $fn . '.' . $ext,
+                's3'
+            );
+
+            $searchResult = array_search(
+                $lampiranEdit['lampiran_id'],
+                array_column($lampiranDtlData, 'lampiran_id')
+            );
+
+            $newVersion = is_numeric($searchResult)
+                ? $lampiranDtlData[$searchResult]['version'] + 1
+                : 1;
+
+            $file_path = json_encode([
+                "path" => $path,
+                "file_type" => $lampiranEdit['file']->getMimeType()
+            ]);
+
+            $savedAttachments[] = [
+                'trx_no' => $trxNo,
+                'lampiran_id' => $lampiranEdit['lampiran_id'],
+                'file_name' => $fn,
+                'status_doc' => 'N',
+                'version' => $newVersion,
+                'mime_type' => $lampiranEdit['file']->getMimeType(),
+                'file_info' => $file_path
+            ];
+        }
+
+        foreach ($savedAttachments as $item) {
+            PenjaminanLampiranDtl::create($item);
         }
     }
 }

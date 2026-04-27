@@ -23,7 +23,12 @@ Route::post('/penjaminan/validate-payment', [PaymentGatewayController::class, 'C
 
 // PENJAMINAN MULTIGUNA
 Route::prefix('/v2/penjaminan/multiguna')->group(function () {
-    Route::get('/detail/{id}', [MultigunaServicesMultigunaController::class, 'show']);
+    Route::get('/detail/{id}', [MultigunaServicesMultigunaController::class, 'show'])
+        ->middleware([
+            'auth.context',
+            'auth.role:admin,super_admin,admin_mitra',
+            'auth.permission:PENJAMINAN,create',
+        ]);
 });
 
 // PENJAMINAN AJP
@@ -66,14 +71,14 @@ Route::post('/v2/penjaminan/kredit-mikro-kecil/upload-bukti-bayar-manual', [Kred
 
 Route::get('/v2/penjaminan/kredit-usaha-rakyat/detail/{id}', [KURTransactionController::class, 'show']);
 
- //PENJAMINAN KONSTRUKSI
- Route::post('/v2/penjaminan/konstruksi/create', [KonstruksiTransactionController::class, 'store']);
- Route::get('/v2/penjaminan/konstruksi/download-template', [KonstruksiTransactionController::class, 'ExportKonstruksi']);
- Route::get('/v2/penjaminan/konstruksi/detail/{id}', [KonstruksiTransactionController::class, 'show']);
- Route::post('/v2/penjaminan/konstruksi/update-draft/{trxNo}', [KonstruksiTransactionController::class, 'updateDraft']);
- Route::post('/v2/penjaminan/konstruksi/approve-penjaminan', [KonstruksiTransactionController::class, 'ApprovePenjaminan']);
- Route::get('/v2/penjaminan/konstruksi/detail-payment', [KonstruksiTransactionController::class, 'GetDetailPaymentKonstruksi']);
- Route::get('/v2/penjaminan/konstruksi/detail-payment-list', [KonstruksiTransactionController::class, 'GetDetailListPaymentKonstruksi']);
+//PENJAMINAN KONSTRUKSI
+Route::post('/v2/penjaminan/konstruksi/create', [KonstruksiTransactionController::class, 'store']);
+Route::get('/v2/penjaminan/konstruksi/download-template', [KonstruksiTransactionController::class, 'ExportKonstruksi']);
+Route::get('/v2/penjaminan/konstruksi/detail/{id}', [KonstruksiTransactionController::class, 'show']);
+Route::post('/v2/penjaminan/konstruksi/update-draft/{trxNo}', [KonstruksiTransactionController::class, 'updateDraft']);
+Route::post('/v2/penjaminan/konstruksi/approve-penjaminan', [KonstruksiTransactionController::class, 'ApprovePenjaminan']);
+Route::get('/v2/penjaminan/konstruksi/detail-payment', [KonstruksiTransactionController::class, 'GetDetailPaymentKonstruksi']);
+Route::get('/v2/penjaminan/konstruksi/detail-payment-list', [KonstruksiTransactionController::class, 'GetDetailListPaymentKonstruksi']);
 
- Route::post('/v2/penjaminan/konstruksi/upload-bukti-bayar-manual', [KonstruksiTransactionController::class, 'uploadPembayaranManual']);
- Route::get('/v2/penjaminan/konstruksi/debt', [KonstruksiTransactionController::class, 'createTrxDebitur']);
+Route::post('/v2/penjaminan/konstruksi/upload-bukti-bayar-manual', [KonstruksiTransactionController::class, 'uploadPembayaranManual']);
+Route::get('/v2/penjaminan/konstruksi/debt', [KonstruksiTransactionController::class, 'createTrxDebitur']);
