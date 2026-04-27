@@ -4,6 +4,7 @@ use App\Http\Controllers\AjpServices\AjpController;
 use App\Http\Controllers\CustomBondServices\CustomBondTransactionController;
 use App\Http\Controllers\KonstruksiServices\KonstruksiTransactionController;
 use App\Http\Controllers\KreditMikroKecilServices\KreditMikroKecilController;
+use App\Http\Controllers\KreditUsahaServices\KreditUsahaController;
 use App\Http\Controllers\KURServices\KURTransactionController;
 use App\Http\Controllers\MultigunaController;
 use App\Http\Controllers\MultigunaServices\MultigunaController as MultigunaServicesMultigunaController;
@@ -82,3 +83,12 @@ Route::get('/v2/penjaminan/konstruksi/detail-payment-list', [KonstruksiTransacti
 
 Route::post('/v2/penjaminan/konstruksi/upload-bukti-bayar-manual', [KonstruksiTransactionController::class, 'uploadPembayaranManual']);
 Route::get('/v2/penjaminan/konstruksi/debt', [KonstruksiTransactionController::class, 'createTrxDebitur']);
+
+// PENJAMINAN KREDIT USAHA
+Route::post('/v2/penjaminan/kredit-usaha/create', [KreditUsahaController::class, 'store']);
+Route::get('/v2/penjaminan/kredit-usaha/show/{id}', [KreditUsahaController::class, 'show']);
+Route::post('/v2/penjaminan/kredit-usaha/update-draft/{trxNo}', [KreditUsahaController::class, 'updateKreditUsaha']);
+Route::post('/v2/penjaminan/kredit-usaha/approve-penjaminan', [KreditUsahaController::class, 'ApprovePenjaminanKreditUsaha']);
+Route::get('/v2/penjaminan/kredit-usaha/detail-payment-kredit-usaha', [KreditUsahaController::class, 'GetDetailPaymentKreditUsaha']);
+Route::get('/v2/penjaminan/kredit-usaha/detail-payment-kredit-usaha-list', [KreditUsahaController::class, 'GetDetailListPaymentKreditUsaha']);
+Route::post('/v2/penjaminan/kredit-usaha/upload-bukti-bayar-manual', [KreditUsahaController::class, 'uploadPembayaranManual']);

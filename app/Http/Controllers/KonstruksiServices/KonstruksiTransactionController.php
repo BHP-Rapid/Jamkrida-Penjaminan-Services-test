@@ -120,7 +120,7 @@ class KonstruksiTransactionController extends Controller
         } catch (\Exception $ex) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error While Insert Custom Bond: ' . $ex->getMessage()
+                'message' => 'Error While Insert Konstruksi: ' . $ex->getMessage()
             ], 500);
         }
     }
@@ -271,7 +271,6 @@ class KonstruksiTransactionController extends Controller
             // 'selected_item_old.*.nik' => 'required|string|max:50'
             'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
         ]);
-
     }
     public function getPenjaminanPKS()
     {
