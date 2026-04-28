@@ -238,8 +238,8 @@ class KonstruksiTransactionController extends Controller
 
             return ApiResponse::success($result['data'] ?? [], 'Data retrieved successfully');
         } catch (Exception $ex) {
-            Log::error("Error fetching AJP payment details", ['exception' => $ex]);
-            return ApiResponse::error('Error fetching AJP payment details (' . $ex->getMessage() . ')', 500);
+            Log::error("Error fetching Konstruksi payment details", ['exception' => $ex]);
+            return ApiResponse::error('Error fetching Konstruksi payment details (' . $ex->getMessage() . ')', 500);
         }
     }
 
@@ -254,11 +254,12 @@ class KonstruksiTransactionController extends Controller
 
             return ApiResponse::success($result['data'] ?? [], 'Data retrieved successfully');
         } catch (Exception $ex) {
-            Log::error("Error fetching AJP payment detail list", ['exception' => $ex]);
+            Log::error("Error fetching Konstruksi payment detail list", ['exception' => $ex]);
 
-            return ApiResponse::error('Error fetching AJP payment detail list (' . $ex->getMessage() . ')', 500);
+            return ApiResponse::error('Error fetching Konstruksi payment detail list (' . $ex->getMessage() . ')', 500);
         }
     }
+
     public function uploadPembayaranManual(Request $request)
     {
         $this->validate($request, [
@@ -272,6 +273,7 @@ class KonstruksiTransactionController extends Controller
             'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
         ]);
     }
+
     public function getPenjaminanPKS()
     {
         $mitra_id = auth('sanctum')->user()->mitra_id;

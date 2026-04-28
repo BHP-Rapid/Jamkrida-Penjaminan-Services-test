@@ -2,6 +2,9 @@
 
 namespace App\Repositories;
 
+use App\Models\DebiturInvoiceHeader;
+use App\Models\DebiturPaymentGateway;
+use App\Models\DebiturTenorSchedule;
 use App\Models\Institution;
 use App\Models\MultigunaDebitur;
 use App\Models\PenjaminanFlow;
@@ -112,5 +115,197 @@ class KreditUsahaRepository
     public function createPenjaminanFlow(array $payload): void
     {
         PenjaminanFlow::create($payload);
+    }
+
+    public function checkPenjaminanTransaction($trxNo): PenjaminanTransaction
+    {
+        return PenjaminanTransaction::where('trx_no', $trxNo)->first();
+    }
+
+    public function updatePenjaminanTransaction($trxNo, array $payload): PenjaminanTransaction
+    {
+        $penjaminanTrx = PenjaminanTransaction::where('trx_no', $trxNo)->first();
+        $penjaminanTrx->update($payload);
+        return $penjaminanTrx;
+    }
+
+    public function updateKreditUsahaTransaction($trxNo, array $payload): KreditUsahaTransaction
+    {
+        $kreditUsahaTrx = KreditUsahaTransaction::where('trx_no', $trxNo)->first();
+        $kreditUsahaTrx->update($payload);
+        return $kreditUsahaTrx;
+    }
+
+    public function checkTrxDebiturDefaultBase($prefix)
+    {
+        return TrxDebiturDefaultBase::lockForUpdate()
+            ->where('loan_number', 'like', $prefix . '%')
+            ->orderBy('loan_number', 'desc')
+            ->value('loan_number');
+    }
+
+    public function getHeader($trx_no, $no_surat_permohonan, $isSplit)
+    {
+        return PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('kredit_usaha_transaction as kut', 'tph.trx_no', '=', 'kut.trx_no')
+            ->join('trx_debitur as td', 'kut.id_kredit_usaha_transaction', '=', 'td.kredit_usaha_trx_id')
+            ->join('debitur_tenor_schedule as dts', 'td.id_trx_debitur', '=', 'dts.id_trx_debitur')
+            ->where('tph.trx_no', $trx_no)
+            ->where('dts.status', 'Pending')
+            ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+            ->where('tph.sp_split', $isSplit)
+            ->select([
+                'kut.id_kredit_usaha_transaction',
+                'td.id_trx_debitur',
+                'td.plafond_kredit',
+                // 'td.nik',
+                'td.nama_nasabah',
+                'dts.amount',
+                'dts.invoice_number',
+                'dts.due_date',
+                'dts.status'
+            ])
+            ->get();
+    }
+
+    public function getHeaderList($trx_no, $no_surat_permohonan, $isSplit)
+    {
+        return PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('kredit_usaha_transaction as kut', 'tph.trx_no', '=', 'kut.trx_no')
+            ->where('tph.trx_no', $trx_no)
+            ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+            ->where('tph.sp_split', $isSplit)
+            ->select([
+                'tph.*',
+                'kut.id_kredit_usaha_transaction',
+            ])
+            ->first();
+    }
+
+    public function getUnpaid($trx_no)
+    {
+        return DebiturInvoiceHeader::query()
+            ->from('debitur_invoice_header as dih')
+            ->join('debitur_tenor_schedule as dts', 'dih.invoice_id', '=', 'dts.invoice_id')
+            ->join('debitur_payment_gateway as dpg', 'dpg.invoice_id', '=', 'dih.invoice_id')
+            ->join('trx_debitur as td', 'td.id_trx_debitur', '=', 'dts.id_trx_debitur')
+            ->where('dih.trx_no', $trx_no)
+            ->where('dih.status', 'Unpaid')
+            ->select(
+                'dpg.payment_id',
+                'dih.invoice_id',
+                'dpg.order_id',
+                'dpg.order_payment_url',
+                'dpg.order_payment_token',
+                'dts.tenor_sequence',
+                'dih.trx_no',
+                'dih.total_amount',
+                DB::raw('COUNT(td.id_trx_debitur) AS total_debitur')
+            )
+            ->groupBy(
+                'dpg.payment_id',
+                'dpg.order_id',
+                'dpg.order_payment_url',
+                'dts.tenor_sequence',
+                'dih.trx_no',
+                'dih.total_amount'
+            )->get();
+    }
+
+    public function dataDebitur($id_kredit_usaha_transaction)
+    {
+        return TrxDebiturDefaultBase::where('kredit_usaha_trx_id', $id_kredit_usaha_transaction)
+            ->select(
+                'id_trx_debitur',
+                'no_sp_detail',
+                'loan_number',
+                'tanggal_realisasi',
+                'nama_nasabah'
+            )
+            ->orderBy('id_trx_debitur', 'asc')
+            ->get();
+    }
+
+    public function schedules($debiturIds)
+    {
+        return DebiturTenorSchedule::whereIn('id_trx_debitur', $debiturIds)
+            ->WhereIn('status', ['Unpaid', 'Pending'])
+            ->select('id_trx_debitur', 'tenor_sequence', 'amount', 'due_date', 'status', 'invoice_number')
+            ->orderBy('tenor_sequence', 'asc')
+            ->get();
+    }
+
+    public function scheduleUnpaid($debiturIds)
+    {
+        return DebiturInvoiceHeader::select(
+            'dpg.payment_id',
+            'dpg.order_id',
+            'dpg.order_payment_url',
+            'dpg.order_payment_token',
+            'dts.tenor_sequence',
+            'debitur_invoice_header.trx_no',
+            'debitur_invoice_header.total_amount',
+            DB::raw('COUNT(td.id_trx_debitur) as total_debitur')
+        )
+            ->join('debitur_tenor_schedule as dts', 'debitur_invoice_header.invoice_id', '=', 'dts.invoice_id')
+            ->join('debitur_payment_gateway as dpg', 'dpg.invoice_id', '=', 'debitur_invoice_header.invoice_id')
+            ->join('trx_debitur as td', 'td.id_trx_debitur', '=', 'dts.id_trx_debitur')
+            // ->where('debitur_invoice_header.invoice_scope', '=', 'Merge Payment')
+            ->where('dts.status', 'Unpaid')
+            ->whereIn('dts.id_trx_debitur', $debiturIds)
+            ->groupBy(
+                'dpg.order_id',
+                'dpg.order_payment_token',
+                'dpg.order_payment_url',
+                'dts.tenor_sequence',
+                'debitur_invoice_header.trx_no',
+                'debitur_invoice_header.total_amount'
+            )
+            ->get();
+    }
+
+    public function tenorData($arrInvoiceNoTemp, $trx_no)
+    {
+        return DebiturTenorSchedule::query()
+            ->from('kredit_usaha_transaction as kut')
+            ->join('trx_debitur as td', 'td.kredit_usaha_trx_id', '=', 'kut.id_kredit_usaha')
+            ->join('debitur_tenor_schedule as dts', 'dts.id_trx_debitur', '=', 'td.id_trx_debitur')
+            ->select([
+                'kut.id_kredit_usaha',
+                'dts.schedule_id',
+                'dts.id_trx_debitur',
+                'dts.tenor_sequence',
+                'dts.invoice_number',
+                'dts.amount',
+                'td.id_trx_debitur',
+                'td.no_sp_detail',
+            ])
+            ->whereIn('dts.invoice_number', $arrInvoiceNoTemp)
+            ->where('kut.trx_no', $trx_no)
+            ->get();
+    }
+
+    public function mltHeader($trx_no)
+    {
+        return PenjaminanTransaction::where('trx_no', $trx_no)
+            ->select('no_surat_permohonan')->first();
+    }
+
+    public function createDebiturInvoiceHeader(array $payload): DebiturInvoiceHeader
+    {
+        return DebiturInvoiceHeader::create($payload);
+    }
+
+    public function createDebiturPaymentGateway(array $payload)
+    {
+        return DebiturPaymentGateway::create($payload);
+    }
+
+    public function updateDebiturTenorSchedule($schedule_id, array $payload)
+    {
+        DebiturTenorSchedule::where('schedule_id', $schedule_id)
+            ->update($payload);
     }
 }
