@@ -83,6 +83,8 @@ Route::prefix('/v2/penjaminan/kredit-mikro-kecil')->group(function () {
 Route::prefix('/v2/penjaminan/kredit-usaha-rakyat')->group(function () {
     Route::post('/create', [KURTransactionController::class, 'store']);
     Route::get('/detail/{id}', [KURTransactionController::class, 'show']);
+    Route::post('update-draft/{trxNo}', [KURTransactionController::class, 'updateDraft']);
+    Route::post('/approve-penjaminan', [KURTransactionController::class, 'approvePenjaminan']);
 });
 
 //PENJAMINAN KONSTRUKSI
