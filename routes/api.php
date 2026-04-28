@@ -98,10 +98,12 @@ Route::post('/v2/penjaminan/konstruksi/upload-bukti-bayar-manual', [KonstruksiTr
 Route::get('/v2/penjaminan/konstruksi/debt', [KonstruksiTransactionController::class, 'createTrxDebitur']);
 
 // PENJAMINAN KREDIT USAHA
-Route::post('/v2/penjaminan/kredit-usaha/create', [KreditUsahaController::class, 'store']);
-Route::get('/v2/penjaminan/kredit-usaha/show/{id}', [KreditUsahaController::class, 'show']);
-Route::post('/v2/penjaminan/kredit-usaha/update-draft/{trxNo}', [KreditUsahaController::class, 'updateKreditUsaha']);
-Route::post('/v2/penjaminan/kredit-usaha/approve-penjaminan', [KreditUsahaController::class, 'ApprovePenjaminanKreditUsaha']);
-Route::get('/v2/penjaminan/kredit-usaha/detail-payment-kredit-usaha', [KreditUsahaController::class, 'GetDetailPaymentKreditUsaha']);
-Route::get('/v2/penjaminan/kredit-usaha/detail-payment-kredit-usaha-list', [KreditUsahaController::class, 'GetDetailListPaymentKreditUsaha']);
-Route::post('/v2/penjaminan/kredit-usaha/upload-bukti-bayar-manual', [KreditUsahaController::class, 'uploadPembayaranManual']);
+Route::prefix('/v2/penjaminan/kredit-usaha')->group(function () {
+    Route::post('/create', [KreditUsahaController::class, 'store']);
+    Route::get('/show/{id}', [KreditUsahaController::class, 'show']);
+    Route::post('/update-draft/{trxNo}', [KreditUsahaController::class, 'updateKreditUsaha']);
+    Route::post('/approve-penjaminan', [KreditUsahaController::class, 'ApprovePenjaminanKreditUsaha']);
+    Route::get('/detail-payment-kredit-usaha', [KreditUsahaController::class, 'GetDetailPaymentKreditUsaha']);
+    Route::get('/detail-payment-kredit-usaha-list', [KreditUsahaController::class, 'GetDetailListPaymentKreditUsaha']);
+    Route::post('/upload-bukti-bayar-manual', [KreditUsahaController::class, 'uploadPembayaranManual']);
+});
