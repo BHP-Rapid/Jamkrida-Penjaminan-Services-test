@@ -2,7 +2,7 @@
 
 namespace App\Services\AnjakPiutangService;
 
-use App\Helper\AesHelper;
+use App\Helpers\AesHelper;
 use App\Models\TenantMitra;
 use App\Models\PenjaminanTransaction;
 use App\Models\v2\MultigunaTrxAjpModel;

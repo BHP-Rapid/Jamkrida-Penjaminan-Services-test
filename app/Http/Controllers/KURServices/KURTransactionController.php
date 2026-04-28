@@ -4,7 +4,7 @@ namespace App\Http\Controllers\KURServices;
 
 use App\Exceptions\NotFoundException;
 use App\Helpers\AesHelper;
-use App\Helper\ApiResponse;
+use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Models\DebiturInvoiceHeader;
 use App\Models\DebiturTenorSchedule;

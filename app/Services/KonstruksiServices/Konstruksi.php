@@ -2,7 +2,7 @@
 
 namespace App\Services\KonstruksiServices;
 
-use App\Helper\ValidateDebitur;
+use App\Helpers\ValidateDebitur;
 use App\Helpers\AesHelper;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;

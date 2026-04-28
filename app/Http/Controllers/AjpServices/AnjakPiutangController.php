@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\AjpServices;
 
 use App\Exports\BulkAjpTemplateExport;
-use App\Helper\ApiResponse;
+use App\Helpers\ApiResponse;
 use App\Services\CreatioService;
 use Exception;
 use Illuminate\Http\Request;

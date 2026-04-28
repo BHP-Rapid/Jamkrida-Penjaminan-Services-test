@@ -2,8 +2,8 @@
 
 namespace App\Services\MultigunaService;
 
-use App\Helper\AesHelper;
-use App\Helper\ValidateDebitur;
+use App\Helpers\AesHelper;
+use App\Helpers\ValidateDebitur;
 use App\Repositories\MultigunaRepository;
 use Carbon\Carbon;
 use Exception;

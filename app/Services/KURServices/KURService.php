@@ -3,8 +3,8 @@
 namespace App\Services\KURServices;
 
 use App\Exceptions\NotFoundException;
-use App\Helper\ValidateDebitur;
-use App\Helper\AesHelper;
+use App\Helpers\ValidateDebitur;
+use App\Helpers\AesHelper;
 use App\Models\Institution;
 use App\Models\KURTransaction;
 use App\Models\PenjaminanFlow;
