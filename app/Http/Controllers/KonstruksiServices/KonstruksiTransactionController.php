@@ -272,6 +272,18 @@ class KonstruksiTransactionController extends Controller
             // 'selected_item_old.*.nik' => 'required|string|max:50'
             'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
         ]);
+
+        try {
+            $this->service->uploadPembayaranManual($request);
+
+            return ApiResponse::success(null, 'Bukti bayar manual successfully uploaded.');
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error upload bukti bayar manual (' . $e->getMessage() . ')'
+            ], 500);
+        }
+
     }
 
     public function getPenjaminanPKS()

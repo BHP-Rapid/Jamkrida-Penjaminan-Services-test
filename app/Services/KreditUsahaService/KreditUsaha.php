@@ -878,7 +878,7 @@ class KreditUsaha
             $fn . '.' . $ext,
             's3'
         );
-        PenjaminanLampiranDtl::create([
+        $this->repository->createPenjaminanLampiranDtl([
             'trx_no' => $request->trx_no,
             'lampiran_id' => 'pembayaran',
             'file_name' => $fn,

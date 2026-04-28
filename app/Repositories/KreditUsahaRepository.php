@@ -308,4 +308,8 @@ class KreditUsahaRepository
         DebiturTenorSchedule::where('schedule_id', $schedule_id)
             ->update($payload);
     }
+
+    public function createPenjaminanLampiranDtl(array $payload){
+        PenjaminanLampiranDtl::create($payload);
+    }
 }
