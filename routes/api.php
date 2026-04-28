@@ -86,16 +86,18 @@ Route::prefix('/v2/penjaminan/kredit-usaha-rakyat')->group(function () {
 });
 
 //PENJAMINAN KONSTRUKSI
-Route::post('/v2/penjaminan/konstruksi/create', [KonstruksiTransactionController::class, 'store']);
-Route::get('/v2/penjaminan/konstruksi/download-template', [KonstruksiTransactionController::class, 'ExportKonstruksi']);
-Route::get('/v2/penjaminan/konstruksi/detail/{id}', [KonstruksiTransactionController::class, 'show']);
-Route::post('/v2/penjaminan/konstruksi/update-draft/{trxNo}', [KonstruksiTransactionController::class, 'updateDraft']);
-Route::post('/v2/penjaminan/konstruksi/approve-penjaminan', [KonstruksiTransactionController::class, 'ApprovePenjaminan']);
-Route::get('/v2/penjaminan/konstruksi/detail-payment', [KonstruksiTransactionController::class, 'GetDetailPaymentKonstruksi']);
-Route::get('/v2/penjaminan/konstruksi/detail-payment-list', [KonstruksiTransactionController::class, 'GetDetailListPaymentKonstruksi']);
+Route::prefix('/v2/penjaminan/konstruksi')->group(function () {
+    Route::post('/create', [KonstruksiTransactionController::class, 'store']);
+    Route::get('/download-template', [KonstruksiTransactionController::class, 'ExportKonstruksi']);
+    Route::get('/detail/{id}', [KonstruksiTransactionController::class, 'show']);
+    Route::post('/update-draft/{trxNo}', [KonstruksiTransactionController::class, 'updateDraft']);
+    Route::post('/approve-penjaminan', [KonstruksiTransactionController::class, 'ApprovePenjaminan']);
+    Route::get('/detail-payment', [KonstruksiTransactionController::class, 'GetDetailPaymentKonstruksi']);
+    Route::get('/detail-payment-list', [KonstruksiTransactionController::class, 'GetDetailListPaymentKonstruksi']);
 
-Route::post('/v2/penjaminan/konstruksi/upload-bukti-bayar-manual', [KonstruksiTransactionController::class, 'uploadPembayaranManual']);
-Route::get('/v2/penjaminan/konstruksi/debt', [KonstruksiTransactionController::class, 'createTrxDebitur']);
+    Route::post('/upload-bukti-bayar-manual', [KonstruksiTransactionController::class, 'uploadPembayaranManual']);
+    Route::get('/debt', [KonstruksiTransactionController::class, 'createTrxDebitur']);
+});
 
 // PENJAMINAN KREDIT USAHA
 Route::prefix('/v2/penjaminan/kredit-usaha')->group(function () {
