@@ -256,9 +256,7 @@ class KURService
                     }
                 }
             }
-            if(!empty($savedAttachments)) {
-                DB::table('penjaminan_lampiran_dtl')->insert($savedAttachments);
-            }
+            $this->storeAttachments($savedAttachments);
 
             if ($request->data['trx_status'] != 'D') {
                 $this->repository->insertPenjaminanKurFlow(
@@ -499,10 +497,7 @@ class KURService
                         }
                     }
                 }
-
-                if (!empty($savedAttachments)) {
-                    DB::table('penjaminan_lampiran_dtl')->insert($savedAttachments);
-                }
+                $this->storeAttachments($savedAttachments);
             }
 
             if ($request->data['trx_status'] != 'D') {
