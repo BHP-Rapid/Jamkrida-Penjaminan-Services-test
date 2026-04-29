@@ -742,9 +742,12 @@ class CustomBond
     }
 
 
-    public function getDetailPaymentCstb($no_surat_permohonan, $trx_no, $isSplit, $key)
+    public function getDetailPaymentCstb(array $payload)
     {
-
+        $trx_no = $payload['trx_no'];
+        $isSplit = $payload['is_split'];
+        $key = $payload['key'];
+        $no_surat_permohonan = $payload['no_surat_permohonan'];
         $resultPending = [];
         $dataPending = PenjaminanTransaction::query()
             ->from('transaction_penjaminan_header as tph')

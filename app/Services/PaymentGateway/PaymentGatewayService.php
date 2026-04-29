@@ -153,10 +153,10 @@ class PaymentGatewayService
             }
             $this->repository->insertNotifications($notifications);
 
+            DB::commit();
             return [
                 "orderId" => "Status Pembayaran " . $result["order_status"]['status'],
             ];
-            DB::commit();
         } catch (Exception $ex) {
             throw $ex;
         }

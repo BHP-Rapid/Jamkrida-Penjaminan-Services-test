@@ -8,7 +8,6 @@ use App\Services\CustomBondServices\CustomBond as CustomBondServicesCustomBondTr
 use App\Services\PenjaminanService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Foundation\Validation\ValidatesRequests;
 use Exception;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -19,17 +18,27 @@ class CustomBondTransactionController extends Controller
     public function show(Request $request)
     {
         try {
-            if (empty($id)) {
-                return ApiResponse::error('ID is required', 400);
+            $validator = Validator::make($request->query(), [
+                'trx_no' => 'required|string|max:100',
+                'no_surat_permohonan' => 'required|string|max:100'
+            ], [
+                'trx_no.required' => 'trx_no is required',
+                'trx_no.string' => 'trx_no must be a string',
+                'no_surat_permohonan.required' => 'no_surat_permohonan is required',
+                'no_surat_permohonan.string' => 'no_surat_permohonan must be a string'
+            ]);
+
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
             }
-            $data = $this->customBondService->getDetail($request->query('trx_no'), $request->query('no_surat_permohonan'));
+
+            $payload = $validator->validated();
+            $data = $this->customBondService->getDetail($payload['trx_no'], $payload['no_surat_permohonan']);
             return ApiResponse::success($data, 'Data retrieved successfully');
+        } catch (\Illuminate\Validation\ValidationException $ex) {
+            return ApiResponse::error('Validation error', 422, $ex->errors());
         } catch (\Exception $ex) {
             return ApiResponse::error('Error While Get Data Custom Bond:  ' . $ex->getMessage(), 500);
-            // return response()->json([
-            //     'success' => false,
-            //     'message' => 'Error While Get Data Custom Bond: ' . $ex->getMessage()
-            // ], 500);
         }
     }
 
@@ -284,7 +293,7 @@ class CustomBondTransactionController extends Controller
     public function GetDetailPaymentCstb(Request $request)
     {
         try {
-            $validator = Validator::make($request->all(), [
+            $validator = Validator::make($request->query(), [
                 'no_surat_permohonan' => 'required|string|max:100',
                 'trx_no' => 'required|string|max:100',
                 'is_split' => 'nullable|integer|in:0,1'
@@ -293,16 +302,13 @@ class CustomBondTransactionController extends Controller
             if ($validator->fails()) {
                 throw new ValidationException($validator);
             }
-            $key = base64_decode(config('services.secure.key'));
-            $payload = [
-                'no_surat_permohonan' => $request->query('no_surat_permohonan'),
-                'trx_no' => $request->query('trx_no'),
-                'is_split' => $request->query('is_split'),
-            ];
-            $no_surat_permohonan = $payload['no_surat_permohonan'];
-            $trx_no = $payload['trx_no'];
-            $isSplit = $payload['is_split'];
-            $result = $this->customBondService->getDetailPaymentCstb($no_surat_permohonan, $trx_no, $isSplit, $key);
+
+            $payload = $validator->validated();
+            $payload['is_split'] = array_key_exists('is_split', $payload)
+                ? (int) $payload['is_split']
+                : null;
+            $payload['key'] = base64_decode(config('services.secure.key'));
+            $result = $this->customBondService->getDetailPaymentCstb($payload);
             return ApiResponse::success($result, 'Success get detail payment');
         } catch (ValidationException $ex) {
             return ApiResponse::error('Validation error', 422, $ex->errors());
