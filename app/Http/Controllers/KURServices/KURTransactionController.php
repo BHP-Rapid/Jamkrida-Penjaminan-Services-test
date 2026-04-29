@@ -237,69 +237,10 @@ class KURTransactionController extends Controller
 
     public function getDetailPaymentKUR(Request $request)
     {
-        $key = base64_decode(config('services.secure.key'));
         try {
-            $no_surat_permohonan = $request->query('no_surat_permohonan');
-            $trx_no              = $request->query('trx_no');
-            $isSplit             = (int) $request->query('is_split', null);
             $data = [];
-            $dataHeader = PenjaminanTransaction::query()
-                ->from('transaction_penjaminan_header as tph')
-                ->join('kur_transaction as kur', 'tph.trx_no', '=', 'kur.trx_no')
-                ->join('trx_debitur as td', 'kur.id_kur', '=', 'td.kur_trx_id')
-                ->join('debitur_tenor_schedule as dts', 'td.id_trx_debitur', '=', 'dts.id_trx_debitur')
-                ->join('institution as ins', 'td.institution_id', '=', 'ins.institution_id')
-                ->where('tph.trx_no', $trx_no)
-                ->where('dts.status', 'Pending')
-                ->where('tph.no_surat_permohonan', $no_surat_permohonan)
-                ->where('tph.sp_split', $isSplit)
-                ->select([
-                    'kur.id_kur',
-                    'td.id_trx_debitur',
-                    'td.plafond_kredit',
-                    // 'td.nik',
-                    'ins.id_number',
-                    'td.nama_nasabah',
-                    'dts.amount',
-                    'dts.invoice_number',
-                    'dts.due_date',
-                    'dts.status'
-                ])
-                ->get();
-            if (!$dataHeader) {
-                return response()->json(['message' => 'Data tidak ditemukan'], 404);
-            }
-            $dataHeader->each(function ($row) use ($key) {
-                $decryptedIdNumber = AesHelper::decrypt($row->id_number, $key);
-
-                $row->id_number = $decryptedIdNumber;
-            });
-            $dataUnpaid = DebiturInvoiceHeader::query()
-                ->from('debitur_invoice_header as dih')
-                ->join('debitur_tenor_schedule as dts', 'dih.invoice_id', '=', 'dts.invoice_id')
-                ->join('debitur_payment_gateway as dpg', 'dpg.invoice_id', '=', 'dih.invoice_id')
-                ->join('trx_debitur as td', 'td.id_trx_debitur', '=', 'dts.id_trx_debitur')
-                ->where('dih.trx_no', $trx_no)
-                ->where('dih.status', 'Unpaid')
-                ->select(
-                    'dpg.payment_id',
-                    'dih.invoice_id',
-                    'dpg.order_id',
-                    'dpg.order_payment_url',
-                    'dpg.order_payment_token',
-                    'dts.tenor_sequence',
-                    'dih.trx_no',
-                    'dih.total_amount',
-                    DB::raw('COUNT(td.id_trx_debitur) AS total_debitur')
-                )
-                ->groupBy(
-                    'dpg.payment_id',
-                    'dpg.order_id',
-                    'dpg.order_payment_url',
-                    'dts.tenor_sequence',
-                    'dih.trx_no',
-                    'dih.total_amount'
-                )->get();
+            $dataHeader = $this->kurService->getDataHeaderPaymentFull($request);
+            $dataUnpaid = $this->kurService->getDataUnpaidPaymentFull($request->query('trx_no'));
             $data = [
                 'dataHeader' =>
                 [
@@ -309,14 +250,21 @@ class KURTransactionController extends Controller
             ];
             return response()->json($data);
 
-        } catch (\Exception $ex) {
-            Log::error("Error fetching payment details", [
-                'exception' => $ex,
-                'trx_no' => $trx_no ?? null,
-                'no_surat_permohonan' => $no_surat_permohonan ?? null
-            ]);
-
-            return response()->json(['message' => $ex->getMessage()], 500);
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error(
+                $nfe->getMessage(),
+                $nfe->getStatus()
+            );
+        } catch (ValidationException $ve) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $ve->errors()
+            );
+        } catch (Exception $ex) {
+            return ApiResponse::error(
+                $ex->getMessage()
+            );
         }
     }
 

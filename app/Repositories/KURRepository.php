@@ -138,6 +138,63 @@ class KURRepository
             ->get();
     }
 
+    public function getPaymentPendingFull($trx_no, $no_sp, $is_split)
+    {
+        return PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('kur_transaction as kur', 'tph.trx_no', '=', 'kur.trx_no')
+            ->join('trx_debitur as td', 'kur.id_kur', '=', 'td.kur_trx_id')
+            ->join('debitur_tenor_schedule as dts', 'td.id_trx_debitur', '=', 'dts.id_trx_debitur')
+            ->join('institution as ins', 'td.institution_id', '=', 'ins.institution_id')
+            ->where('tph.trx_no', $trx_no)
+            ->where('dts.status', 'Pending')
+            ->where('tph.no_surat_permohonan', $no_sp)
+            ->where('tph.sp_split', $is_split)
+            ->select([
+                'kur.id_kur',
+                'td.id_trx_debitur',
+                'td.plafond_kredit',
+                // 'td.nik',
+                'ins.id_number',
+                'td.nama_nasabah',
+                'dts.amount',
+                'dts.invoice_number',
+                'dts.due_date',
+                'dts.status'
+            ])
+            ->get();
+    }
+
+    public function getPaymentUnpaidFull($trx_no)
+    {
+        return DebiturInvoiceHeader::query()
+            ->from('debitur_invoice_header as dih')
+            ->join('debitur_tenor_schedule as dts', 'dih.invoice_id', '=', 'dts.invoice_id')
+            ->join('debitur_payment_gateway as dpg', 'dpg.invoice_id', '=', 'dih.invoice_id')
+            ->join('trx_debitur as td', 'td.id_trx_debitur', '=', 'dts.id_trx_debitur')
+            ->where('dih.trx_no', $trx_no)
+            ->where('dih.status', 'Unpaid')
+            ->select(
+                'dpg.payment_id',
+                'dih.invoice_id',
+                'dpg.order_id',
+                'dpg.order_payment_url',
+                'dpg.order_payment_token',
+                'dts.tenor_sequence',
+                'dih.trx_no',
+                'dih.total_amount',
+                DB::raw('COUNT(td.id_trx_debitur) AS total_debitur')
+            )
+            ->groupBy(
+                'dpg.payment_id',
+                'dpg.order_id',
+                'dpg.order_payment_url',
+                'dts.tenor_sequence',
+                'dih.trx_no',
+                'dih.total_amount'
+            )->get();
+    }
+
     public function insertHeaderKur($data)
     {
         return PenjaminanTransaction::create($data);

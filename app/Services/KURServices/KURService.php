@@ -775,6 +775,27 @@ class KURService
         });
     }
 
+    public function getDataHeaderPaymentFull(Request $request)
+    {
+        $no_surat_permohonan = $request->query('no_surat_permohonan');
+        $trx_no              = $request->query('trx_no');
+        $isSplit             = (int) $request->query('is_split', null);
+        $key = base64_decode(config('services.secure.key'));
+        $dataHeader = $this->getFullPaymentPendingOrFail($trx_no, $no_surat_permohonan, $isSplit);
+        $dataHeader->each(function ($row) use ($key) {
+            $decryptedIdNumber = AesHelper::decrypt($row->id_number, $key);
+
+            $row->id_number = $decryptedIdNumber;
+        });
+        return $dataHeader;
+    }
+
+    public function getDataUnpaidPaymentFull($trx_no)
+    {
+        $dataUnpaid = $this->repository->getPaymentUnpaidFull($trx_no);
+        return $dataUnpaid;
+    }
+
     private function getTenantMitraDataOrFail($mitra_id) {
         $tenantData = $this->repository->getTenantMitraData($mitra_id);
         if(!$tenantData) {
@@ -798,6 +819,15 @@ class KURService
             throw new NotFoundException('Tenor debitur KUR is not found.');
         }
         return $tenor;
+    }
+
+    private function getFullPaymentPendingOrFail($trx_no, $no_sp, $is_split)
+    {
+        $data = $this->repository->getPaymentPendingFull($trx_no, $no_sp, $is_split);
+        if(!$data) {
+            throw new NotFoundException('Data tidak ditemukan.');
+        }
+        return $data;
     }
 
     private function checkPenjaminanIsNotSynced($trx_no)
