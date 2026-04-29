@@ -85,6 +85,7 @@ Route::prefix('/v2/penjaminan/kredit-usaha-rakyat')->group(function () {
     Route::get('/detail/{id}', [KURTransactionController::class, 'show']);
     Route::post('update-draft/{trxNo}', [KURTransactionController::class, 'updateDraft']);
     Route::post('/approve-penjaminan', [KURTransactionController::class, 'approvePenjaminan']);
+    Route::post('/upload-bukti-bayar-manual', [KURTransactionController::class, 'uploadPembayaranManual']);
 });
 
 //PENJAMINAN KONSTRUKSI

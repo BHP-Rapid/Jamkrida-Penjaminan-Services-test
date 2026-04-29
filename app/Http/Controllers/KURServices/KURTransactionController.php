@@ -197,6 +197,44 @@ class KURTransactionController extends Controller
         }
     }
 
+    public function uploadPembayaranManual(Request $request)
+    {
+        try {
+            $user = auth('sanctum')->user();
+            $this->validate($request, [
+                'trx_no' => 'required|string|max:50',
+                'amount' => 'required|numeric',
+                'selected_items' => 'required|string',
+                'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
+            ]);
+            $result = $this->kurService->pembayaranManualKur($request, $user);
+            if(!$result['success']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $result['message']
+                ], 422);
+            }
+            return ApiResponse::success(null, 'Successfully upload bukti bayar manual KUR.');
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error(
+                $nfe->getMessage(),
+                $nfe->getStatus()
+            );
+        } catch (ValidationException $ve) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $ve->errors()
+            );
+        } catch (Exception $ex) {
+            // dd($ex->getMessage());
+            return ApiResponse::error(
+                'Error upload bukti bayar manual (' . $ex->getMessage() . ')'
+                // $ex->getCode() ?? 500
+            );
+        }
+    }
+
     public function getDetailPaymentKUR(Request $request)
     {
         $key = base64_decode(config('services.secure.key'));

@@ -73,4 +73,21 @@ class KURGeneratePayload
             'updated_at' => $time_now_jakarta,
         ];
     }
+
+    public static function generateInvoiceHeader($trx_no, $tenor_data, bool $is_manual)
+    {
+        $id_kur = $tenor_data->pluck('id_kur')[0];
+        $sequence = $tenor_data->pluck('tenor_sequence')[0];
+        $scope = count($tenor_data) > 1 ? 'Merge Payment' : ($sequence == 0 ? 'Full Payment' : 'Installment');
+        $total = $tenor_data->sum('amount');
+        return [
+            'trx_no' => $trx_no,
+            'debitur_trx_id' => $id_kur,
+            'invoice_scope' => $scope,
+            'total_amount' => $total,
+            'status' => 'Paid',
+            'is_manual' => $is_manual ? 1 : 0,
+            'tenor_sequence' => $sequence
+        ];
+    }
 }
