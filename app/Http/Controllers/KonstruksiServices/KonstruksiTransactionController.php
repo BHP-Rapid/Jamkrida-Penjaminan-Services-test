@@ -86,42 +86,34 @@ class KonstruksiTransactionController extends Controller
             ]);
             if ($request->data['trx_status'] == 'D') {
                 if ($request->has('data.dataDebitur') || $request->has('data.dataInstitution')) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Excel tidak boleh diisi Jika dalam Ingin Save as Draft'
-                    ], 500);
+                    return ApiResponse::error('Excel tidak boleh diisi Jika dalam Ingin Save as Draft', 500);
                 }
             }
 
             $penjaminanPKSResponse = $this->getPenjaminanPKS();
             $penjaminanPKSData = $penjaminanPKSResponse->getData(true);
             if (empty($penjaminanPKSData['Success']) || $penjaminanPKSData['Success'] !== true) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data'
-                ], 500);
+                return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
             }
 
             $result = $this->service->store($request->all(), $user, $mitraAlias, $penjaminanPKSData);
 
             if (isset($result['error'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $result['message']
-                ], $result['code']);
+                return ApiResponse::error($result['message'], $result['code']);
             }
 
-            return response()->json($result);
+            return ApiResponse::success($result);
         } catch (\Illuminate\Validation\ValidationException $ve) {
-            return response()->json([
-                'message' => $ve->getMessage(),
-                'error' => $ve->errors()
-            ], 422);
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $ve->errors()
+            );
         } catch (\Exception $ex) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error While Insert Konstruksi: ' . $ex->getMessage()
-            ], 500);
+            return ApiResponse::error(
+                'Error While Insert Konstruksi: ' . $ex->getMessage(),
+                500
+            );
         }
     }
 
@@ -139,10 +131,7 @@ class KonstruksiTransactionController extends Controller
             $mitraAlias = $tenantMitraData->alias;
             $tenant_ID = $tenantMitraData->tenant_id;
         } else {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tenant mitra data not found.'
-            ], 404);
+            return ApiResponse::error('Tenant mitra data not found.', 404);
         }
 
         try {
@@ -171,25 +160,20 @@ class KonstruksiTransactionController extends Controller
                 $penjaminanPKSResponse = $this->getPenjaminanPKS();
                 $penjaminanPKSData = $penjaminanPKSResponse->getData(true);
                 if (empty($penjaminanPKSData['Success']) || $penjaminanPKSData['Success'] !== true) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => $penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data'
-                    ], 500);
+                    return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
                 }
             }
 
             $result = $this->service->update($request->all(), $user, $mitraAlias, $penjaminanPKSData, $trxNo);
-            return response()->json([
-                'success' => $result['success'] ?? false,
-                'message' => $result['message'] ?? 'Unknown response',
-                'list_debitur' => $result['list_debitur'] ?? null,
-            ], $result['status'] ?? 200);
-        } catch (Exception $ex) {
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Error While Updating KKPBJ: ' . $ex->getMessage()
-            ], 500);
+            return ApiResponse::success($result);
+            // return response()->json([
+            //     'success' => $result['success'] ?? false,
+            //     'message' => $result['message'] ?? 'Unknown response',
+            //     'list_debitur' => $result['list_debitur'] ?? null,
+            // ], $result['status'] ?? 200);
+        } catch (Exception $ex) {
+            return ApiResponse::error('Error While Updating KKPBJ: ' . $ex->getMessage(), 500);
         }
     }
 
@@ -200,10 +184,7 @@ class KonstruksiTransactionController extends Controller
             return Excel::download(new ExcelDataNormatifKKPBJExport(), $filename);
         } catch (\Exception $e) {
             Log::error("", ['exception' => $e]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Error generating Excel file: ' . $e->getMessage()
-            ], 500);
+            return ApiResponse::error('Error generating Excel file: ' . $e->getMessage(), 500);
         }
     }
 
@@ -278,12 +259,8 @@ class KonstruksiTransactionController extends Controller
 
             return ApiResponse::success(null, 'Bukti bayar manual successfully uploaded.');
         } catch (Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error upload bukti bayar manual (' . $e->getMessage() . ')'
-            ], 500);
+            return ApiResponse::error('Error upload bukti bayar manual (' . $e->getMessage() . ')', 500);
         }
-
     }
 
     public function getPenjaminanPKS()
