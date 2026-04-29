@@ -66,6 +66,23 @@ class KURRepository
         return TrxDebiturDefaultBase::where('kur_trx_id', $id_kur)->get();
     }
 
+    public function getDebiturSplitPaymentKur($id_kur){
+        return TrxDebiturDefaultBase::query()
+            ->from('trx_debitur as td')
+            ->join('institution as inst', 'td.institution_id', '=', 'inst.institution_id')
+            ->where('td.kur_trx_id', $id_kur)
+            ->select(
+                'td.id_trx_debitur',
+                'td.no_sp_detail',
+                'td.loan_number',
+                'td.tanggal_realisasi',
+                'inst.id_number',
+                'td.nama_nasabah'
+            )
+            ->orderBy('id_trx_debitur', 'asc')
+            ->get();
+    }
+
     public function getLampiranKur($trx_no)
     {
         return PenjaminanLampiranDtl::where('trx_no', $trx_no)
@@ -138,6 +155,15 @@ class KURRepository
             ->get();
     }
 
+    public function getTenorScheduleByDebiturId(array $debitur_id_list, array $status_list)
+    {
+        return DebiturTenorSchedule::whereIn('id_trx_debitur', $debitur_id_list)
+            ->WhereIn('status', $status_list)
+            ->select('id_trx_debitur', 'tenor_sequence', 'amount', 'due_date', 'status', 'invoice_number')
+            ->orderBy('tenor_sequence', 'asc')
+            ->get();
+    }
+
     public function getPaymentPendingFull($trx_no, $no_sp, $is_split)
     {
         return PenjaminanTransaction::query()
@@ -193,6 +219,50 @@ class KURRepository
                 'dih.trx_no',
                 'dih.total_amount'
             )->get();
+    }
+
+    public function getPaymentHeaderSplit($trx_no, $no_sp, $is_split)
+    {
+        return PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('kur_transaction as kur', 'tph.trx_no', '=', 'kur.trx_no')
+            ->where('tph.trx_no', $trx_no)
+            ->where('tph.no_surat_permohonan', $no_sp)
+            ->where('tph.sp_split', $is_split)
+            ->select([
+                'tph.*',
+                'kur.id_kur',
+            ])
+            ->first();
+    }
+
+    public function getPaymentUnpaidSplit(array $debitur_id_list)
+    {
+        return DebiturInvoiceHeader::select(
+            'dpg.payment_id',
+            'dpg.order_id',
+            'dpg.order_payment_url',
+            'dpg.order_payment_token',
+            'dts.tenor_sequence',
+            'debitur_invoice_header.trx_no',
+            'debitur_invoice_header.total_amount',
+            DB::raw('COUNT(td.id_trx_debitur) as total_debitur')
+        )
+            ->join('debitur_tenor_schedule as dts', 'debitur_invoice_header.invoice_id', '=', 'dts.invoice_id')
+            ->join('debitur_payment_gateway as dpg', 'dpg.invoice_id', '=', 'debitur_invoice_header.invoice_id')
+            ->join('trx_debitur as td', 'td.id_trx_debitur', '=', 'dts.id_trx_debitur')
+            // ->where('debitur_invoice_header.invoice_scope', '=', 'Merge Payment')
+            ->where('dts.status', 'Unpaid')
+            ->whereIn('dts.id_trx_debitur', $debitur_id_list)
+            ->groupBy(
+                'dpg.order_id',
+                'dpg.order_payment_token',
+                'dpg.order_payment_url',
+                'dts.tenor_sequence',
+                'debitur_invoice_header.trx_no',
+                'debitur_invoice_header.total_amount'
+            )
+            ->get();
     }
 
     public function insertHeaderKur($data)

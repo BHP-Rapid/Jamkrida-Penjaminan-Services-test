@@ -796,6 +796,68 @@ class KURService
         return $dataUnpaid;
     }
 
+    public function getSplitPaymentDetail(Request $request)
+    {
+        $no_surat_permohonan = $request->query('no_surat_permohonan');
+        $trx_no              = $request->query('trx_no');
+        $isSplit             = (int) $request->query('is_split', null);
+        $dataHeader = $this->getSplitPaymentHeaderOrFail($trx_no, $no_surat_permohonan, $isSplit);
+        $dataDebitur = $this->repository->getDebiturSplitPaymentKur($dataHeader->id_kur);
+        $debiturById = $dataDebitur->keyBy('id_trx_debitur');
+        $debiturIds  = $dataDebitur->pluck('id_trx_debitur')->filter()->unique()->values();
+        if ($debiturIds->isEmpty()) {
+            return [];
+            // return response()->json(['data' => []]);
+        }
+        $schedules = $this->repository->getTenorScheduleByDebiturId($debiturIds, ['Unpaid', 'Pending']);
+        $schedulesUnpaid = $this->repository->getPaymentUnpaidSplit($debiturIds);
+        $key = base64_decode(config('services.secure.key'));
+        $result = $schedules
+            ->groupBy('tenor_sequence')
+            ->map(function ($rows, $tenor) use ($debiturById, $schedulesUnpaid, $key) {
+                $scheduleByDebitur = $rows->keyBy('id_trx_debitur');
+                $unpaidSchedules = $schedulesUnpaid->where('tenor_sequence', $tenor);
+                $listPending = $rows->where('status', 'Pending')->pluck('id_trx_debitur')->unique()->values()
+                    ->map(function ($id) use ($debiturById, $scheduleByDebitur, $key) {
+                        $d = $debiturById->get($id);
+                        // dd($d);
+                        if (!$d) return null;
+                        $sch = $scheduleByDebitur->get($id);
+                        return [
+                            'id_trx_debitur'    => $d->id_trx_debitur,
+                            'no_sp_detail'      => $d->no_sp_detail,
+                            'loan_number'       => $d->loan_number,
+                            'id_number'         => AesHelper::decrypt($d->id_number, $key),
+                            'invoice_number'    => $sch->invoice_number,
+                            'tanggal_realisasi' => $d->tanggal_realisasi,
+                            'debitur_name'      => $d->nama_nasabah,
+                            'due_date'          => $sch->due_date,
+                            'status'            => $sch->status,
+                            'amount'            => $sch?->amount,
+                        ];
+                    })->filter()->values();
+                $listUnpaid = $unpaidSchedules->map(function ($unpaid) {
+                    return [
+                        'payment_id'        => $unpaid->payment_id,
+                        'order_payment_token' => $unpaid->order_payment_token,
+                        'trx_no'            => $unpaid->trx_no,
+                        'order_id'          => $unpaid->order_id,
+                        'order_payment_url' => $unpaid->order_payment_url,
+                        'total_debitur' => $unpaid->total_debitur,
+                        'total_amount'      => $unpaid->total_amount,
+                    ];
+                });
+
+                return [
+                    'tenor' => (int) $tenor,
+                    'invoice_number' => '',
+                    'debitur_list_pending' => $listPending ?? null,
+                    'debitur_list_unpaid' => $listUnpaid ?? null,
+                ];
+            })->values();
+        return $result;
+    }
+
     private function getTenantMitraDataOrFail($mitra_id) {
         $tenantData = $this->repository->getTenantMitraData($mitra_id);
         if(!$tenantData) {
@@ -825,6 +887,16 @@ class KURService
     {
         $data = $this->repository->getPaymentPendingFull($trx_no, $no_sp, $is_split);
         if(!$data) {
+            throw new NotFoundException('Data tidak ditemukan.');
+        }
+        return $data;
+    }
+
+    private function getSplitPaymentHeaderOrFail($trx_no, $no_sp, $is_split)
+    {
+        $data = $this->repository->getPaymentHeaderSplit($trx_no, $no_sp, $is_split);
+        if(!$data)
+        {
             throw new NotFoundException('Data tidak ditemukan.');
         }
         return $data;
