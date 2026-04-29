@@ -87,32 +87,23 @@ class KreditUsahaController extends Controller
             ]);
             if ($request->data['trx_status'] == 'D') {
                 if (!empty($request->allFiles())) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'File upload tidak diperbolehkan saat Save as Draft.',
-                    ], 422);
+                    return ApiResponse::error('File upload tidak diperbolehkan saat Save as Draft.', 422);
                 }
             }
 
             $penjaminanPKSResponse = $this->getPenjaminanPKS();
             $penjaminanPKSData = $penjaminanPKSResponse->getData(true);
             if (empty($penjaminanPKSData['Success']) || $penjaminanPKSData['Success'] !== true) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data'
-                ], 500);
+                return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
             }
 
             $result = $this->service->store($request->all(), $user, $mitraAlias, $penjaminanPKSData, $tenant_ID);
 
             if (isset($result['error'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $result['message']
-                ], $result['code']);
+                return ApiResponse::error($result['message'], $result['code']);
             }
 
-            return response()->json($result);
+            return ApiResponse::success($result);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',
@@ -124,10 +115,6 @@ class KreditUsahaController extends Controller
                 'Error While Insert Kredit Usaha: ' . $ex->getMessage(),
                 500
             );
-            return response()->json([
-                'success' => false,
-                'message' => 'Error While Insert Custom Bond: ' . $ex->getMessage()
-            ], 500);
         }
     }
 
@@ -139,10 +126,7 @@ class KreditUsahaController extends Controller
             ->first();
 
         if (!$tenantMitraData) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tenant mitra data not found.'
-            ], 404);
+            return ApiResponse::error('Tenant mitra data not found.', 404);
         }
 
         $mitraAlias = $tenantMitraData->alias;
@@ -168,17 +152,11 @@ class KreditUsahaController extends Controller
             // Validasi file
             if ($newStatus === 'D') {
                 if (!empty($request->allFiles())) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'File upload tidak diperbolehkan saat Save as Draft.',
-                    ], 422);
+                    return ApiResponse::error('File upload tidak diperbolehkan saat Save as Draft.', 422);
                 }
             } else {
                 if (empty($request->allFiles())) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'File upload wajib diisi saat Submit.',
-                    ], 422);
+                    return ApiResponse::error('File upload wajib diisi saat Submit.', 422);
                 }
             }
 
@@ -186,20 +164,14 @@ class KreditUsahaController extends Controller
             $penjaminanPKSResponse = $this->getPenjaminanPKS();
             $penjaminanPKSData = $penjaminanPKSResponse->getData(true);
             if (empty($penjaminanPKSData['Success']) || $penjaminanPKSData['Success'] !== true) {
-                return response()->json([
-                    'status'  => 'error',
-                    'message' => $penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data'
-                ], 500);
+                return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
             }
 
             $result = $this->service->update($request->all(), $user, $mitraAlias, $penjaminanPKSData, $trxNo, $newStatus);
-            return response()->json($result);
-        } catch (Exception $ex) {
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Error While Updating Kredit Usaha: ' . $ex->getMessage()
-            ], 500);
+            return ApiResponse::success($result);
+        } catch (Exception $ex) {
+            return ApiResponse::error('Error While Updating Kredit Usaha: ' . $ex->getMessage(), 500);
         }
     }
 
@@ -273,10 +245,7 @@ class KreditUsahaController extends Controller
             !json_validate($request->selected_items) ||
             !is_array(json_decode($request->selected_items))
         ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid selected item data.'
-            ], 400);
+            return ApiResponse::error('Invalid selected item data.', 400);
         }
 
         try {
@@ -284,10 +253,7 @@ class KreditUsahaController extends Controller
 
             return ApiResponse::success(null, 'Bukti bayar manual successfully uploaded.');
         } catch (Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error upload bukti bayar manual (' . $e->getMessage() . ')'
-            ], 500);
+            return ApiResponse::error('Error upload bukti bayar manual (' . $e->getMessage() . ')', 500);
         }
     }
 

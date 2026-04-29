@@ -256,9 +256,7 @@ class KURService
                     }
                 }
             }
-            if(!empty($savedAttachments)) {
-                DB::table('penjaminan_lampiran_dtl')->insert($savedAttachments);
-            }
+            $this->storeAttachments($savedAttachments);
 
             if ($request->data['trx_status'] != 'D') {
                 $this->repository->insertPenjaminanKurFlow(
@@ -499,10 +497,7 @@ class KURService
                         }
                     }
                 }
-
-                if (!empty($savedAttachments)) {
-                    DB::table('penjaminan_lampiran_dtl')->insert($savedAttachments);
-                }
+                $this->storeAttachments($savedAttachments);
             }
 
             if ($request->data['trx_status'] != 'D') {
@@ -687,12 +682,224 @@ class KURService
         
     }
 
+    public function pembayaranManualKur(Request $request, $user)
+    {
+        $itemValidation = KURValidate::validateItemPambayaranManual($request->selected_items);
+        if(!$itemValidation['success']) {
+            return $itemValidation;
+        }
+        $invoiceNumbers = $this->getPayloadInvoiceNumbers($request->selected_items);
+        return DB::transaction(function () use ($request, $user, $invoiceNumbers) {
+            $nowJakarta = Carbon::now('Asia/Jakarta');
+            $trxNo = $request->trx_no;
+            $kurHeader = $this->getSuratPermohonanKurOrFail($trxNo);
+            $tenorData = $this->getTenorDebiturOrFail($trxNo, $invoiceNumbers);
+            $amountSum = $tenorData->sum('amount');
+            if ($amountSum != $request->amount) {
+                return [
+                    'success' => false,
+                    'message' => 'Incorrect amount.'
+                ];
+            }
+            $noSuratPermohonan = $kurHeader->no_surat_permohonan;
+            $invoiceHeaderPayload = KURGeneratePayload::generateInvoiceHeader($trxNo, $tenorData, true);
+            $invoiceHeaderData = $this->repository->insertDebiturInvoiceHeader($invoiceHeaderPayload);
+            $newInvoiceId = $invoiceHeaderData->invoice_id;
+            $orderId = 'ORDER-' . now()->format('YmdHis') . '-' . mt_rand(1000, 9999);
+            $this->repository->insertPaymentGatewayManual($newInvoiceId, $orderId, $amountSum);
+            $scheduleIdList = $tenorData->pluck('schedule_id');
+            $this->repository->updateDebiturStatus($scheduleIdList, 'Paid', $newInvoiceId);
+            $attachmentBuktiBayar = $request->file('file');
+            $fileBase64 = base64_encode(file_get_contents($attachmentBuktiBayar->path()));
+            $ext = $attachmentBuktiBayar->getClientOriginalExtension();
+            $fn = $orderId . '-pembayaran-kur';
+
+            $debiturPayload = $tenorData->map(function ($itemDebitur) {
+                return [
+                    'no_sp_detail' => $itemDebitur->no_sp_detail,
+                    'invoice_number' => $itemDebitur->invoice_number,
+                    'total_amount' => $itemDebitur->amount
+                ];
+            })->toArray();
+            $creatioPayload = [
+                'NoSuratPermohonan' => $noSuratPermohonan,
+                'ListDebitur' => $debiturPayload,
+                'NamaFile' => $fn . '.' . $ext,
+                'DataBase64' => $fileBase64
+            ];
+            // pending core API ready
+            // $svcCreatio = new CreatioService();
+            // $response = $svcCreatio->request('post', '/0/rest/PembayaranWebService/PembayaranManualV2', $creatioPayload);
+            // if ($response->status() !== 200) {
+            //     throw new Exception("Failed to send Bukti Pembayaran Manual to Core Creatio API with status: " . $response->status());
+            // }
+            // $bodyResponse = json_decode($response->body(), true);
+            // if ($bodyResponse['Success'] !== true) {
+            //     throw new Exception("Failed to send Bukti Pembayaran Manual to Core Creatio API with message: " . $bodyResponse['Message']);
+            // }
+            // (END) pending core API ready
+            $localStackPath = $attachmentBuktiBayar->storeAs(
+                'uploads/penjaminan/payment-multiguna',
+                $fn . '.' . $ext,
+                's3'
+            );
+            $savedAttachments = [
+                [
+                    'trx_no' => $trxNo,
+                    'lampiran_id' => 'pembayaran',
+                    'file_name' => $fn,
+                    'status_doc' => 'N',
+                    'version' => 1,
+                    'mime_type' => $attachmentBuktiBayar->getMimeType(),
+                    'file_info' => $localStackPath,
+                    'created_at' => $nowJakarta
+                ]
+            ];
+            $this->storeAttachments($savedAttachments);
+            // PenjaminanTransaction::where('trx_no', $trxNo)
+            //     ->update([
+            //         'trx_status' => 'PD',
+            //         'updated_at' => $nowJakarta 
+            //     ]);
+            // PenjaminanFlow::insert([
+            //     'trx_no' => $trxNo,
+            //     'trx_status' => 'PD',
+            //     'created_at' => $nowJakarta,
+            //     'updated_at' => $nowJakarta,
+            //     'created_by_id' => $userData->user_id,
+            //     'created_by_name' => $userData->name
+            // ]);
+            return [
+                'success' => true
+            ];
+        });
+    }
+
+    public function getDataHeaderPaymentFull(Request $request)
+    {
+        $no_surat_permohonan = $request->query('no_surat_permohonan');
+        $trx_no              = $request->query('trx_no');
+        $isSplit             = (int) $request->query('is_split', null);
+        $key = base64_decode(config('services.secure.key'));
+        $dataHeader = $this->getFullPaymentPendingOrFail($trx_no, $no_surat_permohonan, $isSplit);
+        $dataHeader->each(function ($row) use ($key) {
+            $decryptedIdNumber = AesHelper::decrypt($row->id_number, $key);
+
+            $row->id_number = $decryptedIdNumber;
+        });
+        return $dataHeader;
+    }
+
+    public function getDataUnpaidPaymentFull($trx_no)
+    {
+        $dataUnpaid = $this->repository->getPaymentUnpaidFull($trx_no);
+        return $dataUnpaid;
+    }
+
+    public function getSplitPaymentDetail(Request $request)
+    {
+        $no_surat_permohonan = $request->query('no_surat_permohonan');
+        $trx_no              = $request->query('trx_no');
+        $isSplit             = (int) $request->query('is_split', null);
+        $dataHeader = $this->getSplitPaymentHeaderOrFail($trx_no, $no_surat_permohonan, $isSplit);
+        $dataDebitur = $this->repository->getDebiturSplitPaymentKur($dataHeader->id_kur);
+        $debiturById = $dataDebitur->keyBy('id_trx_debitur');
+        $debiturIds  = $dataDebitur->pluck('id_trx_debitur')->filter()->unique()->values();
+        if ($debiturIds->isEmpty()) {
+            return [];
+            // return response()->json(['data' => []]);
+        }
+        $schedules = $this->repository->getTenorScheduleByDebiturId($debiturIds, ['Unpaid', 'Pending']);
+        $schedulesUnpaid = $this->repository->getPaymentUnpaidSplit($debiturIds);
+        $key = base64_decode(config('services.secure.key'));
+        $result = $schedules
+            ->groupBy('tenor_sequence')
+            ->map(function ($rows, $tenor) use ($debiturById, $schedulesUnpaid, $key) {
+                $scheduleByDebitur = $rows->keyBy('id_trx_debitur');
+                $unpaidSchedules = $schedulesUnpaid->where('tenor_sequence', $tenor);
+                $listPending = $rows->where('status', 'Pending')->pluck('id_trx_debitur')->unique()->values()
+                    ->map(function ($id) use ($debiturById, $scheduleByDebitur, $key) {
+                        $d = $debiturById->get($id);
+                        // dd($d);
+                        if (!$d) return null;
+                        $sch = $scheduleByDebitur->get($id);
+                        return [
+                            'id_trx_debitur'    => $d->id_trx_debitur,
+                            'no_sp_detail'      => $d->no_sp_detail,
+                            'loan_number'       => $d->loan_number,
+                            'id_number'         => AesHelper::decrypt($d->id_number, $key),
+                            'invoice_number'    => $sch->invoice_number,
+                            'tanggal_realisasi' => $d->tanggal_realisasi,
+                            'debitur_name'      => $d->nama_nasabah,
+                            'due_date'          => $sch->due_date,
+                            'status'            => $sch->status,
+                            'amount'            => $sch?->amount,
+                        ];
+                    })->filter()->values();
+                $listUnpaid = $unpaidSchedules->map(function ($unpaid) {
+                    return [
+                        'payment_id'        => $unpaid->payment_id,
+                        'order_payment_token' => $unpaid->order_payment_token,
+                        'trx_no'            => $unpaid->trx_no,
+                        'order_id'          => $unpaid->order_id,
+                        'order_payment_url' => $unpaid->order_payment_url,
+                        'total_debitur' => $unpaid->total_debitur,
+                        'total_amount'      => $unpaid->total_amount,
+                    ];
+                });
+
+                return [
+                    'tenor' => (int) $tenor,
+                    'invoice_number' => '',
+                    'debitur_list_pending' => $listPending ?? null,
+                    'debitur_list_unpaid' => $listUnpaid ?? null,
+                ];
+            })->values();
+        return $result;
+    }
+
     private function getTenantMitraDataOrFail($mitra_id) {
         $tenantData = $this->repository->getTenantMitraData($mitra_id);
         if(!$tenantData) {
             throw new NotFoundException('Tenant mitra data is not found.');
         }
         return $tenantData;
+    }
+
+    private function getSuratPermohonanKurOrFail($trx_no) {
+        $data = $this->repository->getSuratPemohonanKur($trx_no);
+        if(!$data) {
+            throw new NotFoundException('Penjaminan KUR not found.');
+        }
+        return $data;
+    }
+
+    private function getTenorDebiturOrFail($trx_no, array $invoice_numbers)
+    {
+        $tenor = $this->repository->getTenorDebitur($trx_no, $invoice_numbers);
+        if(count($tenor) < 1) {
+            throw new NotFoundException('Tenor debitur KUR is not found.');
+        }
+        return $tenor;
+    }
+
+    private function getFullPaymentPendingOrFail($trx_no, $no_sp, $is_split)
+    {
+        $data = $this->repository->getPaymentPendingFull($trx_no, $no_sp, $is_split);
+        if(!$data) {
+            throw new NotFoundException('Data tidak ditemukan.');
+        }
+        return $data;
+    }
+
+    private function getSplitPaymentHeaderOrFail($trx_no, $no_sp, $is_split)
+    {
+        $data = $this->repository->getPaymentHeaderSplit($trx_no, $no_sp, $is_split);
+        if(!$data)
+        {
+            throw new NotFoundException('Data tidak ditemukan.');
+        }
+        return $data;
     }
 
     private function checkPenjaminanIsNotSynced($trx_no)
@@ -828,5 +1035,17 @@ class KURService
         return response()->json($apiResBody);
     }
 
-    
+    private function getPayloadInvoiceNumbers($selected_items)
+    {
+        $parsed = json_decode($selected_items);
+        return collect($parsed)->pluck('invoice_number')->toArray();
+    }
+
+    private function storeAttachments(array $attachments)
+    {
+        if(!empty($attachments))
+        {
+            $this->repository->insertAttachmentsKur($attachments);
+        }
+    }
 }
