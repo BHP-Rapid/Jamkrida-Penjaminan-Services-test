@@ -12,16 +12,66 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PenjaminanTransactionController;
 use App\Http\Controllers\SuretyBondTransactionServices\SuretyBondTransactionController;
 
+/*
+auth verification 101:
+    option:
+        auth.role: 
+        (example:      [  akun role yg ingin di allow     ]
+            'auth.role:admin,super_admin,admin_mitra,mitra',
+        )
+        -admin
+        -super_admin
+        -admin
+        -admin_mitra
+
+        auth.permission:
+        (example:            [  menu_code   ] [      permission access         ]                          
+            'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+        )
+        opsi pertama adalah menu_code (lihat di table mitra_portal.master_menus_v2) => assign API hanya untuk halaman tertentu saja 
+        (jika satu api akses 2 halaman cukup tambahkan satu menu code lagi)
+        -read
+        -create
+        -update
+        -delete
+        -approve
+*/
+
 Route::prefix('/v2/penjaminan')->group(function () {
-    Route::get('/penjaminan-data', [PenjaminanTransactionController::class, 'index']);
-    Route::get('/detail-additional-document', [PenjaminanTransactionController::class, 'getAdditionalDocProduct']);
-    Route::get('/detail-certified-permohonan', [PenjaminanTransactionController::class, 'GetDetailCertificateByID']);
+    Route::get('/penjaminan-data', [PenjaminanTransactionController::class, 'index'])
+        ->middleware([
+            'auth.context',
+            'auth.role:admin,super_admin,admin_mitra,mitra',
+            'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+        ]);
+    Route::get('/detail-additional-document', [PenjaminanTransactionController::class, 'getAdditionalDocProduct'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-certified-permohonan', [PenjaminanTransactionController::class, 'GetDetailCertificateByID'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 });
 
 Route::prefix('/v2/payment-gateway')->group(function () {
-    Route::post('/create-transaction', [PaymentGatewayController::class, 'createTransaction']);
-    Route::post('/update-transaction/{id}', [PaymentGatewayController::class, 'updateTransaction']);
-    Route::get('/transaction-status/{id}', [PaymentGatewayController::class, 'getTransactionStatus']);
+    Route::post('/create-transaction', [PaymentGatewayController::class, 'createTransaction'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/update-transaction/{id}', [PaymentGatewayController::class, 'updateTransaction'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/transaction-status/{id}', [PaymentGatewayController::class, 'getTransactionStatus'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 });
 
 // PENJAMINAN MULTIGUNA
@@ -29,88 +79,304 @@ Route::prefix('/v2/penjaminan/multiguna')->group(function () {
     Route::get('/detail/{id}', [MultigunaServicesMultigunaController::class, 'show'])
         ->middleware([
             'auth.context',
-            'auth.role:admin,super_admin,admin_mitra',
-            'auth.permission:PENJAMINAN,create',
+            'auth.role:admin,super_admin,admin_mitra,mitra',
+            'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
         ]);
 });
 
 // PENJAMINAN AJP
 Route::prefix('/v2/penjaminan/ajp')->group(function () {
-    Route::get('/download-template', [AjpController::class, 'downloadAjpTemplate']);
-    Route::post('/create', [AjpController::class, 'storeAjp']);
-    Route::get('/detail/{trx_no}', [AjpController::class, 'show']);
-    Route::get('/detail-payment', [AjpController::class, 'GetDetailPaymentAjp']);
-    Route::get('/detail-payment-list', [AjpController::class, 'GetDetailListPaymentAjp']);
-    Route::post('/upload-bukti-bayar-manual', [AjpController::class, 'uploadPembayaranManual']);
-    Route::post('/approve-penjaminan', [AjpController::class, 'ApprovePenjaminanAJP']);
-    Route::post('/update-draft/{trxNo}', [AjpController::class, 'updateAjp']);
-    Route::get('/debt', [AjpController::class, 'createTrxDebitur']);
+    Route::get('/download-template', [AjpController::class, 'downloadAjpTemplate'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/create', [AjpController::class, 'storeAjp'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail/{trx_no}', [AjpController::class, 'show'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-payment', [AjpController::class, 'GetDetailPaymentAjp'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-payment-list', [AjpController::class, 'GetDetailListPaymentAjp'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/upload-bukti-bayar-manual', [AjpController::class, 'uploadPembayaranManual'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/approve-penjaminan', [AjpController::class, 'ApprovePenjaminanAJP'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/update-draft/{trxNo}', [AjpController::class, 'updateAjp'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/debt', [AjpController::class, 'createTrxDebitur'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 });
 
 Route::prefix('/v2/penjaminan/custom-bond')->group(function () {
-    Route::get('/penjaminan-custom-bond-byid', [CustomBondTransactionController::class, 'show']);
-    Route::post('/create', [CustomBondTransactionController::class, 'store']);
-    Route::post('/update-draft/{trxNo}', [CustomBondTransactionController::class, 'updateDraft']);
-    Route::post('/approved-penjaminan', [CustomBondTransactionController::class, 'ApprovePenjaminanCSTB']);
-    Route::post('/upload-bukti-bayar-manual', [CustomBondTransactionController::class, 'uploadPembayaranManual']);
-    Route::post('/submit-draft/{trxNo}', [CustomBondTransactionController::class, 'submitDraft']);
-    Route::get('/detail-payment-custom-bond', [CustomBondTransactionController::class, 'GetDetailPaymentCstb']);
+    Route::get('/penjaminan-custom-bond-byid', [CustomBondTransactionController::class, 'show'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/create', [CustomBondTransactionController::class, 'store'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/update-draft/{trxNo}', [CustomBondTransactionController::class, 'updateDraft'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/approved-penjaminan', [CustomBondTransactionController::class, 'ApprovePenjaminanCSTB'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan.approval,read,create,update,delete,approve',
+    ]);
+    Route::post('/upload-bukti-bayar-manual', [CustomBondTransactionController::class, 'uploadPembayaranManual'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/submit-draft/{trxNo}', [CustomBondTransactionController::class, 'submitDraft'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-payment-custom-bond', [CustomBondTransactionController::class, 'GetDetailPaymentCstb'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 });
 
 // PENJAMINAN SURETY BOND
 Route::prefix('/v2/penjaminan/surety-bond')->group(function () {
-    Route::get('/detail', [SuretyBondTransactionController::class, 'show']);
-    Route::post('/create', [SuretyBondTransactionController::class, 'store']);
-    Route::post('/update-draft/{trxNo}', [SuretyBondTransactionController::class, 'update']);
-    Route::post('/submit-draft/{trxNo}', [SuretyBondTransactionController::class, 'submitDraft']);
-    Route::post('/approved-penjaminan', [SuretyBondTransactionController::class, 'approvePenjaminanSB']);
-    Route::get('/detail-payment', [SuretyBondTransactionController::class, 'getDetailPaymentSrtb']);
-    Route::post('/upload-bukti-bayar-manual', [SuretyBondTransactionController::class, 'uploadPembayaranManual']);
-    Route::get('/detail-payment-surety-bond', [SuretyBondTransactionController::class, 'getDetailPaymentSrtb']);
+    Route::get('/detail', [SuretyBondTransactionController::class, 'show'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/create', [SuretyBondTransactionController::class, 'store'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/update-draft/{trxNo}', [SuretyBondTransactionController::class, 'update'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/submit-draft/{trxNo}', [SuretyBondTransactionController::class, 'submitDraft'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/approved-penjaminan', [SuretyBondTransactionController::class, 'approvePenjaminanSB'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan.approval,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-payment', [SuretyBondTransactionController::class, 'getDetailPaymentSrtb'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/upload-bukti-bayar-manual', [SuretyBondTransactionController::class, 'uploadPembayaranManual'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-payment-surety-bond', [SuretyBondTransactionController::class, 'getDetailPaymentSrtb'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 });
 
 Route::prefix('/v2/penjaminan/kredit-mikro-kecil')->group(function () {
-    Route::post('/v2/penjaminan/kredit-mikro-kecil/create', [KreditMikroKecilController::class, 'store']);
-    Route::post('/v2/penjaminan/kredit-mikro-kecil/approve-penjaminan', [KreditMikroKecilController::class, 'ApprovePenjaminanKMK']);
-    Route::get('/v2/penjaminan/template-base/download-template', [KreditMikroKecilController::class, 'DownloadTemplateKMK']);
-    Route::put('/v2/penjaminan/kredit-mikro-kecil/update-draft/{trxNo}', [KreditMikroKecilController::class, 'updateDraft']);
-    Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-full-kmk', [KreditMikroKecilController::class, 'GetDetailPaymentKMK']);
-    Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-installment-kmk-list', [KreditMikroKecilController::class, 'GetDetailListPaymentKMK']);
-    Route::post('/v2/penjaminan/kredit-mikro-kecil/upload-bukti-bayar-manual', [KreditMikroKecilController::class, 'UploadPembayaranManualKMK']);
+    Route::post('/v2/penjaminan/kredit-mikro-kecil/create', [KreditMikroKecilController::class, 'store'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/v2/penjaminan/kredit-mikro-kecil/approve-penjaminan', [KreditMikroKecilController::class, 'ApprovePenjaminanKMK'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan.approval,read,create,update,delete,approve',
+    ]);
+    Route::get('/v2/penjaminan/template-base/download-template', [KreditMikroKecilController::class, 'DownloadTemplateKMK'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::put('/v2/penjaminan/kredit-mikro-kecil/update-draft/{trxNo}', [KreditMikroKecilController::class, 'updateDraft'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-full-kmk', [KreditMikroKecilController::class, 'GetDetailPaymentKMK'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-installment-kmk-list', [KreditMikroKecilController::class, 'GetDetailListPaymentKMK'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/v2/penjaminan/kredit-mikro-kecil/upload-bukti-bayar-manual', [KreditMikroKecilController::class, 'UploadPembayaranManualKMK'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 });
 
 // Route::get('/v2/penjaminan/kredit-usaha-rakyat/detail/{id}', [KURTransactionController::class, 'show']);
 Route::prefix('/v2/penjaminan/kredit-usaha-rakyat')->group(function () {
-    Route::post('/create', [KURTransactionController::class, 'store']);
-    Route::get('/detail/{id}', [KURTransactionController::class, 'show']);
-    Route::post('update-draft/{trxNo}', [KURTransactionController::class, 'updateDraft']);
-    Route::post('/approve-penjaminan', [KURTransactionController::class, 'approvePenjaminan']);
-    Route::post('/upload-bukti-bayar-manual', [KURTransactionController::class, 'uploadPembayaranManual']);
-    Route::get('/detail-payment-kur', [KURTransactionController::class, 'getDetailPaymentKUR']);
-    Route::get('/detail-split-payment-kur', [KURTransactionController::class, 'getDetailSplitPaymentKUR']);
+    Route::post('/create', [KURTransactionController::class, 'store'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail/{id}', [KURTransactionController::class, 'show'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('update-draft/{trxNo}', [KURTransactionController::class, 'updateDraft'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/approve-penjaminan', [KURTransactionController::class, 'approvePenjaminan'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan.approval,read,create,update,delete,approve',
+    ]);
+    Route::post('/upload-bukti-bayar-manual', [KURTransactionController::class, 'uploadPembayaranManual'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-payment-kur', [KURTransactionController::class, 'getDetailPaymentKUR'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-split-payment-kur', [KURTransactionController::class, 'getDetailSplitPaymentKUR'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 });
 
 //PENJAMINAN KONSTRUKSI
 Route::prefix('/v2/penjaminan/konstruksi')->group(function () {
-    Route::post('/create', [KonstruksiTransactionController::class, 'store']);
-    Route::get('/download-template', [KonstruksiTransactionController::class, 'ExportKonstruksi']);
-    Route::get('/detail/{id}', [KonstruksiTransactionController::class, 'show']);
-    Route::post('/update-draft/{trxNo}', [KonstruksiTransactionController::class, 'updateDraft']);
-    Route::post('/approve-penjaminan', [KonstruksiTransactionController::class, 'ApprovePenjaminan']);
-    Route::get('/detail-payment', [KonstruksiTransactionController::class, 'GetDetailPaymentKonstruksi']);
-    Route::get('/detail-payment-list', [KonstruksiTransactionController::class, 'GetDetailListPaymentKonstruksi']);
+    Route::post('/create', [KonstruksiTransactionController::class, 'store'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/download-template', [KonstruksiTransactionController::class, 'ExportKonstruksi'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail/{id}', [KonstruksiTransactionController::class, 'show'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/update-draft/{trxNo}', [KonstruksiTransactionController::class, 'updateDraft'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/approve-penjaminan', [KonstruksiTransactionController::class, 'ApprovePenjaminan'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan.approval,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-payment', [KonstruksiTransactionController::class, 'GetDetailPaymentKonstruksi'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-payment-list', [KonstruksiTransactionController::class, 'GetDetailListPaymentKonstruksi'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 
-    Route::post('/upload-bukti-bayar-manual', [KonstruksiTransactionController::class, 'uploadPembayaranManual']);
-    Route::get('/debt', [KonstruksiTransactionController::class, 'createTrxDebitur']);
+    Route::post('/upload-bukti-bayar-manual', [KonstruksiTransactionController::class, 'uploadPembayaranManual'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/debt', [KonstruksiTransactionController::class, 'createTrxDebitur'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 });
 
 // PENJAMINAN KREDIT USAHA
 Route::prefix('/v2/penjaminan/kredit-usaha')->group(function () {
-    Route::post('/create', [KreditUsahaController::class, 'store']);
-    Route::get('/show/{id}', [KreditUsahaController::class, 'show']);
-    Route::post('/update-draft/{trxNo}', [KreditUsahaController::class, 'updateKreditUsaha']);
-    Route::post('/approve-penjaminan', [KreditUsahaController::class, 'ApprovePenjaminanKreditUsaha']);
-    Route::get('/detail-payment-kredit-usaha', [KreditUsahaController::class, 'GetDetailPaymentKreditUsaha']);
-    Route::get('/detail-payment-kredit-usaha-list', [KreditUsahaController::class, 'GetDetailListPaymentKreditUsaha']);
-    Route::post('/upload-bukti-bayar-manual', [KreditUsahaController::class, 'uploadPembayaranManual']);
+    Route::post('/create', [KreditUsahaController::class, 'store'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/show/{id}', [KreditUsahaController::class, 'show'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/update-draft/{trxNo}', [KreditUsahaController::class, 'updateKreditUsaha'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/approve-penjaminan', [KreditUsahaController::class, 'ApprovePenjaminanKreditUsaha'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan.approval,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-payment-kredit-usaha', [KreditUsahaController::class, 'GetDetailPaymentKreditUsaha'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::get('/detail-payment-kredit-usaha-list', [KreditUsahaController::class, 'GetDetailListPaymentKreditUsaha'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+    Route::post('/upload-bukti-bayar-manual', [KreditUsahaController::class, 'uploadPembayaranManual'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 });

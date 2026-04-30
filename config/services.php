@@ -39,5 +39,10 @@ return [
         'hash_key' => env('SECURE_HASH_KEY'),
 
     ],
+    'auth_internal' => [
+        'url' => env('AUTH_SERVICE_URL', 'http://localhost:8000'),
+        'token' => env('AUTH_SERVICE_TOKEN'),
+        'timeout' => env('AUTH_SERVICE_TIMEOUT', 10),
+    ],
 
 ];
