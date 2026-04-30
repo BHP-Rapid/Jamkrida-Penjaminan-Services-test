@@ -28,8 +28,7 @@ auth verification 101:
         (example:            [  menu_code   ] [      permission access         ]                          
             'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
         )
-        opsi pertama adalah menu_code (lihat di table mitra_portal.master_menus_v2) => assign API hanya untuk halaman tertentu saja 
-        (jika satu api akses 2 halaman cukup tambahkan satu menu code lagi)
+        opsi pertama adalah menu_code (lihat di table mitra_portal.master_menus_v2) => assign API hanya untuk 1 halaman saja 
         -read
         -create
         -update
