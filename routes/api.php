@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AjpServices\AjpController;
 use App\Http\Controllers\CustomBondServices\CustomBondTransactionController;
+use App\Http\Controllers\KbgServices\KBGTransactionController;
 use App\Http\Controllers\KonstruksiServices\KonstruksiTransactionController;
 use App\Http\Controllers\KreditMikroKecilServices\KreditMikroKecilController;
 use App\Http\Controllers\KreditUsahaServices\KreditUsahaController;
@@ -285,6 +286,14 @@ Route::prefix('/v2/penjaminan/kredit-usaha-rakyat')->group(function () {
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
     ]);
     Route::get('/detail-split-payment-kur', [KURTransactionController::class, 'getDetailSplitPaymentKUR'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+});
+
+Route::prefix('/v2/penjaminan/kontra-bank-garansi')->group(function () {
+    Route::post('/create' ,[KBGTransactionController::class, 'store'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
