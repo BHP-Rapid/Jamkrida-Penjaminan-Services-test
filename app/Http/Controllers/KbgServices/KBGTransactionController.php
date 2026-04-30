@@ -4,6 +4,7 @@ namespace App\Http\Controllers\KbgServices;
 
 use App\Exceptions\NotFoundException;
 use App\Helpers\ApiResponse;
+use App\Helpers\AuthUserHelper;
 use App\Http\Controllers\Controller;
 use App\Services\KBGServices\KontraBankGaransiService;
 use Exception;
@@ -23,7 +24,9 @@ class KBGTransactionController extends Controller
             // $userRaw = $request->attributes->get('auth_user');
             // unset($userRaw['user']);
             // $user = (object) collect($userRaw)->all();
-            $user = auth('sanctum')->user();
+            // $user = auth('sanctum')->user();
+            $user = AuthUserHelper::getUser($request);
+            // dd($user);
             $this->validate($request, [
                 'data.institution_data.full_name' => 'required|string|max:64',
                 'data.status' => 'required|string|in:draft,submit',
