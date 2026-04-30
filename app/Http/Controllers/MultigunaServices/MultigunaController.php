@@ -12,7 +12,8 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use App\Http\Controllers\Controller;
-
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class MultigunaController extends Controller
 {
@@ -157,6 +158,71 @@ class MultigunaController extends Controller
             Log::error("", ['exception' => $e]);
 
             return ApiResponse::error('Error while retrieving PKS data: ' . $e->getMessage(), 500);
+        }
+    }
+
+
+    public function GetDetailPaymentMultiguna(Request $request)
+    {
+        try {
+
+            $validator = Validator::make($request->query(), [
+                'no_surat_permohonan' => 'required|string|max:100',
+                'trx_no' => 'required|string|max:100',
+                'is_split' => 'nullable|integer|in:0,1'
+            ], [
+                'no_surat_permohonan.required' => 'no_surat_permohonan is required',
+                'trx_no.required' => 'trx_no is required'
+            ]);
+
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
+            }
+            $payload = $validator->validated();
+            $payload['is_split'] = array_key_exists('is_split', $payload) ? (int) $payload['is_split'] : null;
+            $payload['key'] = base64_decode(config('services.secure.key'));
+            $result = $this->multigunaService->($payload);
+
+            return ApiResponse::success($result, 'Success get detail list payment');
+        } catch (ValidationException $e) {
+            return ApiResponse::error('Validation error', 422, $e->errors());
+        } catch (\Exception $ex) {
+            return ApiResponse::error(
+                $ex->getMessage(),
+                $ex->getCode() ?: 500
+            );
+        }
+    }
+
+    public function GetDetailListPaymentMultiguna(Request $request)
+    {
+        try {
+
+            $validator = Validator::make($request->query(), [
+                'no_surat_permohonan' => 'required|string|max:100',
+                'trx_no' => 'required|string|max:100',
+                'is_split' => 'nullable|integer|in:0,1'
+            ], [
+                'no_surat_permohonan.required' => 'no_surat_permohonan is required',
+                'trx_no.required' => 'trx_no is required'
+            ]);
+
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
+            }
+            $payload = $validator->validated();
+            $payload['is_split'] = array_key_exists('is_split', $payload) ? (int) $payload['is_split'] : null;
+            $payload['key'] = base64_decode(config('services.secure.key'));
+            $result = $this->multigunaService->processGetDetailListPaymentMLT($payload);
+
+            return ApiResponse::success($result, 'Success get detail list payment');
+        } catch (ValidationException $e) {
+            return ApiResponse::error('Validation error', 422, $e->errors());
+        } catch (\Exception $ex) {
+            return ApiResponse::error(
+                $ex->getMessage(),
+                $ex->getCode() ?: 500
+            );
         }
     }
 }

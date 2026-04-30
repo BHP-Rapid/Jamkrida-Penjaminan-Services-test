@@ -403,5 +403,112 @@ class MultigunaService
             }
         });
     }
-}
 
+    public function processGetDetailPaymentMLT(array $payload)
+    {
+        $key = base64_decode(config('services.secure.key'));
+        $no_surat_permohonan = $payload['no_surat_permohonan'];
+        $trx_no              = $payload['trx_no'];
+        $isSplit             = $payload['is_split'];
+
+        $dataHeader = $this->repository->getDetailHeaderPayment($trx_no, $no_surat_permohonan, $isSplit);
+        if (!$dataHeader) {
+            throw new \Exception('Data tidak ditemukan', 404);
+        }
+
+        $debiturData = $this->repository->getDetailPaymentDebitur($dataHeader->id_multiguna);
+
+        $debiturById = $debiturData->keyBy('id_trx_debitur');
+        $debiturIds  = $debiturData->pluck('id_trx_debitur')->filter()->unique()->values();
+        if ($debiturIds->isEmpty()) {
+            return ['data' => []];
+        }
+
+        $schedules = $this->repository->getSchedules($debiturIds);
+        $unpaid    = $this->repository->getUnpaidSchedules($debiturIds);
+
+        $result = $this->mapResult($schedules, $debiturById, $unpaid);
+        return ['data' => $result];
+    }
+
+    public function processGetDetailListPaymentMLT(array $payload)
+    {
+        $key = base64_decode(config('services.secure.key'));
+        $no_surat_permohonan = $payload['no_surat_permohonan'];
+        $trx_no              = $payload['trx_no'];
+        $isSplit             = $payload['is_split'];
+
+        $dataHeader = $this->repository->getDetailListHeader($no_surat_permohonan, $trx_no, $isSplit);
+        $dataHeader->each(function ($row) use ($key) {
+            $decryptedNik = AesHelper::decrypt($row->nik, $key);
+            $row->nik = $decryptedNik;
+        });
+        if (!$dataHeader) {
+            throw new \Exception('Data tidak ditemukan', 404);
+        }
+        $dataUnpaid = $this->repository->getDetailUnpaidPaymentMLT($dataHeader->id_multiguna);
+        $result = [
+            'dataHeader' =>
+            [
+                'data_pending' => $dataHeader,
+                'data_unpaid' => $dataUnpaid
+            ]
+        ];
+        return $result;
+    }
+
+    private function mapResult($schedules, $debiturById, $schedulesUnpaid)
+    {
+        return $schedules
+            ->groupBy('tenor_sequence')
+            ->map(function ($rows, $tenor) use ($debiturById, $schedulesUnpaid) {
+
+                $scheduleByDebitur = $rows->keyBy('id_trx_debitur');
+                $unpaidSchedules = $schedulesUnpaid->where('tenor_sequence', $tenor);
+
+                $listPending = $rows->where('status', 'Pending')
+                    ->pluck('id_trx_debitur')
+                    ->unique()
+                    ->map(function ($id) use ($debiturById, $scheduleByDebitur) {
+
+                        $d = $debiturById->get($id);
+                        if (!$d) return null;
+
+                        $sch = $scheduleByDebitur->get($id);
+
+                        return [
+                            'id_trx_debitur' => $d->id_trx_debitur,
+                            'no_sp_detail' => $d->no_sp_detail,
+                            'loan_number' => $d->loan_number,
+                            'nik' => $d->nik,
+                            'invoice_number' => $sch->invoice_number,
+                            'tanggal_realisasi' => $d->tanggal_realisasi,
+                            'debitur_name' => $d->nama_nasabah,
+                            'due_date' => $sch->due_date,
+                            'status' => $sch->status,
+                            'amount' => $sch?->amount,
+                        ];
+                    })
+                    ->filter()
+                    ->values();
+
+                $listUnpaid = $unpaidSchedules->map(fn($u) => [
+                    'payment_id' => $u->payment_id,
+                    'order_payment_token' => $u->order_payment_token,
+                    'trx_no' => $u->trx_no,
+                    'order_id' => $u->order_id,
+                    'order_payment_url' => $u->order_payment_url,
+                    'total_debitur' => $u->total_debitur,
+                    'total_amount' => $u->total_amount,
+                ]);
+
+                return [
+                    'tenor' => (int) $tenor,
+                    'invoice_number' => '',
+                    'debitur_list_pending' => $listPending,
+                    'debitur_list_unpaid' => $listUnpaid,
+                ];
+            })
+            ->values();
+    }
+}

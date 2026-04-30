@@ -85,7 +85,7 @@ class KreditMikroKecilRepository
             ->first();
     }
 
-    public function getDebiturByKreditId($kreditId)
+    public function getDebiturByKreditId(int $kreditId)
     {
         return TrxDebiturDefaultBase::join('institution as i', 'i.institution_id', '=', 'trx_debitur.institution_id')
             ->where('kredit_mikro_trx_id', $kreditId)
@@ -102,7 +102,7 @@ class KreditMikroKecilRepository
     }
 
 
-    public function getSchedules($debiturIds)
+    public function getSchedules(array $debiturIds)
     {
         return DebiturTenorSchedule::whereIn('id_trx_debitur', $debiturIds)
             ->whereIn('status', ['Unpaid', 'Pending'])
@@ -118,7 +118,7 @@ class KreditMikroKecilRepository
             ->get();
     }
 
-    public function getUnpaidSchedules($debiturIds)
+    public function getUnpaidSchedules(array $debiturIds)
     {
         return DebiturInvoiceHeader::select(
             'dpg.payment_id',
