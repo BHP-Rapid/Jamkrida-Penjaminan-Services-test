@@ -339,15 +339,6 @@ class SuretyBondTransactionController extends Controller
                 'file.required' => 'file is required'
             ]);
 
-            $validator->after(function ($validator) use ($request) {
-                $selectedItems = $request->input('selected_items');
-                $decodedItems = json_decode($selectedItems, true);
-
-                if (json_last_error() !== JSON_ERROR_NONE || !is_array($decodedItems)) {
-                    $validator->errors()->add('selected_items', 'selected_items must be a valid JSON array');
-                }
-            });
-
             if ($validator->fails()) {
                 throw new ValidationException($validator);
             }

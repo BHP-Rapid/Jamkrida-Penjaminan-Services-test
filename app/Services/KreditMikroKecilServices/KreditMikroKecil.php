@@ -14,6 +14,7 @@ use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
 use App\Models\TenantMitra;
 use App\Models\TrxDebiturDefaultBase;
+use App\Repositories\KreditMikroKecilRepository;
 use App\Services\CreatioService;
 use Carbon\Carbon;
 use Exception;
@@ -23,6 +24,9 @@ use Illuminate\Support\Str;
 
 class KreditMikroKecil
 {
+    public function __construct(
+        protected KreditMikroKecilRepository $repository
+    ) {}
     public function processStore($request, $user)
     {
         $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
@@ -345,10 +349,9 @@ class KreditMikroKecil
                 throw new Exception($apiResBody['Message']);
             }
 
-            return $apiResBody; // ✅ FIX DISINI
-
+            return $apiResBody;
         } catch (Exception $e) {
-            throw $e; // ✅ lempar ke controller
+            throw $e;
         }
     }
 
@@ -530,246 +533,75 @@ class KreditMikroKecil
         return true;
     }
 
-    public function processGetDetailPaymentKMK($request)
+    public function processGetDetailPaymentKMK(array $payload)
     {
         $key = base64_decode(config('services.secure.key'));
+        $no_surat_permohonan = $payload['no_surat_permohonan'];
+        $trx_no              = $payload['trx_no'];
+        $isSplit             = $payload['is_split'];
 
-        $no_surat_permohonan = $request->query('no_surat_permohonan');
-        $trx_no              = $request->query('trx_no');
-        $isSplit             = (int) $request->query('is_split', null);
+        $dataHeader = $this->repository->getPendingTenorSchedule($no_surat_permohonan, $trx_no, $isSplit);
 
-        try {
-
-            $dataHeader = PenjaminanTransaction::query()
-                ->from('transaction_penjaminan_header as tph')
-                ->join('multiguna_trx_kredit_mikro_kecil as mtkmk', 'tph.trx_no', '=', 'mtkmk.trx_no')
-                ->join('trx_debitur as td', 'mtkmk.id_multiguna_kredit_mikro_kecil', '=', 'td.kredit_mikro_trx_id')
-                ->join('debitur_tenor_schedule as dts', 'td.id_trx_debitur', '=', 'dts.id_trx_debitur')
-                ->join('institution as i', 'i.institution_id', '=', 'td.institution_id')
-                ->where('tph.trx_no', $trx_no)
-                ->where('dts.status', 'Pending')
-                ->where('tph.no_surat_permohonan', $no_surat_permohonan)
-                ->where('tph.sp_split', $isSplit)
-                ->select([
-                    'mtkmk.id_multiguna_kredit_mikro_kecil',
-                    'td.id_trx_debitur',
-                    'td.plafond_kredit',
-                    'i.id_number as nik',
-                    'td.nama_nasabah as debitur_name',
-                    'dts.amount',
-                    'dts.invoice_number',
-                    'dts.due_date',
-                    'dts.status'
-                ])
-                ->get();
-
-            if (!$dataHeader) {
-                throw new \Exception('Data tidak ditemukan', 404);
-            }
-
-            $dataHeader->each(function ($row) use ($key) {
-                $decryptedNik = AesHelper::decrypt($row->nik, $key);
-                $row->nik = $decryptedNik;
-            });
-
-            $dataUnpaid = AjpDebiturInvoiceHeader::query()
-                ->from('debitur_invoice_header as dih')
-                ->join('debitur_tenor_schedule as dts', 'dih.invoice_id', '=', 'dts.invoice_id')
-                ->join('debitur_payment_gateway as dpg', 'dpg.invoice_id', '=', 'dih.invoice_id')
-                ->join('trx_debitur as td', 'td.id_trx_debitur', '=', 'dts.id_trx_debitur')
-                ->where('dih.trx_no', $trx_no)
-                ->where('dih.status', 'Unpaid')
-                ->select(
-                    'dpg.payment_id',
-                    'dih.invoice_id',
-                    'dpg.order_id',
-                    'dpg.order_payment_url',
-                    'dpg.order_payment_token',
-                    'dts.tenor_sequence',
-                    'dih.trx_no',
-                    'dih.total_amount',
-                    DB::raw('COUNT(td.id_trx_debitur) AS total_debitur')
-                )
-                ->groupBy(
-                    'dpg.payment_id',
-                    'dpg.order_id',
-                    'dpg.order_payment_url',
-                    'dts.tenor_sequence',
-                    'dih.trx_no',
-                    'dih.total_amount'
-                )
-                ->get();
-
-            return [
-                'dataHeader' => [
-                    'data_pending' => $dataHeader,
-                    'data_unpaid' => $dataUnpaid
-                ]
-            ];
-        } catch (\Exception $ex) {
-
-            Log::error("Error fetching payment details", [
-                'exception' => $ex,
-                'trx_no' => $trx_no ?? null,
-                'no_surat_permohonan' => $no_surat_permohonan ?? null
-            ]);
-
-            throw $ex;
+        if (!$dataHeader) {
+            throw new \Exception('Data tidak ditemukan', 404);
         }
+
+        $dataHeader->each(function ($row) use ($key) {
+            $decryptedNik = AesHelper::decrypt($row->nik, $key);
+            $row->nik = $decryptedNik;
+        });
+        $dataUnpaid = $this->repository->getUnpaidData($trx_no);
+        return [
+            'dataHeader' => [
+                'data_pending' => $dataHeader,
+                'data_unpaid' => $dataUnpaid
+            ]
+        ];
     }
 
-    public function processGetDetailListPaymentKMK($request)
+    public function processGetDetailListPaymentKMK($payload)
     {
         $key = base64_decode(config('services.secure.key'));
 
         try {
-            $no_surat_permohonan = $request->query('no_surat_permohonan');
-            $trx_no              = $request->query('trx_no');
-            $isSplit             = (int) $request->query('is_split', null);
-
-            $dataHeader = \App\Models\PenjaminanTransaction::query()
-                ->from('transaction_penjaminan_header as tph')
-                ->join('multiguna_trx_kredit_mikro_kecil as mtkmk', 'tph.trx_no', '=', 'mtkmk.trx_no')
-                ->where('tph.trx_no', $trx_no)
-                ->where('tph.no_surat_permohonan', $no_surat_permohonan)
-                ->where('tph.sp_split', $isSplit)
-                ->select([
-                    'tph.*',
-                    'mtkmk.id_multiguna_kredit_mikro_kecil',
-                ])
-                ->first();
-
-            if (!$dataHeader) {
+            $trxNo = $payload['trx_no'];
+            $noSurat = $payload['no_surat_permohonan'];
+            $isSplit = (int) $payload['is_split'];
+            $header = $this->repository->getHeader($trxNo, $noSurat, $isSplit);
+            if (!$header) {
                 throw new \Exception('Data tidak ditemukan', 404);
             }
 
-            $dataDebitur = TrxDebiturDefaultBase::join('institution as i', 'i.institution_id', '=', 'trx_debitur.institution_id')
-                ->where('kredit_mikro_trx_id', $dataHeader->id_multiguna_kredit_mikro_kecil)
-                ->select(
-                    'trx_debitur.id_trx_debitur',
-                    'trx_debitur.no_sp_detail',
-                    'trx_debitur.loan_number',
-                    'trx_debitur.tanggal_realisasi',
-                    'trx_debitur.nama_nasabah',
-                    'i.id_number as nik'
-                )
-                ->orderBy('trx_debitur.id_trx_debitur', 'asc')
-                ->get();
+            $debitur = $this->repository->getDebiturByKreditId(
+                $header->id_multiguna_kredit_mikro_kecil
+            );
 
-            $dataDebitur->each(function ($row) use ($key) {
-                $decryptedNik = AesHelper::decrypt($row->nik, $key);
-                $row->nik = $decryptedNik;
+            $debitur->each(function ($row) use ($key) {
+                $row->nik = AesHelper::decrypt($row->nik, $key);
             });
 
-            $debiturById = $dataDebitur->keyBy('id_trx_debitur');
-            $debiturIds  = $dataDebitur->pluck('id_trx_debitur')->filter()->unique()->values();
+            $debiturById = $debitur->keyBy('id_trx_debitur');
+            $ids = $debitur->pluck('id_trx_debitur')->filter()->unique();
 
-            if ($debiturIds->isEmpty()) {
+            if ($ids->isEmpty()) {
                 return ['data' => []];
             }
 
-            $schedules = DebiturTenorSchedule::whereIn('id_trx_debitur', $debiturIds)
-                ->whereIn('status', ['Unpaid', 'Pending'])
-                ->select('id_trx_debitur', 'tenor_sequence', 'amount', 'due_date', 'status', 'invoice_number')
-                ->orderBy('tenor_sequence', 'asc')
-                ->get();
+            $schedules = $this->repository->getSchedules($ids);
+            $unpaid    = $this->repository->getUnpaidSchedules($ids);
 
-            $schedulesUnpaid = DebiturInvoiceHeader::select(
-                'dpg.payment_id',
-                'dpg.order_id',
-                'dpg.order_payment_url',
-                'dpg.order_payment_token',
-                'dts.tenor_sequence',
-                'debitur_invoice_header.trx_no',
-                'debitur_invoice_header.total_amount',
-                DB::raw('COUNT(td.id_trx_debitur) as total_debitur')
-            )
-                ->join('debitur_tenor_schedule as dts', 'debitur_invoice_header.invoice_id', '=', 'dts.invoice_id')
-                ->join('debitur_payment_gateway as dpg', 'dpg.invoice_id', '=', 'debitur_invoice_header.invoice_id')
-                ->join('trx_debitur as td', 'td.id_trx_debitur', '=', 'dts.id_trx_debitur')
-                ->where('dts.status', 'Unpaid')
-                ->whereIn('dts.id_trx_debitur', $debiturIds)
-                ->groupBy(
-                    'dpg.order_id',
-                    'dpg.order_payment_token',
-                    'dpg.order_payment_url',
-                    'dts.tenor_sequence',
-                    'debitur_invoice_header.trx_no',
-                    'debitur_invoice_header.total_amount'
-                )
-                ->get();
+            $result = $this->mapResult($schedules, $debiturById, $unpaid);
 
-            $result = $schedules
-                ->groupBy('tenor_sequence')
-                ->map(function ($rows, $tenor) use ($debiturById, $schedulesUnpaid) {
-
-                    $scheduleByDebitur = $rows->keyBy('id_trx_debitur');
-
-                    $unpaidSchedules = $schedulesUnpaid->where('tenor_sequence', $tenor);
-
-                    $listPending = $rows->where('status', 'Pending')
-                        ->pluck('id_trx_debitur')
-                        ->unique()
-                        ->values()
-                        ->map(function ($id) use ($debiturById, $scheduleByDebitur) {
-
-                            $d = $debiturById->get($id);
-                            if (!$d) return null;
-
-                            $sch = $scheduleByDebitur->get($id);
-
-                            return [
-                                'id_trx_debitur'    => $d->id_trx_debitur,
-                                'no_sp_detail'      => $d->no_sp_detail,
-                                'loan_number'       => $d->loan_number,
-                                'nik'               => $d->nik,
-                                'invoice_number'    => $sch->invoice_number,
-                                'tanggal_realisasi' => $d->tanggal_realisasi,
-                                'debitur_name'      => $d->nama_nasabah,
-                                'due_date'          => $sch->due_date,
-                                'status'            => $sch->status,
-                                'amount'            => $sch?->amount,
-                            ];
-                        })
-                        ->filter()
-                        ->values();
-
-                    $listUnpaid = $unpaidSchedules->map(function ($unpaid) {
-                        return [
-                            'payment_id'        => $unpaid->payment_id,
-                            'order_payment_token' => $unpaid->order_payment_token,
-                            'trx_no'            => $unpaid->trx_no,
-                            'order_id'          => $unpaid->order_id,
-                            'order_payment_url' => $unpaid->order_payment_url,
-                            'total_debitur'     => $unpaid->total_debitur,
-                            'total_amount'      => $unpaid->total_amount,
-                        ];
-                    });
-
-                    return [
-                        'tenor' => (int) $tenor,
-                        'invoice_number' => '',
-                        'debitur_list_pending' => $listPending ?? null,
-                        'debitur_list_unpaid' => $listUnpaid ?? null,
-                    ];
-                })
-                ->values();
-
-            return [
-                'data' => $result
-            ];
+            return ['data' => $result];
         } catch (\Exception $ex) {
-
             Log::error("Error fetching payment details", [
                 'exception' => $ex,
-                'trx_no' => $trx_no ?? null,
-                'no_surat_permohonan' => $no_surat_permohonan ?? null
+                'trx_no' => $trxNo ?? null,
             ]);
 
             throw $ex;
         }
     }
-
     public function processUploadPembayaranManualKMK($request)
     {
         if (!json_validate($request->selected_items) || !is_array(json_decode($request->selected_items))) {
@@ -939,5 +771,60 @@ class KreditMikroKecil
                 'message' => 'Error upload bukti bayar manual (' . $e->getMessage() . ')'
             ], 500);
         }
+    }
+
+    private function mapResult($schedules, $debiturById, $schedulesUnpaid)
+    {
+        return $schedules
+            ->groupBy('tenor_sequence')
+            ->map(function ($rows, $tenor) use ($debiturById, $schedulesUnpaid) {
+
+                $scheduleByDebitur = $rows->keyBy('id_trx_debitur');
+                $unpaidSchedules = $schedulesUnpaid->where('tenor_sequence', $tenor);
+
+                $listPending = $rows->where('status', 'Pending')
+                    ->pluck('id_trx_debitur')
+                    ->unique()
+                    ->map(function ($id) use ($debiturById, $scheduleByDebitur) {
+
+                        $d = $debiturById->get($id);
+                        if (!$d) return null;
+
+                        $sch = $scheduleByDebitur->get($id);
+
+                        return [
+                            'id_trx_debitur' => $d->id_trx_debitur,
+                            'no_sp_detail' => $d->no_sp_detail,
+                            'loan_number' => $d->loan_number,
+                            'nik' => $d->nik,
+                            'invoice_number' => $sch->invoice_number,
+                            'tanggal_realisasi' => $d->tanggal_realisasi,
+                            'debitur_name' => $d->nama_nasabah,
+                            'due_date' => $sch->due_date,
+                            'status' => $sch->status,
+                            'amount' => $sch?->amount,
+                        ];
+                    })
+                    ->filter()
+                    ->values();
+
+                $listUnpaid = $unpaidSchedules->map(fn($u) => [
+                    'payment_id' => $u->payment_id,
+                    'order_payment_token' => $u->order_payment_token,
+                    'trx_no' => $u->trx_no,
+                    'order_id' => $u->order_id,
+                    'order_payment_url' => $u->order_payment_url,
+                    'total_debitur' => $u->total_debitur,
+                    'total_amount' => $u->total_amount,
+                ]);
+
+                return [
+                    'tenor' => (int) $tenor,
+                    'invoice_number' => '',
+                    'debitur_list_pending' => $listPending,
+                    'debitur_list_unpaid' => $listUnpaid,
+                ];
+            })
+            ->values();
     }
 }
