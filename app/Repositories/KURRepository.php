@@ -17,8 +17,6 @@ use App\Models\TrxDebiturDefaultBase;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
-use function Symfony\Component\Clock\now;
-
 class KURRepository
 {
     public function getLastTrxNo($year, $month)

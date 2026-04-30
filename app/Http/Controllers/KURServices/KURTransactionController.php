@@ -3,30 +3,18 @@
 namespace App\Http\Controllers\KURServices;
 
 use App\Exceptions\NotFoundException;
-use App\Helpers\AesHelper;
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
-use App\Models\DebiturInvoiceHeader;
-use App\Models\DebiturTenorSchedule;
-use App\Models\Institution;
-use App\Models\KURTransaction;
-use App\Models\PenjaminanFlow;
-use App\Models\PenjaminanTransaction;
-use App\Models\TenantMitra;
-use App\Models\TrxDebiturDefaultBase;
-use App\Services\CreatioService;
 use App\Services\KURServices\KURService;
-use Carbon\Carbon;
 use Exception;
+use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class KURTransactionController extends Controller
 {
     private $kurService;
+    use ValidatesRequests;
     public function __construct(KURService $service)
     {
         $this->kurService = $service;
@@ -65,13 +53,11 @@ class KURTransactionController extends Controller
                 'data.tarifPercentage' => 'nullable|numeric',
             ]);
             $result = $this->kurService->kurStore($request, $user);
-            if(!$result['success']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $result['message'],
+            if (!$result['success']) {
+                return ApiResponse::error($result['message'], 422, [], [
                     'list_debitur' => $result['list_debitur'] ?? [],
                     'dataDebitur' => $result['dataDebitur'] ?? []
-                ], 422);
+                ]);
             }
             return ApiResponse::success(null, 'Successfully created Penjaminan KUR.');
         } catch (NotFoundException $nfe) {
@@ -101,20 +87,14 @@ class KURTransactionController extends Controller
     {
         // dd("kkuu");
         if (empty($id)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'ID is required.'
-            ], 400);
+            return ApiResponse::error('ID is required.', 400);
         }
         $trx_no = $id;
         try {
             $penjaminanDetail = $this->kurService->showKURDetail($trx_no);
             return ApiResponse::success($penjaminanDetail, 'Get detail penjaminan successful.');
         } catch (Exception $ex) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error While Get Data KUR: ' . $ex->getMessage()
-            ], 500);
+            return ApiResponse::error('Error While Get Data KUR: ' . $ex->getMessage(), 500);
         }
     }
 
@@ -141,13 +121,11 @@ class KURTransactionController extends Controller
                 'data.tariftarifPercentage' => 'nullable|numeric',
             ]);
             $result = $this->kurService->kurDraftUpdate($request, $user, $trxNo);
-            if(!$result['success']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $result['message'],
+            if (!$result['success']) {
+                return ApiResponse::error($result['message'], 422, [], [
                     'list_debitur' => $result['list_debitur'] ?? [],
                     'dataDebitur' => $result['dataDebitur'] ?? []
-                ], 422);
+                ]);
             }
             return ApiResponse::success(null, 'Successfully updated draft Penjaminan KUR.');
         } catch (NotFoundException $nfe) {
@@ -208,11 +186,8 @@ class KURTransactionController extends Controller
                 'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
             ]);
             $result = $this->kurService->pembayaranManualKur($request, $user);
-            if(!$result['success']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $result['message']
-                ], 422);
+            if (!$result['success']) {
+                return ApiResponse::error($result['message'], 422);
             }
             return ApiResponse::success(null, 'Successfully upload bukti bayar manual KUR.');
         } catch (NotFoundException $nfe) {
@@ -248,8 +223,8 @@ class KURTransactionController extends Controller
                     'data_unpaid' => $dataUnpaid
                 ]
             ];
-            return response()->json($data);
 
+            return ApiResponse::success($data);
         } catch (NotFoundException $nfe) {
             return ApiResponse::error(
                 $nfe->getMessage(),
@@ -272,9 +247,8 @@ class KURTransactionController extends Controller
     {
         try {
             $result = $this->kurService->getSplitPaymentDetail($request);
-            return response()->json([
-                'data' => $result
-            ]);
+
+            return ApiResponse::success($result);
         } catch (NotFoundException $nfe) {
             return ApiResponse::error(
                 $nfe->getMessage(),
@@ -292,5 +266,4 @@ class KURTransactionController extends Controller
             );
         }
     }
-
 }
