@@ -21,7 +21,6 @@ class KontraBankGaransiService
     public function kbgStore(Request $request, $user)
     {
         $mitraData = $this->getTenantDataOrFail($user->mitra_id);
-        dd($mitraData);
         $mitraAlias = $mitraData->alias;
         $penjaminanPayload = collect($request->data)->toArray();
         if (array_key_exists('institution_data', $penjaminanPayload)) {
@@ -141,29 +140,29 @@ class KontraBankGaransiService
                 $this->repository->insertTrxKbg($insertKbgPayload);
 
                 $savedAttachments = [];
-                if ($hasLampiran) {
-                    foreach ($penjaminanPayload['lampiran'] as $lampiranItem) {
-                        $ext = $lampiranItem['file']->getClientOriginalExtension();
-                        $unique = uniqid();
-                        $fn = "{$trxNo}-{$lampiranItem['lampiran_id']}-kbg-{$unique}";
-                        $path = $lampiranItem['file']->storeAs(
-                            'uploads/penjaminan/kbg',
-                            $fn . '.' . $ext,
-                            's3'
-                        );
-                        $savedAttachments[] = [
-                            'trx_no' => $trxNo,
-                            'lampiran_id' => $lampiranItem['lampiran_id'],
-                            'file_name' => $fn,
-                            'status_doc' => 'N',
-                            'version' => 1,
-                            'mime_type' => $lampiranItem['file']->getMimeType(),
-                            'file_info' => $path,
-                            'created_at' => $nowJakarta
-                        ];
-                    }
-                }
-                $this->storeAttachments($savedAttachments);
+                // if ($hasLampiran) {
+                //     foreach ($penjaminanPayload['lampiran'] as $lampiranItem) {
+                //         $ext = $lampiranItem['file']->getClientOriginalExtension();
+                //         $unique = uniqid();
+                //         $fn = "{$trxNo}-{$lampiranItem['lampiran_id']}-kbg-{$unique}";
+                //         $path = $lampiranItem['file']->storeAs(
+                //             'uploads/penjaminan/kbg',
+                //             $fn . '.' . $ext,
+                //             's3'
+                //         );
+                //         $savedAttachments[] = [
+                //             'trx_no' => $trxNo,
+                //             'lampiran_id' => $lampiranItem['lampiran_id'],
+                //             'file_name' => $fn,
+                //             'status_doc' => 'N',
+                //             'version' => 1,
+                //             'mime_type' => $lampiranItem['file']->getMimeType(),
+                //             'file_info' => $path,
+                //             'created_at' => $nowJakarta
+                //         ];
+                //     }
+                // }
+                // $this->storeAttachments($savedAttachments);
                 $this->repository->insertPenjaminanKbgFlow($trxNo, $trxInsertStatus, $user);
             });
         } catch(Exception $ex) {
