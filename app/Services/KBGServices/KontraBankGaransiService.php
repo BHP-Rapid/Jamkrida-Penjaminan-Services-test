@@ -185,7 +185,7 @@ class KontraBankGaransiService
     {
         $mitraData = $this->getTenantDataOrFail($user->mitra_id);
         $mitraAlias = $mitraData->alias;
-        $penjaminanData = $this->getDetailTrxPenjaminanKbg($trx_no);
+        $penjaminanData = $this->getDetailKbgOrFail($trx_no);
         $key = base64_decode(config('services.secure.key'));
         $institutionData = $this->repository->getPersonalInstitution($penjaminanData->id_institution);
         if($institutionData) {
@@ -257,7 +257,7 @@ class KontraBankGaransiService
         return $tenantData;
     }
 
-    private function getDetailTrxPenjaminanKbg(string $trx_no)
+    private function getDetailKbgOrFail(string $trx_no)
     {
         $data = $this->repository->getTrxKbgDetail($trx_no);
         if(!$data)
