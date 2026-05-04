@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\KreditUsahaServices;
 
 use App\Helpers\ApiResponse;
+use App\Helpers\AuthUserHelper;
 use App\Http\Controllers\Controller;
 use App\Models\TenantMitra;
 use App\Services\CreatioService;
@@ -52,7 +53,8 @@ class KreditUsahaController extends Controller
     public function store(Request $request)
     {
         try {
-            $user = auth('sanctum')->user();
+            $user = AuthUserHelper::getUser($request);
+            //auth('sanctum')->user();
             $tenant_ID = '';
             $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
                 ->select('mitra_id', 'alias')
@@ -91,7 +93,7 @@ class KreditUsahaController extends Controller
                 }
             }
 
-            $penjaminanPKSResponse = $this->getPenjaminanPKS();
+            $penjaminanPKSResponse = $this->getPenjaminanPKS($request);
             $penjaminanPKSData = $penjaminanPKSResponse->getData(true);
             if (empty($penjaminanPKSData['Success']) || $penjaminanPKSData['Success'] !== true) {
                 return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
@@ -120,7 +122,8 @@ class KreditUsahaController extends Controller
 
     public function updateKreditUsaha(Request $request, $trxNo)
     {
-        $user = auth('sanctum')->user();
+        $user = AuthUserHelper::getUser($request);
+        //auth('sanctum')->user();
         $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
             ->select('mitra_id', 'alias')
             ->first();
@@ -161,7 +164,7 @@ class KreditUsahaController extends Controller
             }
 
             // Validasi PKS
-            $penjaminanPKSResponse = $this->getPenjaminanPKS();
+            $penjaminanPKSResponse = $this->getPenjaminanPKS($request);
             $penjaminanPKSData = $penjaminanPKSResponse->getData(true);
             if (empty($penjaminanPKSData['Success']) || $penjaminanPKSData['Success'] !== true) {
                 return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
@@ -182,11 +185,12 @@ class KreditUsahaController extends Controller
         // dd($trx_no);
         $method = $request->method();
         $fullUrl = $request->fullUrl();
+        $user = AuthUserHelper::getUser($request);
         try {
             (new PenjaminanService())->approvePenjaminanKreditUsaha(
                 $trx_no,
-                auth('sanctum')->user()->user_id,
-                auth('sanctum')->user()->name,
+                $user->user_id,
+                $user->name,
                 "Perorangan"
             );
 
@@ -257,9 +261,10 @@ class KreditUsahaController extends Controller
         }
     }
 
-    public function getPenjaminanPKS()
+    public function getPenjaminanPKS($request)
     {
-        $mitra_id = auth('sanctum')->user()->mitra_id;
+        $mitra_id = AuthUserHelper::getUser($request);
+        // auth('sanctum')->user()->mitra_id;
 
         $mitra = TenantMitra::where('mitra_id', $mitra_id)
             ->select('alias', 'is_syariah', 'is_conventional')

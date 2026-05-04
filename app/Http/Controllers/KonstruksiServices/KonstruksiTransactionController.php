@@ -4,6 +4,7 @@ namespace App\Http\Controllers\KonstruksiServices;
 
 use App\Exports\ExcelDataNormatifKKPBJExport;
 use App\Helpers\ApiResponse;
+use App\Helpers\AuthUserHelper;
 use App\Http\Controllers\Controller;
 use App\Models\TenantMitra;
 use App\Services\CreatioService;
@@ -54,7 +55,8 @@ class KonstruksiTransactionController extends Controller
     public function store(Request $request)
     {
         try {
-            $user = auth('sanctum')->user();
+            $user = AuthUserHelper::getUser($request);
+            //auth('sanctum')->user();
             $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
                 ->select('mitra_id', 'alias')
                 ->first();
@@ -90,7 +92,7 @@ class KonstruksiTransactionController extends Controller
                 }
             }
 
-            $penjaminanPKSResponse = $this->getPenjaminanPKS();
+            $penjaminanPKSResponse = $this->getPenjaminanPKS($request);
             $penjaminanPKSData = $penjaminanPKSResponse->getData(true);
             if (empty($penjaminanPKSData['Success']) || $penjaminanPKSData['Success'] !== true) {
                 return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
@@ -120,7 +122,8 @@ class KonstruksiTransactionController extends Controller
     //
     public function updateDraft(Request $request, $trxNo)
     {
-        $user = auth('sanctum')->user();
+        $user = AuthUserHelper::getUser($request);
+        //auth('sanctum')->user();
         $debugMsg = 'No tenant mitra data.';
         $mitraAlias = '';
         $tenant_ID = '';
@@ -157,7 +160,7 @@ class KonstruksiTransactionController extends Controller
             $dataDebitur = $request->input('data.dataDebitur', []);
             // Validate debitur data if submitting (not draft)
             if ($request->data['trx_status'] !== 'D' && !empty($dataDebitur)) {
-                $penjaminanPKSResponse = $this->getPenjaminanPKS();
+                $penjaminanPKSResponse = $this->getPenjaminanPKS($request);
                 $penjaminanPKSData = $penjaminanPKSResponse->getData(true);
                 if (empty($penjaminanPKSData['Success']) || $penjaminanPKSData['Success'] !== true) {
                     return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
@@ -194,11 +197,12 @@ class KonstruksiTransactionController extends Controller
         // dd($trx_no);
         $method = $request->method();
         $fullUrl = $request->fullUrl();
+        $user = AuthUserHelper::getUser($request);
         try {
             (new PenjaminanService())->approvePenjaminanKonstruksi(
                 $trx_no,
-                auth('sanctum')->user()->user_id,
-                auth('sanctum')->user()->name,
+                $user->user_id,
+                $user->name,
                 "Perorangan"
             );
 
@@ -263,9 +267,10 @@ class KonstruksiTransactionController extends Controller
         }
     }
 
-    public function getPenjaminanPKS()
+    public function getPenjaminanPKS($request)
     {
-        $mitra_id = auth('sanctum')->user()->mitra_id;
+        $mitra_id = AuthUserHelper::getUser($request);
+        //auth('sanctum')->user()->mitra_id;
 
         $mitra = TenantMitra::where('mitra_id', $mitra_id)
             ->select('alias', 'is_syariah', 'is_conventional')
