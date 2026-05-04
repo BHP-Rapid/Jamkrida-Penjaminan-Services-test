@@ -404,7 +404,7 @@ class MultigunaService
         });
     }
 
-    public function processGetDetailPaymentMLT(array $payload)
+    public function processGetDetailListPaymentMLT(array $payload)
     {
         $key = base64_decode(config('services.secure.key'));
         $no_surat_permohonan = $payload['no_surat_permohonan'];
@@ -416,22 +416,23 @@ class MultigunaService
             throw new \Exception('Data tidak ditemukan', 404);
         }
 
-        $debiturData = $this->repository->getDetailPaymentDebitur($dataHeader->id_multiguna);
+        $debiturData = $this->repository->getDetailListPaymentDebitur($dataHeader->id_multiguna);
 
         $debiturById = $debiturData->keyBy('id_trx_debitur');
         $debiturIds  = $debiturData->pluck('id_trx_debitur')->filter()->unique()->values();
         if ($debiturIds->isEmpty()) {
-            return ['data' => []];
+            throw new \Exception('Data debitur tidak ditemukan', 404);
         }
 
         $schedules = $this->repository->getSchedules($debiturIds);
         $unpaid    = $this->repository->getUnpaidSchedules($debiturIds);
 
         $result = $this->mapResult($schedules, $debiturById, $unpaid);
-        return ['data' => $result];
+        return  $result;
     }
 
-    public function processGetDetailListPaymentMLT(array $payload)
+
+    public function processGetDetailPaymentMLT(array $payload)
     {
         $key = base64_decode(config('services.secure.key'));
         $no_surat_permohonan = $payload['no_surat_permohonan'];

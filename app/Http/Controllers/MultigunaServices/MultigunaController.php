@@ -181,7 +181,7 @@ class MultigunaController extends Controller
             $payload = $validator->validated();
             $payload['is_split'] = array_key_exists('is_split', $payload) ? (int) $payload['is_split'] : null;
             $payload['key'] = base64_decode(config('services.secure.key'));
-            $result = $this->multigunaService->($payload);
+            $result = $this->multigunaService->processGetDetailPaymentMLT($payload);
 
             return ApiResponse::success($result, 'Success get detail list payment');
         } catch (ValidationException $e) {
