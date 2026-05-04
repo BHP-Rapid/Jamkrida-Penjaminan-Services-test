@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: jjkt-penjaminan
+    restart: unless-stopped
+    ports:
+      - "9105:80"
+    networks:
+      - laravel
+
+networks:
+  laravel:
+    driver: bridge
