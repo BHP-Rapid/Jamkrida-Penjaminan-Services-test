@@ -3,12 +3,14 @@
 namespace App\Services\KBGServices;
 
 use App\Exceptions\NotFoundException;
+use App\Helpers\AesHelper;
 use App\Repositories\KontraBankGaransiRepository;
 use App\Services\InstitutionService;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class KontraBankGaransiService
 {
@@ -176,6 +178,72 @@ class KontraBankGaransiService
         $this->repository->deleteInstitutionData($institution_id);
     }
 
+    public function getDetailPenjaminanKbg(string $trx_no, object $user)
+    {
+        $mitraData = $this->getTenantDataOrFail($user->mitra_id);
+        $mitraAlias = $mitraData->alias;
+        $penjaminanData = $this->getDetailTrxPenjaminanKbg($trx_no);
+        $key = base64_decode(config('services.secure.key'));
+        $institutionData = $this->repository->getPersonalInstitution($penjaminanData->id_institution);
+        if($institutionData) {
+            $institutionData->phone_1 = !empty($institutionData->phone_1)
+                ? AesHelper::decrypt($institutionData->phone_1, $key)
+                : null;
+            $institutionData->email_1 = !empty($institutionData->email_1)
+                ? AesHelper::decrypt($institutionData->email_1, $key)
+                : null;
+            $institutionData->birth_date = !empty($institutionData->birth_date)
+                ? AesHelper::decrypt($institutionData->birth_date, $key)
+                : null;
+            $institutionData->id_number = !empty($institutionData->id_number)
+                ? AesHelper::decrypt($institutionData->id_number, $key)
+                : null;
+            $institutionData->tax_id = !empty($institutionData->tax_id)
+                ? AesHelper::decrypt($institutionData->tax_id, $key)
+                : null;
+            $institutionData->current_salary_amount = !empty($institutionData->current_salary_amount)
+                ? AesHelper::decrypt($institutionData->current_salary_amount, $key)
+                : null;
+            $institutionData->other_income_amount = !empty($institutionData->other_income_amount)
+                ? AesHelper::decrypt($institutionData->other_income_amount, $key)
+                : null;
+        }
+        $penjaminanData->institution = $institutionData;
+        $docList = $this->repository->getPenjaminanLampiranDetail($trx_no, $mitraAlias);
+        $lampiranDtl = array_map(function ($item) {
+                $detailFound = false;
+                $fileUrl = null;
+                $filePath = "";
+                if($item->lampiran_id != null) {
+                    $decodedInfo = json_validate($item->file_info) ?
+                        json_decode($item->file_info) : null;
+                    $filePath = $decodedInfo != null && $decodedInfo->path ?
+                        $decodedInfo->path : $item->file_info;
+                    // $fileUrl = Storage::disk('s3')->temporaryUrl(
+                    //     $filePath,
+                    //     now()->addMinutes(15)
+                    // );
+                }
+                $result = [
+                    'key_lampiran' => $item->value,
+                    'label_lampiran' => $item->label,
+                    'option_type' => $item->option2,
+                    'file_name' => $item->file_name,
+                    'file_path' => $filePath,
+                    'is_additional' => $item->is_additional,
+                    'status_doc' => $item->status_doc,
+                    'mime_type' => $item->mime_type,
+                    'presigned_url' => $fileUrl
+                ];
+                return $result;
+            }, $docList);
+        $penjaminanData->lampiran = $lampiranDtl;
+        return [
+            'success' => true,
+            'data' => $penjaminanData
+        ];
+    }
+
     private function getTenantDataOrFail(string $mitra_id)
     {
         $tenantData = $this->repository->getTenantMitraData($mitra_id);
@@ -184,6 +252,16 @@ class KontraBankGaransiService
             throw new NotFoundException('Tenant mitra data is not found.');
         }
         return $tenantData;
+    }
+
+    private function getDetailTrxPenjaminanKbg(string $trx_no)
+    {
+        $data = $this->repository->getTrxKbgDetail($trx_no);
+        if(!$data)
+        {
+            throw new NotFoundException('Penjaminan data is not found.');
+        }
+        return $data;
     }
 
     private function storeAttachments(array $attachments)

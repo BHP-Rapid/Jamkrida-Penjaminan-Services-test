@@ -119,4 +119,33 @@ class KBGTransactionController extends Controller
             );
         }
     }
+
+    public function show(Request $request, string $trx_no)
+    {
+        try {
+            $user = AuthUserHelper::getUser($request);
+            $result = $this->kbgService->getDetailPenjaminanKbg($trx_no, $user);
+            if(!$result['success']) {
+                return ApiResponse::error($result['message'], 422);
+            }
+            return ApiResponse::success($result['data'], 'Successfully get detail Penjaminan Kontra Bank Garansi.');
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error(
+                $nfe->getMessage(),
+                $nfe->getStatus()
+            );
+        } catch (ValidationException $ve) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $ve->errors()
+            );
+        } catch (Exception $ex) {
+            // dd($ex->getMessage());
+            return ApiResponse::error(
+                $ex->getMessage()
+                // $ex->getCode() ?? 500
+            );
+        }
+    }
 }
