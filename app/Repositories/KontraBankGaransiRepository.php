@@ -85,6 +85,18 @@ class KontraBankGaransiRepository
             )->first();
     }
 
+    public function getTrxKbgId(string $trx_no)
+    {
+        return KBGTransaction::where('trx_no', $trx_no)
+            ->select('id_trx_product')->first();
+    }
+
+    public function getHeaderKbgStatus(string $trx_no)
+    {
+        return PenjaminanTransaction::where('trx_no', $trx_no)
+            ->select('trx_no', 'trx_status')->first();
+    }
+
     public function getTrxKbgDetail(string $trx_no)
     {
         return PenjaminanTransaction::join(
@@ -186,6 +198,14 @@ class KontraBankGaransiRepository
             ->get()->toArray();
     }
 
+    public function getPenjaminanLampiranLatestVersionList(string $trx_no)
+    {
+        return PenjaminanLampiranDtl::where('trx_no', $trx_no)
+            ->select('lampiran_id', DB::raw('MAX(version) as version'))
+            ->groupBy('lampiran_id')
+            ->get();
+    }
+
     public function insertHeaderKbg($data)
     {
         PenjaminanTransaction::create($data);
@@ -212,5 +232,17 @@ class KontraBankGaransiRepository
             'status'=> $status_approval,
             'updated_at' => null
         ]);
+    }
+
+    public function updateHeaderKbgDraft(string $trx_no, array $data)
+    {
+        PenjaminanTransaction::where('trx_no', $trx_no)
+            ->update($data);
+    }
+
+    public function updateTrxKbg(string $trx_no, array $data)
+    {
+        KBGTransaction::where('trx_no', $trx_no)
+            ->update($data);
     }
 }

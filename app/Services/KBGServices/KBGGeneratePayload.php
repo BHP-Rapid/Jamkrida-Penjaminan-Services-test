@@ -31,4 +31,24 @@ class KBGGeneratePayload
             'product' => 'kbg'
         ];
     }
+
+    public static function generateHeaderUpdateKBG(array $payload, object $user)
+    {
+        $time_now_jakarta = Carbon::now('Asia/Jakarta');
+        $fallback = function (string $key, $default = null) use ($payload) {
+            if (array_key_exists($key, $payload) && $payload[$key] != null) {
+                return $payload[$key];
+            }
+            return $default;
+        };
+
+        return [
+            'no_surat_permohonan' => $fallback('noSuratPermohonan'),
+            'tanggal_surat_permohonan' => $fallback('tglSuratPermohonan'),
+            'sp_split' => $fallback('isSplit'),
+            'updated_by_id' => $user->user_id,
+            'updated_by_name' => $user->name,
+            'updated_at' => $time_now_jakarta
+        ];
+    }
 }
