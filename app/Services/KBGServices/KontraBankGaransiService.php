@@ -67,6 +67,9 @@ class KontraBankGaransiService
         $institutionPayload['category'] = 'P';
         $institutionPayload['id_issued_location'] = '-';
         $institutionPayload['phone_type'] = '-';
+        $institutionPayload['tenant_id'] = $mitraData->tenant_id;
+        $institutionPayload['mitra_id'] = $mitraAlias;
+
 
         $institutionService->insertInstitution($institutionPayload, $user->user_id);
         $institutionGuidNew = $institutionService->getCreatedInstitutionId();
