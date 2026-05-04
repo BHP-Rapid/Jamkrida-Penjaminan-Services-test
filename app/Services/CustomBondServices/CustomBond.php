@@ -2,6 +2,7 @@
 
 namespace App\Services\CustomBondServices;
 
+use App\Exceptions\NotFoundException;
 use App\Helpers\AesHelper;
 use App\Helpers\ApiResponse;
 use App\Models\CustomBondTenorSchedule;
@@ -28,7 +29,7 @@ class CustomBond
     public function __construct(
         protected CustomBondRepository $repository
     ) {}
-    public function getDetail($trx_no, $no_surat_permohonan)
+    public function getDetail(string $trx_no, string $no_surat_permohonan)
     {
         $key = base64_decode(config('services.secure.key'));
         $result = $this->repository->getDetail($trx_no, $no_surat_permohonan);
@@ -65,7 +66,7 @@ class CustomBond
         }
     }
 
-    private function getLampiran($trx_no)
+    private function getLampiran(string $trx_no)
     {
         $lampiranData = $this->repository->getLampiranData($trx_no);
         return $lampiranData->map(function ($att) {
@@ -87,21 +88,11 @@ class CustomBond
         })->values()->toArray();
     }
 
-    public function store($payload, $user)
+    public function store(array $payload, object $user)
     {
         $institutionIsInserted = false;
-        $mitraAlias = '';
-        $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
-            ->select('mitra_id', 'alias')
-            ->first();
-        if (!$tenantMitraData) {
-            return [
-                'error' => true,
-                'code' => 404,
-                'message' => 'Tenant mitra data not found.'
-            ];
-        }
-        $mitraAlias = $tenantMitraData->alias;
+        $mitraData = $this->getTenantDataOrFail($user->mitra_id);
+        $mitraAlias = $mitraData->alias;
         $penjaminanPayload = $payload['data'] ?? [];
         $checkIsDeposit = (bool) ($penjaminanPayload['isDeposit'] ?? false);
         $institutionService = new InstitutionService();
@@ -301,7 +292,7 @@ class CustomBond
         }
     }
 
-    public function updateDraft($payload, $trxNo, $user)
+    public function updateDraft(array $payload, string $trxNo, object $user)
     {
         $penjaminanPayload = $payload['data'] ?? [];
         unset($penjaminanPayload['institution_data']);
@@ -870,5 +861,14 @@ class CustomBond
         foreach ($savedAttachments as $item) {
             PenjaminanLampiranDtl::create($item);
         }
+    }
+
+    private function getTenantDataOrFail(string $mitra_id)
+    {
+        $tenantData = $this->repository->getTenantMitraData($mitra_id);
+        if (!$tenantData) {
+            throw new NotFoundException('Tenant mitra data is not found.');
+        }
+        return $tenantData;
     }
 }

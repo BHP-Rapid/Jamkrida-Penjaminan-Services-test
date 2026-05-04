@@ -4,6 +4,7 @@ use App\Models\CustomBondTransaction;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
+use App\Models\TenantMitra;
 use Illuminate\Support\Facades\DB;
 
 class CustomBondRepository
@@ -146,5 +147,11 @@ class CustomBondRepository
             'header' => $header,
             'bond' => $bond
         ];
+    }
+    public function getTenantMitraData($mitra_id)
+    {
+        return TenantMitra::where('mitra_id', $mitra_id)
+            ->select('mitra_id', 'alias', 'tenant_id')
+            ->first();
     }
 }

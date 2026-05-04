@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\CustomBondServices;
 
 use App\Helpers\ApiResponse;
+use App\Helpers\AuthUserHelper;
 use App\Http\Controllers\Controller;
 use App\Services\CustomBondServices\CustomBond as CustomBondServicesCustomBondTransactionService;
 use App\Services\PenjaminanService;
@@ -45,7 +46,7 @@ class CustomBondTransactionController extends Controller
     public function store(Request $request)
     {
         try {
-            $user = auth('sanctum')->user();
+            $user = AuthUserHelper::getUser($request);
             $status = strtolower($request->input('data.status'));
             $rules = [
                 'order_id' => ['required', 'string'],
@@ -118,9 +119,9 @@ class CustomBondTransactionController extends Controller
             $result = $this->customBondService->store($payload, $user);
 
             return ApiResponse::success($result);
-        } catch (\Illuminate\Validation\ValidationException $ex) {
+        } catch (ValidationException $ex) {
             return ApiResponse::error('Validation error', 422, $ex->errors());
-        } catch (\Exception $ex) {
+        } catch (Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),
                 500
