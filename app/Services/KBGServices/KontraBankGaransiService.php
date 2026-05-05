@@ -213,6 +213,8 @@ class KontraBankGaransiService
                 'jenis_surat_perjanjian' => $fallback('jenisSuratPerjanjian'),
                 'no_surat_perjanjian' => $fallback('noSuratPerjanjian'),
                 'tgl_surat_perjanjian' => $fallback('tglSuratPerjanjian'),
+                'bank_code' => $fallback('namaBank'),
+                'bank_name' => $fallback('bankCabang'),
                 'sektor' => $fallback('sektor'),
                 'principal_name' => $fallback('namaPrincipal'),
                 'obligee_name' => $fallback('namaObligee'),
@@ -232,7 +234,7 @@ class KontraBankGaransiService
                 'start_period_date' => $fallback('periodeAwalBerlaku'),
                 'end_period_date' => $fallback('periodeAkhirBerlaku'),
                 'total_day' => $fallback('jangkaWaktu'),
-                'province' => $fallback('propinsi'),
+                'province' => $fallback('provinsi'),
                 // 'tarif_percentage' => $fallback('tarif'),
                 'updated_at' => $nowJakarta,
                 // 'ijp_amount' => $fallback('ijpAmount'),
@@ -277,6 +279,114 @@ class KontraBankGaransiService
                 'success' => true
             ];
         });
+    }
+
+    public function kbgSubmitDraft(string $trx_no, Request $request, object $user)
+    {
+        $mitraData = $this->getTenantDataOrFail($user->mitra_id);
+        $penjaminanPayload = collect($request->data)->toArray();
+        if (array_key_exists('institution_data', $penjaminanPayload)) {
+            unset($penjaminanPayload['institution_data']);
+        }
+        $hasLampiran = array_key_exists('lampiranEdit', $penjaminanPayload)
+            ? KBGValidate::checkDuplicateLampiran($penjaminanPayload['lampiranEdit'], 'data.lampiranEdit')
+            : false;
+        $kbgStatus = $this->getKbgStatusDraftExistsOrFail($trx_no);
+        if($kbgStatus != 'D')
+        {
+            return [
+                'success' => false,
+                'message' => 'Data is not draft.',
+                'code' => 400
+            ];
+        }
+        return DB::transaction(function () use ($trx_no, $penjaminanPayload, $hasLampiran, $user) {
+            $fallback = function (string $key, $default = null) use ($penjaminanPayload) {
+                if (array_key_exists($key, $penjaminanPayload)) {
+                    return $penjaminanPayload[$key];
+                }
+                return $default;
+            };
+            $headerUpdate = KBGGeneratePayload::generateHeaderUpdateKBG($penjaminanPayload, $user, true);
+            // dd($headerUpdate);
+            $this->repository->updateHeaderKbgDraft($trx_no, $headerUpdate);
+            $nowJakarta = Carbon::now('Asia/Jakarta');
+            $kbgUpdatePayload = [
+                // 'jenis_bond' => $fallback('jenisBond'),
+                'jenis_garansi' => $fallback('jenisGaransi'),
+                'jenis_persyaratan' => $fallback('jenisPernyataan'),
+                'skema_penalty' => $fallback('skemaPenalty'),
+                'jenis_surat_perjanjian' => $fallback('jenisSuratPerjanjian'),
+                'no_surat_perjanjian' => $fallback('noSuratPerjanjian'),
+                'tgl_surat_perjanjian' => $fallback('tglSuratPerjanjian'),
+                'bank_code' => $fallback('namaBank'),
+                'bank_name' => $fallback('bankCabang'),
+                'sektor' => $fallback('sektor'),
+                'principal_name' => $fallback('namaPrincipal'),
+                'obligee_name' => $fallback('namaObligee'),
+                'is_bast' => $fallback('isBast'),
+                'no_surat_bast' => array_key_exists('isBast', $penjaminanPayload) &&
+                    $penjaminanPayload['isBast'] == true ?
+                    $fallback('noSuratBast') : null,
+                'bast_date' => array_key_exists('isBast', $penjaminanPayload) &&
+                    $penjaminanPayload['isBast'] == true ?
+                    $fallback('tglSuratBast') : null,
+                'project_name' => $fallback('namaProyek'),
+                'project_amount' => $fallback('nilaiProyek'),
+                // 'amount_bond' => $fallback('nilaiBond'),
+                // 'bond_percentage' => $fallback('nilaiBondPersentase'),
+                'amount_garansi' => $fallback('nilaiGaransi'),
+                'garansi_percentage' => $fallback('nilaiGaransiPersentase'),
+                'start_period_date' => $fallback('periodeAwalBerlaku'),
+                'end_period_date' => $fallback('periodeAkhirBerlaku'),
+                'total_day' => $fallback('jangkaWaktu'),
+                'province' => $fallback('provinsi'),
+                // 'tarif_percentage' => $fallback('tarif'),
+                'updated_at' => $nowJakarta,
+                // 'ijp_amount' => $fallback('ijpAmount'),
+                'agunan_amount' => $fallback('nilaiAgunan'),
+                // 'stamp_amount' => $fallback('stampAmount')
+            ];
+            $this->repository->updateTrxKbg($trx_no, $kbgUpdatePayload);
+            $savedAttachments = [];
+            // if($hasLampiran)
+            // {
+            //     $lampiranDtlData = $this->repository->getPenjaminanLampiranLatestVersionList($trx_no);
+            //     $collectLampiranDtl = collect($lampiranDtlData)->toArray();
+            //     foreach ($penjaminanPayload['lampiranEdit'] as $lampiranEdit) {
+            //         $ext = $lampiranEdit['file']->getClientOriginalExtension();
+            //             $unique = uniqid();
+            //             $fn = "{$trx_no}-{$lampiranEdit['lampiran_id']}-srtb-{$unique}";
+            //             $path = $lampiranEdit['file']->storeAs(
+            //                 'uploads/penjaminan/surety-bond',
+            //                 $fn . '.' . $ext,
+            //                 's3'
+            //             );
+            //             $newDocumentVersion = 1;
+            //             $searchResult = array_search(
+            //                 $lampiranEdit['lampiran_id'],
+            //                 array_column($collectLampiranDtl, 'lampiran_id')
+            //             );
+            //             $newDocumentVersion = is_numeric($searchResult) ?
+            //                 $collectLampiranDtl[$searchResult]['version'] + 1 : 1;
+            //             $savedAttachments[] = [
+            //                 'trx_no' => $trxNo,
+            //                 'lampiran_id' => $lampiranEdit['lampiran_id'],
+            //                 'file_name' => $fn,
+            //                 'status_doc' => 'N',
+            //                 'version' => $newDocumentVersion,
+            //                 'mime_type' => $lampiranEdit['file']->getMimeType(),
+            //                 'file_info' => $path
+            //             ];
+            //     }
+            // }
+            // $this->storeAttachments($savedAttachments);
+            $this->repository->insertPenjaminanKbgFlow($trx_no, 'NA', $user);
+            return [
+                'success' => true
+            ];
+        });
+        
     }
 
     public function deleteInstitutionData(array $institution_id)

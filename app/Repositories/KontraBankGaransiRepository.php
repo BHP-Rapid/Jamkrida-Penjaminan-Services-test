@@ -221,7 +221,7 @@ class KontraBankGaransiRepository
         DB::table('penjaminan_lampiran_dtl')->insert($data);
     }
 
-    public function insertPenjaminanKbgFlow($trx_no, $status_code, $user, $status_approval = null)
+    public function insertPenjaminanKbgFlow(string $trx_no, string $status_code, object $user, $status_approval = null)
     {
         PenjaminanFlow::create([
             'trx_no' => $trx_no,

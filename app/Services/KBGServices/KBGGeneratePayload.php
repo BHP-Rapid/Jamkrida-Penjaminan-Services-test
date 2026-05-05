@@ -32,7 +32,7 @@ class KBGGeneratePayload
         ];
     }
 
-    public static function generateHeaderUpdateKBG(array $payload, object $user)
+    public static function generateHeaderUpdateKBG(array $payload, object $user, bool $isSubmit = false)
     {
         $time_now_jakarta = Carbon::now('Asia/Jakarta');
         $fallback = function (string $key, $default = null) use ($payload) {
@@ -42,7 +42,7 @@ class KBGGeneratePayload
             return $default;
         };
 
-        return [
+        $result = [
             'no_surat_permohonan' => $fallback('noSuratPermohonan'),
             'tanggal_surat_permohonan' => $fallback('tglSuratPermohonan'),
             'sp_split' => $fallback('isSplit'),
@@ -50,5 +50,11 @@ class KBGGeneratePayload
             'updated_by_name' => $user->name,
             'updated_at' => $time_now_jakarta
         ];
+
+        if($isSubmit) {
+            $result['trx_status'] = 'NA';
+        }
+
+        return $result;
     }
 }

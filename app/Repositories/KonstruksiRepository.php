@@ -7,6 +7,7 @@ use App\Models\Institution;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
+use App\Models\TenantMitra;
 use App\Models\v2\KonstruksiDebiturInvoiceHeader;
 use App\Models\v2\KonstruksiDebiturPaymentGateway;
 use App\Models\v2\KonstruksiDebiturTenorSchedule;
@@ -17,7 +18,13 @@ use Illuminate\Support\Facades\DB;
 
 class KonstruksiRepository
 {
-    public function getPnjTrx($trx_no)
+    public function getTenantMitra($mitra_id)
+    {
+        return TenantMitra::where('mitra_id', $mitra_id)
+            ->select('mitra_id', 'alias', 'tenant_id', 'is_syariah', 'is_conventional')
+            ->first();
+    }
+    public function getPnjTrx(string $trx_no)
     {
         return PenjaminanTransaction::join('multiguna_trx_kreditkonstruksi as mt', 'transaction_penjaminan_header.trx_no', '=', 'mt.trx_no')
             ->join('multiguna_trx_kreditkonstruksi', 'transaction_penjaminan_header.trx_no', '=', 'multiguna_trx_kreditkonstruksi.trx_no')
