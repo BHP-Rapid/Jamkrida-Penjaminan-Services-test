@@ -23,4 +23,27 @@ class KBGValidate
         }
         return false;
     }
+
+    public static function validateWithReturnManualPay(string $selected_items)
+    {
+        if(!json_validate($selected_items) || !is_array(json_decode($selected_items)))
+        {
+            return [
+                'success' => false,
+                'message' => 'Invalid selected item data.'
+            ];
+        }
+        $parsedItems = json_decode($selected_items);
+        $arrInvoiceNoTemp = collect($parsedItems)->pluck('invoice_number')->toArray();
+        if(count($arrInvoiceNoTemp) != count(array_unique($arrInvoiceNoTemp))) {
+            return [
+                'success' => false,
+                'message' => 'Duplicate invoice data in the payload.'
+            ];
+        }
+        return [
+            'success' => true,
+            'data' => $arrInvoiceNoTemp
+        ];
+    }
 }

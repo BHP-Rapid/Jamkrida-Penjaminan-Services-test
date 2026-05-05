@@ -389,6 +389,107 @@ class KontraBankGaransiService
         
     }
 
+    public function pembayaranManualKbg(Request $request, object $user)
+    {
+        $itemValidation = KBGValidate::validateWithReturnManualPay($request->selected_items);
+        if(!$itemValidation['success']) {
+            return $itemValidation;
+        }
+        $invoiceNo = $itemValidation['data'][0];
+        return DB::transaction(function () use ($invoiceNo, $request, $user) {
+            $trxNo = $request->trx_no;
+            $kbgHeader = $this->getSuratPermohonanKbgOrFail($trxNo);
+            $tenorData = $this->getTenorKbgOrFail($trxNo, $invoiceNo);
+            $amountSum = $tenorData->sum('amount');
+            if($amountSum != $request->amount) {
+                return [
+                    'success' => false,
+                    'message' => 'Incorrect amount.'
+                ];
+            }
+            $noSuratPermohonan = $kbgHeader->no_surat_permohonan;
+            $headerPaymentList = [];
+            $debiturPayload = [];
+            $orderIdList = [];
+            foreach($tenorData as $tenorRow) {
+                $paymentScope = $tenorRow->tenor_sequence == 0
+                    ? 'Full Payment' : 'Split Payment';
+                $debiturPayload[] = [
+                    'no_sp_detail' => $noSuratPermohonan,
+                    'invoice_number' => $tenorRow->invoice_number,
+                    'total_amount' => (int)$tenorRow->amount
+                ];
+                $headerPaymentList[] = [
+                    'kbg_schedule_id' => $tenorRow->kbg_schedule_id,
+                    'id_trx_product' => $tenorRow->id_trx_product,
+                    'trx_no' => $tenorRow->trx_no,
+                    'tenor_sequence' => $tenorRow->tenor_sequence,
+                    'invoice_number' => $tenorRow->invoice_number,
+                    'amount' => $tenorRow->amount,
+                    'invoice_scope' => $paymentScope,
+                ];
+            }
+            foreach($headerPaymentList as $headerPayment){
+                $newInvoiceData = $this->repository->insertInvoiceHeaderManual(
+                    $headerPayment,
+                    'Paid'
+                );
+                $orderId = 'ORDER-' . now()->format('YmdHis') . '-' . mt_rand(1000, 9999);
+                $this->repository->insertPaymentGatewayManual(
+                    $newInvoiceData->kbg_invoice_id,
+                    $orderId,
+                    $headerPayment['amount']
+                );
+                $this->repository->updateTenorDataByScheduleId(
+                    $headerPayment['kbg_schedule_id'],
+                    [
+                        'status' => 'Paid'
+                    ]
+                );
+                $orderIdList[] = $orderId;
+            }
+            $attachmentBuktiBayar = $request->file('file');
+            $fileBase64 = base64_encode(file_get_contents($attachmentBuktiBayar->path()));
+            $ext = $attachmentBuktiBayar->getClientOriginalExtension();
+            $fn = $orderIdList[0] . '-pembayaran-kbg';
+            $creatioPayload = [
+                'NoSuratPermohonan' => $noSuratPermohonan,
+                'ListDebitur' => $debiturPayload,
+                'NamaFile' => $fn . '.' . $ext,
+                'DataBase64' => $fileBase64
+            ];
+            // PENDING SEND TO CORE
+            // $svcCreatio = new CreatioService();
+            // $response = $svcCreatio->request('post', '/0/rest/PembayaranWebService/PembayaranManualV2', $creatioPayload);
+            // if ($response->status() !== 200) {
+            //     throw new Exception("Failed to send Bukti Pembayaran Manual to Core Creatio API with status: " . $response->status());
+            // }
+            // $bodyResponse = json_decode($response->body(), true);
+            // if ($bodyResponse['Success'] !== true) {
+            //     throw new Exception("Failed to send Bukti Pembayaran Manual to Core Creatio API with message: " . $bodyResponse['Message']);
+            // }
+
+            // Storing file bukti bayar to LocalStack and PenjaminanLampiranDtl table
+            // $localStackPath = $attachmentBuktiBayar->storeAs(
+            //     'uploads/penjaminan/payment-surety-bond',
+            //     $fn . '.' . $ext,
+            //     's3'
+            // );
+            // $this->storeAttachments([
+            //     'trx_no' => $request->trx_no,
+            //     'lampiran_id' => 'pembayaran',
+            //     'file_name' => $fn,
+            //     'status_doc' => 'N',
+            //     'version' => 1,
+            //     'mime_type' => $attachmentBuktiBayar->getMimeType(),
+            //     'file_info' => $localStackPath
+            // ]);
+            return [
+                'success' => true
+            ];
+        });
+    }
+
     public function deleteInstitutionData(array $institution_id)
     {
         $this->repository->deleteInstitutionData($institution_id);
@@ -468,6 +569,25 @@ class KontraBankGaransiService
             throw new NotFoundException('Tenant mitra data is not found.');
         }
         return $tenantData;
+    }
+
+    private function getSuratPermohonanKbgOrFail(string $trx_no)
+    {
+        $data = $this->repository->getSuratPermohonanKbg($trx_no);
+        if(!$data) {
+            throw new NotFoundException('Penjaminan Kontra Bank Garansi not found.');
+        }
+        return $data;
+    }
+
+    private function getTenorKbgOrFail(string $trx_no, string $invoice_no)
+    {
+        $tenor = $this->repository->getTenorDataKbg($trx_no, $invoice_no);
+        if(count($tenor) < 1)
+        {
+            throw new NotFoundException('Payment data not found.');
+        }
+        return $tenor;
     }
 
     private function getDetailKbgOrFail(string $trx_no)

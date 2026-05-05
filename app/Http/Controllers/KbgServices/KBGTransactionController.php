@@ -278,4 +278,38 @@ class KBGTransactionController extends Controller
             );
         }
     }
+
+    public function uploadPembayaranManual(Request $request)
+    {
+        try {
+            $user = AuthUserHelper::getUser($request);
+            $this->validate($request, [
+                'trx_no' => 'required|string|max:50',
+                'amount' => 'required|numeric',
+                'selected_items' => 'required|string',
+                'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
+            ]);
+            $result = $this->kbgService->pembayaranManualKbg($request, $user);
+            if(!$result['success'])
+            {
+                return ApiResponse::error($result['message'], 422);
+            }
+            return ApiResponse::success(null, 'Successfully uploaded Bukti bayar manual.');
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error(
+                $nfe->getMessage(),
+                $nfe->getStatus()
+            );
+        } catch (ValidationException $ve) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $ve->errors()
+            );
+        } catch (Exception $ex) {
+            return ApiResponse::error(
+                $ex->getMessage()
+            );
+        }
+    }
 }

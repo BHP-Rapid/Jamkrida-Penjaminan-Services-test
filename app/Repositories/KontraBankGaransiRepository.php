@@ -7,6 +7,10 @@ use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
 use App\Models\TenantMitra;
+use App\Models\v2\KBGTenorSchedule;
+use App\Models\v2\KontraBankGaransiInvoiceHeader;
+use App\Models\v2\KontraBankGaransiPaymentGateway;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class KontraBankGaransiRepository
@@ -206,6 +210,33 @@ class KontraBankGaransiRepository
             ->get();
     }
 
+    public function getSuratPermohonanKbg(string $trx_no)
+    {
+        return PenjaminanTransaction::where('trx_no', $trx_no)
+            ->select('no_surat_permohonan')->first();
+    }
+
+    public function getTenorDataKbg(string $trx_no, string $invoice_no)
+    {
+        return KBGTenorSchedule::query()
+            ->from('kbg_transaction as kbg')
+            ->join('kbg_tenor_schedule as kbts',
+                'kbg.id_trx_product', '=', 'kbts.id_trx_product')
+            ->select([
+                'kbts.kbg_schedule_id',
+                'kbg.id_trx_product',
+                'kbg.trx_no',
+                'kbts.tenor_sequence',
+                'kbts.invoice_number',
+                'kbts.amount',
+                'kbts.status'
+            ])
+            ->where('kbts.status', 'Pending')
+            ->where('kbts.invoice_number', $invoice_no)
+            ->where('kbg.trx_no', $trx_no)
+            ->get();
+    }
+
     public function insertHeaderKbg($data)
     {
         PenjaminanTransaction::create($data);
@@ -234,6 +265,33 @@ class KontraBankGaransiRepository
         ]);
     }
 
+    public function insertInvoiceHeaderManual(array $tenor_data, string $status)
+    {
+        $time_now_jakarta = Carbon::now('Asia/Jakarta');
+        return KontraBankGaransiInvoiceHeader::create([
+            'kbg_schedule_id' => $tenor_data['kbg_schedule_id'],
+            'invoice_scope' => $tenor_data['invoice_scope'],
+            'total_amount' => $tenor_data['amount'],
+            'status' => $status,
+            'is_manual' => 1,
+            'created_at' => $time_now_jakarta,
+            'updated_at' => $time_now_jakarta
+        ]);
+    }
+
+    public function insertPaymentGatewayManual(string $invoice_id, string $order_id, float $amount)
+    {
+        $time_now_jakarta = Carbon::now('Asia/Jakarta');
+        KontraBankGaransiPaymentGateway::create([
+            'kbg_invoice_id' => $invoice_id,
+            'payment_amount_ijp' => $amount,
+            'status' => 'Paid',
+            'order_id' => $order_id,
+            'created_at' => $time_now_jakarta,
+            'updated_at' => $time_now_jakarta
+        ]);
+    }
+
     public function updateHeaderKbgDraft(string $trx_no, array $data)
     {
         PenjaminanTransaction::where('trx_no', $trx_no)
@@ -243,6 +301,12 @@ class KontraBankGaransiRepository
     public function updateTrxKbg(string $trx_no, array $data)
     {
         KBGTransaction::where('trx_no', $trx_no)
+            ->update($data);
+    }
+
+    public function updateTenorDataByScheduleId(int $schedule_id, array $data)
+    {
+        KBGTenorSchedule::where('kbg_schedule_id', $schedule_id)
             ->update($data);
     }
 }
