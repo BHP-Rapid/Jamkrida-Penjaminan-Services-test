@@ -7,7 +7,6 @@ use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
 use App\Models\SuretyBondTenorSchedule;
-use App\Models\SuretyBondTransaction;
 use App\Models\TenantMitra;
 use Carbon\Carbon;
 use Exception;
@@ -68,21 +67,10 @@ class SuretyBond
         return $penjaminanData;
     }
 
-    public function handleStore(array $payload)
+    public function handleStore(array $payload, object $user)
     {
-        $user = auth('sanctum')->user();
-
-        $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
-            ->select('mitra_id', 'alias')
-            ->first();
-
-        if (!$tenantMitraData) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tenant mitra data not found.'
-            ], 404);
-        }
-        $mitraAlias = $tenantMitraData->alias;
+        $mitraData = $this->getTenantDataOrFail($user->mitra_id);
+        $mitraAlias = $mitraData->alias;
         $penjaminanPayload = collect($payload['data'])->toArray();
         if (array_key_exists('institution_data', $penjaminanPayload)) {
             unset($penjaminanPayload['institution_data']);
@@ -183,10 +171,9 @@ class SuretyBond
         });
     }
 
-    public function handleSubmitDraft(Request $request, string $trxNo)
+    public function handleSubmitDraft(array $payload, string $trxNo, object $user)
     {
-        $user = auth('sanctum')->user();
-        $payload = collect($request->data)->toArray();
+        $payload = collect($payload)->toArray();
         if (array_key_exists('institution_data', $payload)) {
             unset($payload['institution_data']);
         }
@@ -208,6 +195,83 @@ class SuretyBond
             }
             if ($data->trx_status !== 'D') {
                 throw new Exception('Data is not in draft status.', 422);
+            }
+            // Update header
+            $this->repository->updateHeader($trxNo, [
+                'no_surat_permohonan' => $payload['noSuratPermohonan'],
+                'tanggal_surat_permohonan' => $payload['tglSuratPermohonan'],
+                'sp_split' => $payload['isSplit'],
+                'trx_status' => 'NA',
+                'updated_by_id' => $user->user_id,
+                'updated_by_name' => $user->name
+            ]);
+
+            // Update detail
+            $this->repository->updateDetail($trxNo, [
+                'jenis_bond' => $payload['jenisBond'],
+                'jenis_persyaratan' => $payload['jenisPernyataan'],
+                'skema_penalty' => $payload['skemaPenalty'],
+                'jenis_surat_perjanjian' => $payload['jenisSuratPerjanjian'],
+                'no_surat_perjanjian' => $payload['noSuratPerjanjian'],
+                'tgl_surat_perjanjian' => $payload['tglSuratPerjanjian'],
+                'sektor' => $payload['sektor'],
+                'principal_name' => $payload['namaPrincipal'],
+                'obligee_name' => $payload['namaObligee'],
+                'is_bast' => $payload['isBast'],
+                'no_surat_bast' => $payload['isBast'] ? $payload['noSuratBast'] : null,
+                'bast_date' => $payload['isBast'] ? $payload['tglSuratBast'] : null,
+                'project_name' => $payload['namaProyek'],
+                'project_amount' => $payload['nilaiProyek'],
+                'amount_bond' => $payload['nilaiBond'],
+                'bond_percentage' => $payload['nilaiBondPersentase'],
+                'start_period_date' => $payload['periodeAwalBerlaku'],
+                'end_period_date' => $payload['periodeAkhirBerlaku'],
+                'total_day' => $payload['jangkaWaktu'],
+                'province' => $payload['propinsi'],
+                'agunan_amount' => $payload['nilaiAgunan']
+            ]);
+
+            // Handle attachment
+            if ($lampiranExist) {
+                $attachments = $this->handleLampiran($trxNo, $payload['lampiranEdit']);
+
+                if (!empty($attachments)) {
+                    $this->repository->insertLampiran($attachments);
+                }
+            }
+
+            // Flow
+            $this->repository->insertFlow([
+                'trx_no' => $trxNo,
+                'trx_status' => 'NA',
+                'created_at' => now('Asia/Jakarta'),
+                'created_by_id' => $user->user_id,
+                'created_by_name' => $user->name
+            ]);
+
+            return 'Penjaminan Surety Bond successfully submitted.';
+        });
+    }
+
+    public function updateDraft(array $payload, string $trxNo, object $user)
+    {
+        $payload = collect($payload)->toArray();
+        if (array_key_exists('institution_data', $payload)) {
+            unset($payload['institution_data']);
+        }
+        $lampiranExist = array_key_exists('lampiranEdit', $payload) && $payload['lampiranEdit'];
+        $duplicateLampiranId = false;
+        if ($lampiranExist) {
+            $ids = array_column($payload['lampiranEdit'], 'lampiran_id');
+            $duplicateLampiranId = count(array_unique($ids)) != count($ids);
+        }
+        if ($duplicateLampiranId) {
+            throw new Exception('Duplicate lampiran id.', 422);
+        }
+        return DB::transaction(function () use ($trxNo, $payload, $user, $lampiranExist) {
+            $data = $this->repository->getHeaderWithDetail($trxNo);
+            if (!$data) {
+                throw new Exception('Penjaminan surety bond data is not found.', 404);
             }
             // Update header
             $this->repository->updateHeader($trxNo, [
@@ -317,10 +381,7 @@ class SuretyBond
                 ];
             }
 
-            if (
-                !empty($pending->invoice_number_collateral) &&
-                $pending->status_collateral == 'Pending'
-            ) {
+            if (!empty($pending->invoice_number_collateral) && $pending->status_collateral == 'Pending') {
                 $resultPending[] = [
                     'schedule_id' => $pending->srtb_schedule_id,
                     'id_trx_product' => $pending->id_trx_product,
@@ -709,5 +770,14 @@ class SuretyBond
             'no_surat_perjanjian' => $fallback('noSuratPerjanjian'),
             'agunan_amount' => $fallback('nilaiAgunan'),
         ];
+    }
+
+    private function getTenantDataOrFail(string $mitra_id)
+    {
+        $tenantData = $this->repository->getTenantMitraData($mitra_id);
+        if (!$tenantData) {
+            throw new NotFoundException('Tenant mitra data is not found.');
+        }
+        return $tenantData;
     }
 }

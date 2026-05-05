@@ -1,5 +1,7 @@
 <?php
 
+namespace App\Repositories;
+
 use App\Models\CustomBondTransaction;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;

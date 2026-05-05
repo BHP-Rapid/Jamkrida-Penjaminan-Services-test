@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\SuretyBondTransactionServices;
 
 use App\Helpers\ApiResponse;
+use App\Helpers\AuthUserHelper;
 use App\Http\Controllers\Controller;
 use App\Services\SuretyBondServices\SuretyBond as SuretyBondTransactionService;
 use Exception;
@@ -54,8 +55,8 @@ class SuretyBondTransactionController extends Controller
     public function store(Request $request)
     {
         try {
+            $user = AuthUserHelper::getUser($request);
             $status = strtolower($request->input('data.status'));
-
             $baseRules = [
                 'data.institution_data.full_name' => 'required|string|max:64',
                 'data.status' => 'required|string|in:draft,submit',
@@ -132,29 +133,16 @@ class SuretyBondTransactionController extends Controller
                     ]
                 );
             }
-
-            $validator->after(function ($validator) use ($request) {
-                $lampiran = $request->input('data.lampiran', []);
-
-                if (!is_array($lampiran) || empty($lampiran)) {
-                    return;
-                }
-
-                $lampiranIds = array_filter(array_column($lampiran, 'lampiran_id'), fn($id) => $id !== null);
-
-                if (count($lampiranIds) !== count(array_unique($lampiranIds))) {
-                    $validator->errors()->add('data.lampiran', 'Duplicate lampiran id.');
-                }
-            });
-
             if ($validator->fails()) {
                 throw new ValidationException($validator);
             }
 
             $payload = $validator->validated();
-            $result = $this->suretyBondService->handleStore($payload);
-
-            return $result;
+            $result = $this->suretyBondService->handleStore($payload, $user);
+            return ApiResponse::success(
+                $result,
+                'Data has been successfully created'
+            );
         } catch (ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',
@@ -169,25 +157,45 @@ class SuretyBondTransactionController extends Controller
         }
     }
 
-    public function update(Request $request, $trxNo)
+    public function update(Request $request, string $trxNo)
     {
         try {
+            $user = AuthUserHelper::getUser($request);
             $validator = Validator::make(['trxNo' => $trxNo], [
-                'trxNo' => 'required|string|max:100'
-            ], [
-                'trxNo.required' => 'trxNo is required'
+                'data.noSuratPermohonan' => 'nullable|string|max:50',
+                'data.tglSuratPermohonan' => 'nullable|date_format:Y-m-d',
+                'data.isSplit' => 'nullable|boolean',
+                'data.jenisPernyataan' => 'nullable|string|max:50',
+                'data.skemaPenalty' => 'nullable|string|max:50',
+                'data.sektor' => 'nullable|string|max:50',
+                'data.namaPrincipal' => 'nullable|string|max:255',
+                'data.namaObligee' => 'nullable|string|max:255',
+                'data.isBast' => 'nullable|boolean',
+                'data.noSuratBast' => 'required_if:data.isBast,true|nullable|string|max:50',
+                'data.tglSuratBast' => 'required_if:data.isBast,true|nullable|date',
+                'data.namaProyek' => 'nullable|string|max:100',
+                'data.nilaiProyek' => 'nullable|numeric|min:0',
+                'data.nilaiBond' => 'nullable|numeric|min:0',
+                'data.nilaiBondPersentase' => 'nullable|numeric|min:0',
+                'data.periodeAwalBerlaku' => 'nullable|date_format:Y-m-d',
+                'data.periodeAkhirBerlaku' => 'nullable|date_format:Y-m-d',
+                'data.jangkaWaktu' => 'nullable|numeric|min:0',
+                'data.propinsi' => 'nullable|string|max:50',
+                'data.jenisSuratPerjanjian' => 'nullable|string|max:64',
+                'data.noSuratPerjanjian' => 'nullable|string|max:64',
+                'data.tglSuratPerjanjian' => 'nullable|date_format:Y-m-d',
+                'data.lampiran' => 'nullable|array',
+                'data.lampiran.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
+                'data.lampiran.*.lampiran_id' => 'required|string',
+                'data.nilaiAgunan' => 'nullable|numeric|min:0',
             ]);
 
             if ($validator->fails()) {
                 throw new ValidationException($validator);
             }
-
-            $message = $this->suretyBondService->handleUpdate($request, $trxNo);
-
-            return response()->json([
-                'success' => true,
-                'message' => $message
-            ]);
+            $payload = $validator->validated();
+            $result = $this->suretyBondService->updateDraft($payload, $trxNo, $user);
+            return ApiResponse::success($result);
         } catch (ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',
@@ -205,8 +213,8 @@ class SuretyBondTransactionController extends Controller
     public function submitDraft(Request $request, string $trxNo)
     {
         try {
+            $user = AuthUserHelper::getUser($request);
             $validator = Validator::make(array_merge($request->all(), ['trxNo' => $trxNo]), [
-                'trxNo' => 'required|string|max:100',
                 'data.noSuratPermohonan' => 'required|string|max:50',
                 'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
                 'data.isSplit' => 'required|boolean',
@@ -234,20 +242,15 @@ class SuretyBondTransactionController extends Controller
                 'data.lampiranEdit' => 'nullable|array',
                 'data.lampiranEdit.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
                 'data.lampiranEdit.*.lampiran_id' => 'required|string',
-            ], [
-                'trxNo.required' => 'trxNo is required'
             ]);
 
             if ($validator->fails()) {
                 throw new ValidationException($validator);
             }
-
-            $message = $this->suretyBondService->handleSubmitDraft($request, $trxNo);
-
-            return response()->json([
-                'success' => true,
-                'message' => $message
-            ]);
+            $payload = $validator->validated();
+            // dd($payload);
+            $result = $this->suretyBondService->handleSubmitDraft($payload, $trxNo, $user);
+            return ApiResponse::success($result);
         } catch (ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',
@@ -276,12 +279,9 @@ class SuretyBondTransactionController extends Controller
             }
 
             $payload = $validator->validated();
-            $message = $this->suretyBondService->handleApprovePenjaminanSB($payload['trxNo']);
+            $result = $this->suretyBondService->handleApprovePenjaminanSB($payload['trxNo']);
 
-            return response()->json([
-                'success' => true,
-                'message' => $message
-            ]);
+            return ApiResponse::success($result);
         } catch (ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',

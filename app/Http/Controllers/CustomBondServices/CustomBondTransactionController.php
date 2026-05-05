@@ -36,9 +36,9 @@ class CustomBondTransactionController extends Controller
             $payload = $validator->validated();
             $data = $this->customBondService->getDetail($payload['trx_no'], $payload['no_surat_permohonan']);
             return ApiResponse::success($data, 'Data retrieved successfully');
-        } catch (\Illuminate\Validation\ValidationException $ex) {
+        } catch (ValidationException $ex) {
             return ApiResponse::error('Validation error', 422, $ex->errors());
-        } catch (\Exception $ex) {
+        } catch (Exception $ex) {
             return ApiResponse::error('Error While Get Data Custom Bond:  ' . $ex->getMessage(), 500);
         }
     }
@@ -49,11 +49,13 @@ class CustomBondTransactionController extends Controller
             $user = AuthUserHelper::getUser($request);
             $status = strtolower($request->input('data.status'));
             $rules = [
-                'order_id' => ['required', 'string'],
-                'trx_no'   => ['required', 'string'],
                 'product'  => ['nullable', 'string'],
                 'data.jenisBond' => 'required|string|max:8',
+                'attachments' => 'nullable|array',
+                'attachments.*.lampiran_id' => 'required|string',
+                'attachments.*.file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:2048',
             ];
+
             if ($status === 'submit') {
                 $rules = array_merge($rules, [
                     'data.noSuratPermohonan' => 'required|string|max:50',
@@ -101,21 +103,61 @@ class CustomBondTransactionController extends Controller
                     'data.tarif' => 'nullable|numeric|min:0',
                 ]);
             }
-            $validator = Validator::make(
-                $request->all(),
-                $rules,
-                [
-                    'order_id.required' => 'order_id is required',
-                    'trx_no.required'   => 'trx_no is required',
-                    'data.status.required' => 'status is required',
-                    'data.status.in' => 'status must be submit or draft',
-                ]
-            );
+
+            $messages = [
+                // DATA
+                'data.jenisBond.required' => 'Jenis Bond wajib diisi',
+                'data.jenisBond.max' => 'Jenis Bond maksimal 8 karakter',
+                'data.noSuratPermohonan.required' => 'Nomor Surat Permohonan wajib diisi',
+                'data.noSuratPermohonan.max' => 'Nomor Surat Permohonan maksimal 50 karakter',
+                'data.tglSuratPermohonan.required' => 'Tanggal Surat Permohonan wajib diisi',
+                'data.tglSuratPermohonan.date_format' => 'Format tanggal harus YYYY-MM-DD',
+                'data.jenisPernyataan.required' => 'Jenis Pernyataan wajib diisi',
+                'data.skemaPenalty.required' => 'Skema penalty wajib diisi',
+                'data.sektor.required' => 'Sektor wajib diisi',
+                'data.namaPrincipal.required' => 'Nama Principal wajib diisi',
+                'data.namaObligee.required' => 'Nama Obligee wajib diisi',
+                'data.isBast.required' => 'Field BAST wajib diisi',
+                'data.isBast.boolean' => 'Field BAST harus boolean (1/0)',
+                'data.namaProyek.required' => 'Nama proyek wajib diisi',
+                'data.nilaiProyek.required' => 'Nilai proyek wajib diisi',
+                'data.nilaiProyek.numeric' => 'Nilai proyek harus angka',
+                'data.nilaiBond.required' => 'Nilai bond wajib diisi',
+                'data.nilaiBond.numeric' => 'Nilai bond harus angka',
+                'data.nilaiBondPersentase.required' => 'Persentase bond wajib diisi',
+                'data.nilaiBondPersentase.numeric' => 'Persentase bond harus angka',
+                'data.periodeAwalBerlaku.required' => 'Periode awal wajib diisi',
+                'data.periodeAwalBerlaku.date_format' => 'Format tanggal awal harus YYYY-MM-DD',
+                'data.periodeAkhirBerlaku.required' => 'Periode akhir wajib diisi',
+                'data.periodeAkhirBerlaku.date_format' => 'Format tanggal akhir harus YYYY-MM-DD',
+                'data.jangkaWaktu.required' => 'Jangka waktu wajib diisi',
+                'data.jangkaWaktu.numeric' => 'Jangka waktu harus angka',
+                'data.propinsi.required' => 'Propinsi wajib diisi',
+                'data.jenisSuratPerjanjian.required' => 'Jenis surat perjanjian wajib diisi',
+                'data.noSuratPerjanjian.required' => 'Nomor surat perjanjian wajib diisi',
+                'data.tglSuratPerjanjian.required' => 'Tanggal surat perjanjian wajib diisi',
+                'data.tglSuratPerjanjian.date_format' => 'Format tanggal perjanjian harus YYYY-MM-DD',
+                'data.tarif.numeric' => 'Tarif harus angka',
+
+                // ATTACHMENTS
+                'attachments.array' => 'Attachments harus berupa array',
+                'attachments.*.lampiran_id.required' => 'Lampiran ID wajib diisi',
+                'attachments.*.file.required' => 'File lampiran wajib diupload',
+                'attachments.*.file.mimes' => 'File harus PDF/JPG/JPEG/PNG',
+                'attachments.*.file.max' => 'Ukuran file maksimal 2MB',
+            ];
+
+            $validator = Validator::make($request->all(), $rules, $messages);
+
             if ($validator->fails()) {
                 throw new ValidationException($validator);
             }
 
             $payload = $validator->validated();
+
+            // DEBUG
+            dd($payload);
+
             $result = $this->customBondService->store($payload, $user);
 
             return ApiResponse::success($result);
@@ -131,7 +173,7 @@ class CustomBondTransactionController extends Controller
 
     public function UpdateDraft(Request $request, string $trxNo)
     {
-        $user = auth('sanctum')->user();
+        $user = AuthUserHelper::getUser($request);
         try {
             $validator = Validator::make(
                 $request->all(),
@@ -176,15 +218,16 @@ class CustomBondTransactionController extends Controller
             }
 
             $payload = $validator->validated();
+            dd($payload);
             $result = $this->customBondService->updateDraft($payload, $trxNo, $user);
             return ApiResponse::success($result);
-        } catch (\Illuminate\Validation\ValidationException $ex) {
+        } catch (ValidationException $ex) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
                 'errors' => $ex->errors()
             ], 422);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -194,17 +237,13 @@ class CustomBondTransactionController extends Controller
 
     public function ApprovePenjaminanCSTB(Request $request)
     {
+        $user = AuthUserHelper::getUser($request);
         $trx_no = $request->trxNo;
         // dd($trx_no);
         $method = $request->method();
         $fullUrl = $request->fullUrl();
         try {
-            (new PenjaminanService())->approveCSTBPenjaminan(
-                $trx_no,
-                auth('sanctum')->user()->user_id,
-                auth('sanctum')->user()->name,
-                "Perorangan"
-            );
+            (new PenjaminanService())->approveCSTBPenjaminan($trx_no, $user->user_id, $user->name,  "Perorangan");
             return response()->json([
                 'success' => true,
                 'message' => 'Penjaminan Custom Bond successfully approved.'
@@ -219,24 +258,44 @@ class CustomBondTransactionController extends Controller
 
     public function uploadPembayaranManual(Request $request)
     {
-        // $this->validate($request, [
-        //     'trx_no' => 'required|string|max:50',
-        //     'amount' => 'required|numeric',
-        //     'selected_items' => 'required|string',
-        //     'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
-        // ]);
+     
         try {
-            $result = $this->customBondService->processUploadPembayaranManual($request);
+            $validator = Validator::make($request->all(), [
+                'trx_no' => 'required|string|max:100',
+                'amount' => 'required|numeric|min:0',
+                'selected_items' => 'required|string',
+                'file' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx|max:10240'
+            ], [
+                'trx_no.required' => 'trx_no is required',
+                'amount.required' => 'amount is required',
+                'file.required' => 'file is required'
+            ]);
+
+            if ($validator->fails()) {
+                throw new ValidationException($validator);
+            }
+
+            $payload = $validator->validated();
+            $payload['selected_items'] = json_decode($payload['selected_items'], true);
+            $payload['file'] = $request->file('file');
+
+            $result = $this->customBondService->processUploadPembayaranManual($payload);
 
             return response()->json([
                 'success' => true,
                 'message' => $result
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], $e->getCode() ?: 500);
+        } catch (ValidationException $e) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $e->errors()
+            );
+        } catch (Exception $ex) {
+            return ApiResponse::error(
+                $ex->getMessage(),
+                $ex->getCode() ?: 500
+            );
         }
     }
 
@@ -277,13 +336,14 @@ class CustomBondTransactionController extends Controller
             }
             $validated = $validator->validated();
             $payload = $validated['data'];
+            // dd($payload);
             $result = $this->customBondService->processSubmitDraft($payload, $trxNo);
             if ($result) {
                 return ApiResponse::success('Penjaminan Custom Bond successfully submitted.');
             }
         } catch (ValidationException $ex) {
             return ApiResponse::error('Validation error', 422, $ex->errors());
-        } catch (\Exception $ex) {
+        } catch (Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),
                 $ex->getCode() ?: 500

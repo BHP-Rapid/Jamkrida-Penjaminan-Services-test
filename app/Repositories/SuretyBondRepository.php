@@ -7,6 +7,7 @@ use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
 use App\Models\SuretyBondTransaction;
+use App\Models\TenantMitra;
 use Illuminate\Support\Facades\DB;
 
 class SuretyBondRepository
@@ -244,7 +245,14 @@ class SuretyBondRepository
     }
 
     public function createDetail(array $data)
-{
-    return SuretyBondTransaction::create($data);
-}
+    {
+        return SuretyBondTransaction::create($data);
+    }
+
+    public function getTenantMitraData($mitra_id)
+    {
+        return TenantMitra::where('mitra_id', $mitra_id)
+            ->select('mitra_id', 'alias', 'tenant_id')
+            ->first();
+    }
 }
