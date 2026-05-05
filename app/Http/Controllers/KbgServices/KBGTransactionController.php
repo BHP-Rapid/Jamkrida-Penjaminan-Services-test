@@ -219,8 +219,8 @@ class KBGTransactionController extends Controller
         try {
             $user = AuthUserHelper::getUser($request);
             $this->validate($request, [
-                // 'data.jenisGaransi' => 'required|string|max:8',
-                // 'data.jenisGaransiDescription' => 'required|string|max:50',
+                'data.jenisGaransi' => 'required|string|max:8',
+                'data.jenisGaransiDescription' => 'required|string|max:50',
                 'data.noSuratPermohonan' => 'required|string|max:50',
                 'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
                 'data.isSplit' => 'required|boolean',
