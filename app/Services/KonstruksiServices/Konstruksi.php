@@ -16,13 +16,17 @@ class Konstruksi
 {
     public function __construct(protected KonstruksiRepository $repository) {}
 
-    public function getDetail($trx_no, $no_surat_permohonan)
+    public function getTenantMitra(string $mitraId)
+    {
+        return $this->repository->getTenantMitra($mitraId);
+    }
+
+    public function getDetail(string $trx_no)
     {
         //
         $key = base64_decode(config('services.secure.key'));
 
         $penjaminanDetail = $this->repository->getPnjTrx($trx_no);
-
         if (!$penjaminanDetail) {
             return null;
         }
@@ -122,7 +126,7 @@ class Konstruksi
         })->values()->toArray();
     }
 
-    public function store($request, $user, string $mitraAlias, array $penjaminanPKSData)
+    public function store($request, $user, string $mitraAlias, string $tenant_ID, array $penjaminanPKSData)
     {
         //
         if (empty($request->allFiles()) && $request->data['trx_status'] != 'D') {
@@ -141,7 +145,7 @@ class Konstruksi
             return response()->json($result, 422);
         }
 
-        DB::transaction(function () use ($request, &$user, &$dataDebitur, $mitraAlias) {
+        DB::transaction(function () use ($request, &$user, &$dataDebitur, $mitraAlias, $tenant_ID) {
             //
             $currentYear = date('Y');
             $currentMonth = date('m');
@@ -188,7 +192,7 @@ class Konstruksi
             ]);
 
             $multigunaId = $konstruksi->getKey();
-            $mitraId = $request->data['mitra_id'];
+            $mitraId = $mitraAlias; //$request->data['mitra_id'];
             $prefix = $mitraId . $currentYear;
             $lastLoan = $this->repository->getLatestLoanNumber($prefix);
 
@@ -206,7 +210,7 @@ class Konstruksi
             $rowInstitutions = collect(data_get($request->data, 'dataInstitution', []))
                 ->pluck('institution_data')
                 ->filter()
-                ->map(function ($value) use ($nowJakarta, &$institutionMap, &$user, $key, $hashKey) {
+                ->map(function ($value) use ($nowJakarta, &$institutionMap, &$user, $key, $hashKey, $mitraId, $tenant_ID) {
                     //
                     // $enc = fn($v) => $v ? AesHelper::encrypt($v, $key) : null;
                     $enc = function ($value) use ($key) {
@@ -223,8 +227,8 @@ class Konstruksi
                     }
                     return [
                         'category' => 'P',
-                        'mitra_id' => 'MDR',
-                        'tenant_id' => '2185e11e-35a6-4c89-aa3f-4645451e0536',
+                        'mitra_id' => $mitraId,
+                        'tenant_id' => $tenant_ID, //'2185e11e-35a6-4c89-aa3f-4645451e0536',
                         'id_issued_location' => '-',
                         'id_add_issued_location' => '-',
                         'id_add_type' => "-",
@@ -388,9 +392,8 @@ class Konstruksi
             }
         });
     }
-    public function update($request, $user, string $mitraAlias, array $penjaminanPKSData, $trxNo)
+    public function update($request, $user, string $mitraAlias, string $tenant_ID, array $penjaminanPKSData, $trxNo)
     {
-        $tenant_ID = '';
         $newStatus = $request->data['trx_status'];
         $dataDebitur = $request->input('data.dataDebitur', []);
         if ($request->data['trx_status'] !== 'D' && !empty($dataDebitur)) {
@@ -472,8 +475,8 @@ class Konstruksi
 
                         return [
                             'category' => 'P',
-                            'mitra_id' => 'MDR',
-                            'tenant_id' => '2185e11e-35a6-4c89-aa3f-4645451e0536',
+                            'mitra_id' => $mitraAlias, //'MDR',
+                            'tenant_id' => $tenant_ID, //'2185e11e-35a6-4c89-aa3f-4645451e0536',
                             'id_issued_location' => '-',
                             'id_add_issued_location' => '-',
                             'id_add_type' => "-",

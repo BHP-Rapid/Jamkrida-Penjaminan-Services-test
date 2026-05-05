@@ -6,7 +6,6 @@ use App\Exports\ExcelDataNormatifKKPBJExport;
 use App\Helpers\ApiResponse;
 use App\Helpers\AuthUserHelper;
 use App\Http\Controllers\Controller;
-use App\Models\TenantMitra;
 use App\Services\CreatioService;
 use App\Services\KonstruksiServices\Konstruksi;
 use App\Services\PenjaminanService;
@@ -26,13 +25,11 @@ class KonstruksiTransactionController extends Controller
     {
         $this->service = $service;
     }
-    public function show(Request $request)
+    public function show($id)
     {
         try {
-            $data = $this->service->getDetail(
-                $request->query('trx_no'),
-                $request->query('no_surat_permohonan')
-            );
+
+            $data = $this->service->getDetail($id);
 
             if (!$data) {
                 return ApiResponse::error("Data Not Found", 404);
@@ -57,11 +54,15 @@ class KonstruksiTransactionController extends Controller
         try {
             $user = AuthUserHelper::getUser($request);
             //auth('sanctum')->user();
-            $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
-                ->select('mitra_id', 'alias')
-                ->first();
+            $tenantMitraData = $this->service->getTenantMitra($user->mitra_id);
+
+            // TenantMitra::where('mitra_id', $user->mitra_id)
+            //     ->select('mitra_id', 'alias', 'tenant_id')
+            //     ->first();
+
             if ($tenantMitraData) {
                 $mitraAlias = $tenantMitraData->alias;
+                $tenant_ID = $tenantMitraData->tenant_id;
             } else {
                 return [
                     'success' => false,
@@ -98,7 +99,7 @@ class KonstruksiTransactionController extends Controller
                 return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
             }
 
-            $result = $this->service->store($request->all(), $user, $mitraAlias, $penjaminanPKSData);
+            $result = $this->service->store($request->all(), $user, $mitraAlias, $tenant_ID, $penjaminanPKSData);
 
             if (isset($result['error'])) {
                 return ApiResponse::error($result['message'], $result['code']);
@@ -127,9 +128,12 @@ class KonstruksiTransactionController extends Controller
         $debugMsg = 'No tenant mitra data.';
         $mitraAlias = '';
         $tenant_ID = '';
-        $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
-            ->select('mitra_id', 'alias', 'tenant_id')
-            ->first();
+        $tenantMitraData = $this->service->getTenantMitra($user->mitra_id);
+
+        // TenantMitra::where('mitra_id', $user->mitra_id)
+        //     ->select('mitra_id', 'alias', 'tenant_id')
+        //     ->first();
+
         if ($tenantMitraData) {
             $mitraAlias = $tenantMitraData->alias;
             $tenant_ID = $tenantMitraData->tenant_id;
@@ -167,7 +171,7 @@ class KonstruksiTransactionController extends Controller
                 }
             }
 
-            $result = $this->service->update($request->all(), $user, $mitraAlias, $penjaminanPKSData, $trxNo);
+            $result = $this->service->update($request->all(), $user, $mitraAlias, $tenant_ID, $penjaminanPKSData, $trxNo);
 
             return ApiResponse::success($result);
             // return response()->json([
@@ -269,12 +273,14 @@ class KonstruksiTransactionController extends Controller
 
     public function getPenjaminanPKS($request)
     {
-        $mitra_id = AuthUserHelper::getUser($request);
+        $mitra_id = AuthUserHelper::getUser($request)->mitra_id;
         //auth('sanctum')->user()->mitra_id;
 
-        $mitra = TenantMitra::where('mitra_id', $mitra_id)
-            ->select('alias', 'is_syariah', 'is_conventional')
-            ->first();
+        $mitra = $this->service->getTenantMitra($mitra_id);
+
+        // TenantMitra::where('mitra_id', $mitra_id)
+        //     ->select('alias', 'is_syariah', 'is_conventional')
+        //     ->first();
 
         if ($mitra == null) {
             return response()->json([
