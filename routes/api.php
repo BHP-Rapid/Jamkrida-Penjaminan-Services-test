@@ -308,6 +308,11 @@ Route::prefix('/v2/penjaminan/kontra-bank-garansi')->group(function () {
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
     ]);
+    Route::post('/submit-draft/{trx_no}', [KBGTransactionController::class, 'submitDraft'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 });
 
 //PENJAMINAN KONSTRUKSI
