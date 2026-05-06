@@ -676,7 +676,7 @@ class KreditUsaha
         $dataHeader = $this->repository->getHeader($trx_no, $no_surat_permohonan, $isSplit);
 
         if (!$dataHeader) {
-            return ['message' => 'Data tidak ditemukan'];
+            return ['success' => false, 'message' => 'Data tidak ditemukan'];
         }
         $dataHeader->each(function ($row) use ($key) {
             $decryptedNik = AesHelper::decrypt($row->nik, $key);
@@ -705,7 +705,7 @@ class KreditUsaha
         $dataHeader = $this->repository->getHeaderList($trx_no, $no_surat_permohonan, $isSplit);
 
         if (!$dataHeader) {
-            return ['message' => 'Data tidak ditemukan'];
+            return ['success' => false, 'message' => 'Data tidak ditemukan'];
         }
 
         $dataDebitur = $this->repository->dataDebitur($dataHeader->id_kredit_usaha_transaction);
@@ -761,7 +761,8 @@ class KreditUsaha
                     'debitur_list_unpaid' => $listUnpaid ?? null,
                 ];
             })->values();
-        return $result;
+
+        return ['success' => true, 'data' => $result];
     }
 
     public function uploadPembayaranManual($request)

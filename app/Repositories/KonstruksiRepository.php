@@ -168,7 +168,7 @@ class KonstruksiRepository
     }
     public function dataHeader($trx_no, $no_surat_permohonan, $isSplit)
     {
-        PenjaminanTransaction::query()
+        return PenjaminanTransaction::query()
             ->from('transaction_penjaminan_header as tph')
             ->join('multiguna_trx_kreditkonstruksi as kut', 'tph.trx_no', '=', 'kut.trx_no')
             ->join('trx_debitur_construction as td', 'kut.id_multiguna_konstruksi', '=', 'td.id_multiguna_konstruksi')
@@ -193,7 +193,7 @@ class KonstruksiRepository
     }
     public function dataHeaderList($trx_no, $no_surat_permohonan, $isSplit)
     {
-        PenjaminanTransaction::query()
+        return PenjaminanTransaction::query()
             ->from('transaction_penjaminan_header as tph')
             ->join('multiguna_trx_kreditkonstruksi as kut', 'tph.trx_no', '=', 'kut.trx_no')
             ->where('tph.trx_no', $trx_no)
@@ -207,7 +207,7 @@ class KonstruksiRepository
     }
     public function dataUnpaid($trx_no)
     {
-        KonstruksiDebiturInvoiceHeader::query()
+        return KonstruksiDebiturInvoiceHeader::query()
             ->from('konstruksi_debitur_invoice_header as dih')
             // DB::table('konstruksi_debitur_invoice_header as dih')
             ->join('konstruksi_debitur_tenor_schedule as dts', 'dih.invoice_id', '=', 'dts.invoice_id')
