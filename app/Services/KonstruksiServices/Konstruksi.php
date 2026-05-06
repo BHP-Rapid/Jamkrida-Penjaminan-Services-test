@@ -751,7 +751,6 @@ class Konstruksi
                 ];
             })->values();
 
-
         return ['success' => true, 'data' => $result];
     }
     public function uploadPembayaranManual($request)

@@ -23,13 +23,10 @@ class KreditUsahaController extends Controller
     {
         $this->service = $service;
     }
-    public function show(Request $request)
+    public function show($id)
     {
         try {
-            $data = $this->service->getDetail(
-                $request->query('trx_no'),
-                $request->query('no_surat_permohonan')
-            );
+            $data = $this->service->getDetail($id);
 
             if (!$data) {
                 return ApiResponse::error("Data Not Found", 404);
