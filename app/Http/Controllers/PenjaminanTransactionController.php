@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ApiResponse;
 use App\Services\PenjaminanTransactionService;
+use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 class PenjaminanTransactionController extends Controller
@@ -20,27 +22,41 @@ class PenjaminanTransactionController extends Controller
                 'success' => true,
                 'data' => $result
             ]);
-        } catch (\Exception $ex) {
-            return response()->json([
-                'message' => 'Error occurred while fetching data',
-                'error' => $ex->getMessage()
-            ], 500);
+        } catch (ValidationException $e) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $e->errors()
+            );
+        } catch (Exception $ex) {
+            return ApiResponse::error($ex->getMessage(), 500);
         }
     }
 
     public function uploadAdditionalDoc(Request $req)
     {
         try {
-            return $this->penjaminanService->storeAdditionalDoc($req);
-            return response()->json([
-                'success' => true,
-                'data' => $result
+            $validated  = $req->validate([
+                'penjaminan_no' => 'required|string',
+                'no_surat_permohonan' => 'required|string',
+                'FormFile.*' => 'string',
             ]);
-        } catch (\Exception $ex) {
-            return response()->json([
-                'message' => 'Error occurred while fetching data',
-                'error' => $ex->getMessage()
-            ], 500);
+            $payload = array_merge($validated, [
+                '_meta' => [
+                    'method' => $req->method(),
+                    'url' => $req->fullUrl(),
+                ]
+            ]);
+            $result = $this->penjaminanService->storeAdditionalDoc($payload);
+            return ApiResponse::success($result, 'Additional document uploaded successfully');
+        } catch (ValidationException $e) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $e->errors()
+            );
+        } catch (Exception $ex) {
+            return ApiResponse::error($ex->getMessage(), 500);
         }
     }
 
@@ -49,18 +65,30 @@ class PenjaminanTransactionController extends Controller
         try {
             $result = $this->penjaminanService->getAdditionalDocProduct($req);
             return ApiResponse::success($result);
-        } catch (\Exception $e) {
-            return ApiResponse::error($e->getMessage(), 500);
+        } catch (ValidationException $e) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $e->errors()
+            );
+        } catch (Exception $ex) {
+            return ApiResponse::error($ex->getMessage(), 500);
         }
     }
 
-    public function  GetDetailCertificateByID(Request $req): JsonResponse
+    public function  GetDetailCertificateByID(Request $req)
     {
         try {
             $result = $this->penjaminanService->getDetailCertificateByID($req);
             return ApiResponse::success($result);
-        } catch (\Exception $e) {
-            return ApiResponse::error($e->getMessage(), 500);
+        } catch (ValidationException $e) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $e->errors()
+            );
+        } catch (Exception $ex) {
+            return ApiResponse::error($ex->getMessage(), 500);
         }
     }
 }

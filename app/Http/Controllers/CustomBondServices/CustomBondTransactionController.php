@@ -19,7 +19,7 @@ class CustomBondTransactionController extends Controller
     public function show(Request $request)
     {
         try {
-            $validator = Validator::make($request->query(), [
+            $validated = $request->validate([
                 'trx_no' => 'required|string|max:100',
                 'no_surat_permohonan' => 'required|string|max:100'
             ], [
@@ -28,12 +28,7 @@ class CustomBondTransactionController extends Controller
                 'no_surat_permohonan.required' => 'no_surat_permohonan is required',
                 'no_surat_permohonan.string' => 'no_surat_permohonan must be a string'
             ]);
-
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-
-            $payload = $validator->validated();
+            $payload = $validated;
             $data = $this->customBondService->getDetail($payload['trx_no'], $payload['no_surat_permohonan']);
             return ApiResponse::success($data, 'Data retrieved successfully');
         } catch (ValidationException $ex) {
@@ -175,9 +170,7 @@ class CustomBondTransactionController extends Controller
     {
         $user = AuthUserHelper::getUser($request);
         try {
-            $validator = Validator::make(
-                $request->all(),
-                [
+            $validated = $request->validate([
                     'data.trx_status' => 'required|string|in:D,NA',
                     'data.noSuratPermohonan' => 'required|string|max:50',
                     'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
@@ -212,13 +205,7 @@ class CustomBondTransactionController extends Controller
                     'data.tglSuratPermohonan.required' => 'Tanggal Surat Permohonan is required',
                 ]
             );
-
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-
-            $payload = $validator->validated();
-            dd($payload);
+            $payload = $validated;
             $result = $this->customBondService->updateDraft($payload, $trxNo, $user);
             return ApiResponse::success($result);
         } catch (ValidationException $ex) {
@@ -258,9 +245,9 @@ class CustomBondTransactionController extends Controller
 
     public function uploadPembayaranManual(Request $request)
     {
-     
+
         try {
-            $validator = Validator::make($request->all(), [
+            $validated = $request->validate([
                 'trx_no' => 'required|string|max:100',
                 'amount' => 'required|numeric|min:0',
                 'selected_items' => 'required|string',
@@ -271,11 +258,8 @@ class CustomBondTransactionController extends Controller
                 'file.required' => 'file is required'
             ]);
 
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
 
-            $payload = $validator->validated();
+            $payload = $validated;
             $payload['selected_items'] = json_decode($payload['selected_items'], true);
             $payload['file'] = $request->file('file');
 
@@ -302,8 +286,7 @@ class CustomBondTransactionController extends Controller
     public function submitDraft(Request $request, string $trxNo)
     {
         try {
-            $validator = Validator::make(
-                $request->all(),
+            $validated = $request->validate(
                 [
                     'data.noSuratPermohonan' => 'required|string|max:50',
                     'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
@@ -331,10 +314,7 @@ class CustomBondTransactionController extends Controller
                     'data.tarif' => 'nullable|numeric|min:0'
                 ]
             );
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-            $validated = $validator->validated();
+            $validated = $validated;
             $payload = $validated['data'];
             // dd($payload);
             $result = $this->customBondService->processSubmitDraft($payload, $trxNo);
@@ -354,17 +334,12 @@ class CustomBondTransactionController extends Controller
     public function GetDetailPaymentCstb(Request $request)
     {
         try {
-            $validator = Validator::make($request->query(), [
+            $validated = $request->validate([
                 'no_surat_permohonan' => 'required|string|max:100',
                 'trx_no' => 'required|string|max:100',
                 'is_split' => 'nullable|integer|in:0,1'
             ]);
-
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-
-            $payload = $validator->validated();
+            $payload = $validated;
             $payload['is_split'] = array_key_exists('is_split', $payload)
                 ? (int) $payload['is_split']
                 : null;

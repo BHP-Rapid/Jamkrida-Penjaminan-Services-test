@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\MultigunaServices;
 
 use App\Helpers\ApiResponse;
+use App\Helpers\AuthUserHelper;
 use App\Services\CreatioService;
 use App\Services\MultigunaService\MultigunaService;
 use App\Models\TenantMitra;
@@ -23,20 +24,18 @@ class MultigunaController extends Controller
 
     public function store(Request $request)
     {
-        $user = auth('sanctum')->user();
-
-        $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
-            ->select('mitra_id', 'alias')
-            ->first();
-
-        if (!$tenantMitraData) {
-            return ApiResponse::error('Tenant Mitra not found for the authenticated user', 404);
+        $user = AuthUserHelper::getUser($request);
+        $trxStatus = $request->input('data.trx_status');
+        if ($trxStatus === 'D') {
+            if ($request->has('data.dataDebitur') || $request->has('data.dataInstitution')) {
+                return ApiResponse::error(
+                    'Excel tidak boleh diisi jika ingin Save as Draft',
+                    400
+                );
+            }
         }
-
-        $mitraAlias = $tenantMitraData->alias;
-
         try {
-            $this->validate($request, [
+            $validated = $request->validate([
                 'data.noSuratPermohonan' => 'required|string',
                 'data.pks' => 'required|string',
                 'data.jenisProduk' => 'required|string',
@@ -55,11 +54,9 @@ class MultigunaController extends Controller
                 'data.tariftarifPercentage' => 'nullable|numeric',
             ]);
 
-            if ($request->data['trx_status'] == 'D') {
-                if ($request->has('data.dataDebitur') || $request->has('data.dataInstitution')) {
-                    return ApiResponse::error('Data Debitur and Institution should not be included when trx_status is D', 500);
-                }
-            }
+            $payload = $validated;
+            $payload['key'] = base64_decode(config('services.secure.key'));
+            $files = $request->allFiles();
 
             $penjaminanPKSResponse = $this->getPenjaminanPKS();
             $penjaminanPKSData = $penjaminanPKSResponse->getData(true);
@@ -68,23 +65,33 @@ class MultigunaController extends Controller
                 return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
             }
 
-            $this->multigunaService->storeMultiguna($request, $user, $mitraAlias, $penjaminanPKSData);
+            $result = $this->multigunaService->storeMultiguna(
+                $payload,
+                $user,
+                $penjaminanPKSData,
+                $files
+            );
 
-            return ApiResponse::success([], 'Data berhasil disimpan');
+            return ApiResponse::success($result, 'Data berhasil disimpan');
         } catch (Exception $ex) {
             $status = $ex->getCode() === 422 ? 422 : 500;
             return ApiResponse::error('Error While Storing Multiguna: ' . $ex->getMessage(), $status);
         }
     }
 
-    public function show($id)
+    public function show(Request $request)
     {
-        if (empty($id)) {
-            return ApiResponse::error('ID is required', 400);
-        }
-
         try {
-            $data = $this->multigunaService->getMultigunaDetailWithAttachments($id);
+            $validated = $request->validate([
+                'trx_no' => 'required|string|max:100',
+                'no_surat_permohonan' => 'required|string|max:100'
+            ], [
+                'trx_no.required' => 'trx_no is required',
+                'trx_no.string' => 'trx_no must be a string',
+                'no_surat_permohonan.required' => 'no_surat_permohonan is required',
+                'no_surat_permohonan.string' => 'no_surat_permohonan must be a string'
+            ]);
+            $data = $this->multigunaService->getMultigunaDetailWithAttachments($validated);
             return ApiResponse::success($data, 'Data retrieved successfully');
         } catch (Exception $ex) {
             return ApiResponse::error('Error While Get Data Multiguna: ' . $ex->getMessage(), 500);
@@ -93,7 +100,7 @@ class MultigunaController extends Controller
 
     public function updateDraft(Request $request, $trxNo)
     {
-        $user = auth('sanctum')->user();
+        $user = AuthUserHelper::getUser($request);
         try {
             $this->multigunaService->updateMultigunaDraft(
                 $trxNo,
@@ -166,7 +173,7 @@ class MultigunaController extends Controller
     {
         try {
 
-            $validator = Validator::make($request->query(), [
+            $validated = $request->validate([
                 'no_surat_permohonan' => 'required|string|max:100',
                 'trx_no' => 'required|string|max:100',
                 'is_split' => 'nullable|integer|in:0,1'
@@ -175,10 +182,8 @@ class MultigunaController extends Controller
                 'trx_no.required' => 'trx_no is required'
             ]);
 
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-            $payload = $validator->validated();
+
+            $payload = $validated;
             $payload['is_split'] = array_key_exists('is_split', $payload) ? (int) $payload['is_split'] : null;
             $payload['key'] = base64_decode(config('services.secure.key'));
             $result = $this->multigunaService->processGetDetailPaymentMLT($payload);
@@ -198,7 +203,7 @@ class MultigunaController extends Controller
     {
         try {
 
-            $validator = Validator::make($request->query(), [
+            $validated = $request->validate([
                 'no_surat_permohonan' => 'required|string|max:100',
                 'trx_no' => 'required|string|max:100',
                 'is_split' => 'nullable|integer|in:0,1'
@@ -207,10 +212,8 @@ class MultigunaController extends Controller
                 'trx_no.required' => 'trx_no is required'
             ]);
 
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-            $payload = $validator->validated();
+
+            $payload = $validated;
             $payload['is_split'] = array_key_exists('is_split', $payload) ? (int) $payload['is_split'] : null;
             $payload['key'] = base64_decode(config('services.secure.key'));
             $result = $this->multigunaService->processGetDetailListPaymentMLT($payload);

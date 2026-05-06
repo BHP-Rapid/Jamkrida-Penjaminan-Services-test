@@ -216,37 +216,43 @@ Route::prefix('/v2/penjaminan/surety-bond')->group(function () {
 });
 
 Route::prefix('/v2/penjaminan/kredit-mikro-kecil')->group(function () {
-    Route::post('/v2/penjaminan/kredit-mikro-kecil/create', [KreditMikroKecilController::class, 'store'])->middleware([
+    Route::post('/create', [KreditMikroKecilController::class, 'store'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
     ]);
-    Route::post('/v2/penjaminan/kredit-mikro-kecil/approve-penjaminan', [KreditMikroKecilController::class, 'ApprovePenjaminanKMK'])->middleware([
+    Route::post('/approve-penjaminan', [KreditMikroKecilController::class, 'ApprovePenjaminanKMK'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan.approval,read,create,update,delete,approve',
     ]);
-    Route::get('/v2/penjaminan/template-base/download-template', [KreditMikroKecilController::class, 'DownloadTemplateKMK'])->middleware([
+    Route::get('/template-base/download-template', [KreditMikroKecilController::class, 'DownloadTemplateKMK'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
     ]);
-    Route::put('/v2/penjaminan/kredit-mikro-kecil/update-draft/{trxNo}', [KreditMikroKecilController::class, 'updateDraft'])->middleware([
+    Route::get('/detail-kmk', [KreditMikroKecilController::class, 'show'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
     ]);
-    Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-full-kmk', [KreditMikroKecilController::class, 'GetDetailPaymentKMK'])->middleware([
+    Route::put('/update-draft/{trxNo}', [KreditMikroKecilController::class, 'updateDraft'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
     ]);
-    Route::get('/v2/penjaminan/kredit-mikro-kecil/detail-installment-kmk-list', [KreditMikroKecilController::class, 'GetDetailListPaymentKMK'])->middleware([
+    Route::get('/detail-full-kmk', [KreditMikroKecilController::class, 'GetDetailPaymentKMK'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
     ]);
-    Route::post('/v2/penjaminan/kredit-mikro-kecil/upload-bukti-bayar-manual', [KreditMikroKecilController::class, 'UploadPembayaranManualKMK'])->middleware([
+    Route::get('/detail-installment-kmk-list', [KreditMikroKecilController::class, 'GetDetailListPaymentKMK'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+
+    Route::post('/upload-bukti-bayar-manual', [KreditMikroKecilController::class, 'UploadPembayaranManualKMK'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
@@ -293,7 +299,7 @@ Route::prefix('/v2/penjaminan/kredit-usaha-rakyat')->group(function () {
 });
 
 Route::prefix('/v2/penjaminan/kontra-bank-garansi')->group(function () {
-    Route::post('/create' ,[KBGTransactionController::class, 'store'])->middleware([
+    Route::post('/create', [KBGTransactionController::class, 'store'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',

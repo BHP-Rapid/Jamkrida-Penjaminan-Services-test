@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Validator;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
-
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class PenjaminanTransactionService
 {
@@ -35,32 +35,29 @@ class PenjaminanTransactionService
         return $this->repository->getTransactionList($params);
     }
 
-    public function storeAdditionalDoc(Request $req)
+    public function storeAdditionalDoc(array $payload)
     {
-        $method = $req->method();
-        $fullUrl = $req->fullUrl();
-        $auditPayload = $req->all();
+        $method = $payload['_meta']['method'] ?? null;
+        $fullUrl = $payload['_meta']['url'] ?? null;
+        $auditPayload = $payload;
 
         try {
-            $req->validate([
-                'penjaminan_no' => 'required|string',
-                'no_surat_permohonan' => 'required|string',
-                'FormFile.*' => 'string',
-            ]);
-            $formFiles = $req->input('FormFile');
-            $penjaminanNo = $req->input('penjaminan_no');
-            $noSuratPermohonan = $req->input('no_surat_permohonan');
-            $product = $req->input('product');
-            $noSpDetail = $req->input('no_sp_detail');
+
+            $formFiles = $payload['FormFile'] ?? [];
+            $penjaminanNo = $payload['penjaminan_no'] ?? null;
+            $noSuratPermohonan = $payload['no_surat_permohonan'] ?? null;
+            $product = $payload['product'] ?? null;
+            $noSpDetail = $payload['no_sp_detail'] ?? null;
             $listDocs = [];
             $getDataPenjaminanFlow = null;
             $fileData = $formFiles;
             $checkValidData = $this->repository->findValidAdditionalDocTransaction($penjaminanNo, $noSuratPermohonan);
             if ($checkValidData === null) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Penjaminan No tidak terdaftar'
-                ], 404);
+                // return response()->json([
+                //     'status' => 'error',
+                //     'message' => 'Penjaminan No tidak terdaftar'
+                // ], 404);
+                throw new NotFoundHttpException('Penjaminan No tidak terdaftar');
             }
             if ($product === 'mlt') {
                 $getDataPenjaminanFlow = $this->repository->getMultigunaPenjaminanFlow($penjaminanNo, $noSpDetail);
@@ -82,7 +79,7 @@ class PenjaminanTransactionService
             }
             file_put_contents(storage_path('app/additionalDoc.zip'), $decodedFile);
             $unzipResult = ZipHelper::unzipBase64($decodedFile, 'additional');
-            $requestBody = $req->all();
+            $requestBody = $payload;
             unset($requestBody["FormFile"]);
             $mergedBody = array_merge($requestBody, $unzipResult);
             json_encode($mergedBody);
@@ -97,6 +94,7 @@ class PenjaminanTransactionService
                 });
             }
             $namaDocs = array_map(fn($doc) => $doc['NamaDokumen'] ?? null, $listDocs);
+            $directories = [];
             $missingDirsForDocs = array_values(array_diff($namaDocs, $directories));
             $extraDirsNoDocs    = array_values(array_diff($directories, $namaDocs));
             $matched            = array_values(array_intersect($namaDocs, $directories));

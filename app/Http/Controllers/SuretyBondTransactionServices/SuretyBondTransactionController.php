@@ -9,8 +9,7 @@ use App\Services\SuretyBondServices\SuretyBond as SuretyBondTransactionService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Validator;
-use Symfony\Component\HttpKernel\Exception\HttpException;
+
 
 class SuretyBondTransactionController extends Controller
 {
@@ -21,7 +20,7 @@ class SuretyBondTransactionController extends Controller
     public function show(Request $request)
     {
         try {
-            $validator = Validator::make($request->query(), [
+            $validated = $request->validate([
                 'trx_no' => 'required|string|max:100',
                 'no_surat_permohonan' => 'required|string|max:100'
             ], [
@@ -30,13 +29,7 @@ class SuretyBondTransactionController extends Controller
                 'no_surat_permohonan.required' => 'no_surat_permohonan is required',
                 'no_surat_permohonan.string' => 'no_surat_permohonan must be a string'
             ]);
-
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-
-            $payload = $validator->validated();
-            $data = $this->suretyBondService->handleShow($payload);
+            $data = $this->suretyBondService->handleShow($validated);
             return ApiResponse::success($data, 'Data retrieved successfully');
         } catch (ValidationException $e) {
             return ApiResponse::error(
@@ -63,97 +56,80 @@ class SuretyBondTransactionController extends Controller
                 'data.jenisBond' => 'required|string|max:70',
                 'data.jenisBondDescription' => 'required|string|max:255',
             ];
+            $submitRules = [
+                'data.noSuratPermohonan' => 'required|string|max:50',
+                'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
+                'data.isSplit' => 'required|boolean',
+                'data.jenisPernyataan' => 'required|string|max:50',
+                'data.skemaPenalty' => 'required|string|max:50',
+                'data.sektor' => 'required|string|max:50',
+                'data.namaPrincipal' => 'required|string|max:255',
+                'data.namaObligee' => 'required|string|max:255',
+                'data.isBast' => 'nullable|boolean',
+                'data.noSuratBast' => 'required_if:data.isBast,true|nullable|string|max:50',
+                'data.tglSuratBast' => 'required_if:data.isBast,true|nullable|date',
+                'data.namaProyek' => 'required|string|max:100',
+                'data.nilaiProyek' => 'required|numeric|min:0',
+                'data.nilaiBond' => 'required|numeric|min:0',
+                'data.nilaiBondPersentase' => 'required|numeric|min:0',
+                'data.periodeAwalBerlaku' => 'required|date_format:Y-m-d',
+                'data.periodeAkhirBerlaku' => 'required|date_format:Y-m-d',
+                'data.jangkaWaktu' => 'required|numeric|min:0',
+                'data.propinsi' => 'required|string|max:50',
+                'data.jenisSuratPerjanjian' => 'required|string|max:64',
+                'data.noSuratPerjanjian' => 'required|string|max:64',
+                'data.tglSuratPerjanjian' => 'required|date_format:Y-m-d',
+                'data.lampiran' => 'required|array|min:1',
+                'data.lampiran.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
+                'data.lampiran.*.lampiran_id' => 'required|string',
+                'data.nilaiAgunan' => 'required|numeric|min:0',
+            ];
 
-            if ($status === 'submit') {
-                $validator = Validator::make($request->all(), array_merge($baseRules, [
-                    'data.noSuratPermohonan' => 'required|string|max:50',
-                    'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
-                    'data.isSplit' => 'required|boolean',
-                    'data.jenisPernyataan' => 'required|string|max:50',
-                    'data.skemaPenalty' => 'required|string|max:50',
-                    'data.sektor' => 'required|string|max:50',
-                    'data.namaPrincipal' => 'required|string|max:255',
-                    'data.namaObligee' => 'required|string|max:255',
-                    'data.isBast' => 'nullable|boolean',
-                    'data.noSuratBast' => 'required_if:data.isBast,true|nullable|string|max:50',
-                    'data.tglSuratBast' => 'required_if:data.isBast,true|nullable|date',
-                    'data.namaProyek' => 'required|string|max:100',
-                    'data.nilaiProyek' => 'required|numeric|min:0',
-                    'data.nilaiBond' => 'required|numeric|min:0',
-                    'data.nilaiBondPersentase' => 'required|numeric|min:0',
-                    'data.periodeAwalBerlaku' => 'required|date_format:Y-m-d',
-                    'data.periodeAkhirBerlaku' => 'required|date_format:Y-m-d',
-                    'data.jangkaWaktu' => 'required|numeric|min:0',
-                    'data.propinsi' => 'required|string|max:50',
-                    'data.jenisSuratPerjanjian' => 'required|string|max:64',
-                    'data.noSuratPerjanjian' => 'required|string|max:64',
-                    'data.tglSuratPerjanjian' => 'required|date_format:Y-m-d',
-                    'data.lampiran' => 'required|array|min:1',
-                    'data.lampiran.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
-                    'data.lampiran.*.lampiran_id' => 'required|string',
-                    'data.nilaiAgunan' => 'required|numeric|min:0',
-                ]), [
-                    'data.status.required' => 'status is required',
-                    'data.status.in' => 'status must be draft or submit',
-                ]);
-            } else {
-                $validator = Validator::make(
-                    $request->all(),
-                    array_merge($baseRules, [
-                        'data.noSuratPermohonan' => 'nullable|string|max:50',
-                        'data.tglSuratPermohonan' => 'nullable|date_format:Y-m-d',
-                        'data.isSplit' => 'nullable|boolean',
-                        'data.jenisPernyataan' => 'nullable|string|max:50',
-                        'data.skemaPenalty' => 'nullable|string|max:50',
-                        'data.sektor' => 'nullable|string|max:50',
-                        'data.namaPrincipal' => 'nullable|string|max:255',
-                        'data.namaObligee' => 'nullable|string|max:255',
-                        'data.isBast' => 'nullable|boolean',
-                        'data.noSuratBast' => 'required_if:data.isBast,true|nullable|string|max:50',
-                        'data.tglSuratBast' => 'required_if:data.isBast,true|nullable|date',
-                        'data.namaProyek' => 'nullable|string|max:100',
-                        'data.nilaiProyek' => 'nullable|numeric|min:0',
-                        'data.nilaiBond' => 'nullable|numeric|min:0',
-                        'data.nilaiBondPersentase' => 'nullable|numeric|min:0',
-                        'data.periodeAwalBerlaku' => 'nullable|date_format:Y-m-d',
-                        'data.periodeAkhirBerlaku' => 'nullable|date_format:Y-m-d',
-                        'data.jangkaWaktu' => 'nullable|numeric|min:0',
-                        'data.propinsi' => 'nullable|string|max:50',
-                        'data.jenisSuratPerjanjian' => 'nullable|string|max:64',
-                        'data.noSuratPerjanjian' => 'nullable|string|max:64',
-                        'data.tglSuratPerjanjian' => 'nullable|date_format:Y-m-d',
-                        'data.lampiran' => 'nullable|array',
-                        'data.lampiran.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
-                        'data.lampiran.*.lampiran_id' => 'required|string',
-                        'data.nilaiAgunan' => 'nullable|numeric|min:0',
-                    ]),
-                    [
-                        'data.status.required' => 'status is required',
-                        'data.status.in' => 'status must be draft or submit',
-                    ]
-                );
-            }
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
+            $draftRules = [
+                'data.noSuratPermohonan' => 'nullable|string|max:50',
+                'data.tglSuratPermohonan' => 'nullable|date_format:Y-m-d',
+                'data.isSplit' => 'nullable|boolean',
+                'data.jenisPernyataan' => 'nullable|string|max:50',
+                'data.skemaPenalty' => 'nullable|string|max:50',
+                'data.sektor' => 'nullable|string|max:50',
+                'data.namaPrincipal' => 'nullable|string|max:255',
+                'data.namaObligee' => 'nullable|string|max:255',
+                'data.isBast' => 'nullable|boolean',
+                'data.noSuratBast' => 'required_if:data.isBast,true|nullable|string|max:50',
+                'data.tglSuratBast' => 'required_if:data.isBast,true|nullable|date',
+                'data.namaProyek' => 'nullable|string|max:100',
+                'data.nilaiProyek' => 'nullable|numeric|min:0',
+                'data.nilaiBond' => 'nullable|numeric|min:0',
+                'data.nilaiBondPersentase' => 'nullable|numeric|min:0',
+                'data.periodeAwalBerlaku' => 'nullable|date_format:Y-m-d',
+                'data.periodeAkhirBerlaku' => 'nullable|date_format:Y-m-d',
+                'data.jangkaWaktu' => 'nullable|numeric|min:0',
+                'data.propinsi' => 'nullable|string|max:50',
+                'data.jenisSuratPerjanjian' => 'nullable|string|max:64',
+                'data.noSuratPerjanjian' => 'nullable|string|max:64',
+                'data.tglSuratPerjanjian' => 'nullable|date_format:Y-m-d',
+                'data.lampiran' => 'nullable|array',
+                'data.lampiran.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
+                'data.lampiran.*.lampiran_id' => 'required|string',
+                'data.nilaiAgunan' => 'nullable|numeric|min:0',
+            ];
 
-            $payload = $validator->validated();
-            $result = $this->suretyBondService->handleStore($payload, $user);
-            return ApiResponse::success(
-                $result,
-                'Data has been successfully created'
-            );
+            $rules = $status === 'submit'
+                ? array_merge($baseRules, $submitRules)
+                : array_merge($baseRules, $draftRules);
+
+            $validated = $request->validate($rules, [
+                'data.status.required' => 'status is required',
+                'data.status.in' => 'status must be draft or submit',
+            ]);
+
+            $result = $this->suretyBondService->handleStore($validated, $user);
+
+            return ApiResponse::success($result, 'Data has been successfully created');
         } catch (ValidationException $e) {
-            return ApiResponse::error(
-                'Validation error',
-                422,
-                $e->errors()
-            );
+            return ApiResponse::error('Validation error', 422, $e->errors());
         } catch (Exception $ex) {
-            return ApiResponse::error(
-                $ex->getMessage(),
-                $ex->getCode() ?: 500
-            );
+            return ApiResponse::error($ex->getMessage(), $ex->getCode() ?: 500);
         }
     }
 
@@ -161,7 +137,7 @@ class SuretyBondTransactionController extends Controller
     {
         try {
             $user = AuthUserHelper::getUser($request);
-            $validator = Validator::make(['trxNo' => $trxNo], [
+            $validated = $request->validate([
                 'data.noSuratPermohonan' => 'nullable|string|max:50',
                 'data.tglSuratPermohonan' => 'nullable|date_format:Y-m-d',
                 'data.isSplit' => 'nullable|boolean',
@@ -189,12 +165,7 @@ class SuretyBondTransactionController extends Controller
                 'data.lampiran.*.lampiran_id' => 'required|string',
                 'data.nilaiAgunan' => 'nullable|numeric|min:0',
             ]);
-
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-            $payload = $validator->validated();
-            $result = $this->suretyBondService->updateDraft($payload, $trxNo, $user);
+            $result = $this->suretyBondService->updateDraft($validated, $trxNo, $user);
             return ApiResponse::success($result);
         } catch (ValidationException $e) {
             return ApiResponse::error(
@@ -214,7 +185,7 @@ class SuretyBondTransactionController extends Controller
     {
         try {
             $user = AuthUserHelper::getUser($request);
-            $validator = Validator::make(array_merge($request->all(), ['trxNo' => $trxNo]), [
+            $validated = $request->validate([
                 'data.noSuratPermohonan' => 'required|string|max:50',
                 'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
                 'data.isSplit' => 'required|boolean',
@@ -243,13 +214,7 @@ class SuretyBondTransactionController extends Controller
                 'data.lampiranEdit.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
                 'data.lampiranEdit.*.lampiran_id' => 'required|string',
             ]);
-
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-            $payload = $validator->validated();
-            // dd($payload);
-            $result = $this->suretyBondService->handleSubmitDraft($payload, $trxNo, $user);
+            $result = $this->suretyBondService->handleSubmitDraft($validated, $trxNo, $user);
             return ApiResponse::success($result);
         } catch (ValidationException $e) {
             return ApiResponse::error(
@@ -268,19 +233,12 @@ class SuretyBondTransactionController extends Controller
     public function approvePenjaminanSB(Request $request)
     {
         try {
-            $validator = Validator::make($request->all(), [
+            $validated = $request->validate([
                 'trxNo' => 'required|string|max:100'
             ], [
                 'trxNo.required' => 'trxNo is required'
             ]);
-
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-
-            $payload = $validator->validated();
-            $result = $this->suretyBondService->handleApprovePenjaminanSB($payload['trxNo']);
-
+            $result = $this->suretyBondService->handleApprovePenjaminanSB($validated['trxNo']);
             return ApiResponse::success($result);
         } catch (ValidationException $e) {
             return ApiResponse::error(
@@ -299,7 +257,7 @@ class SuretyBondTransactionController extends Controller
     public function getDetailPaymentSrtb(Request $request)
     {
         try {
-            $validator = Validator::make($request->query(), [
+            $validated = $request->validate([
                 'no_surat_permohonan' => 'required|string|max:100',
                 'trx_no' => 'required|string|max:100',
                 'is_split' => 'nullable|integer|in:0,1'
@@ -308,11 +266,7 @@ class SuretyBondTransactionController extends Controller
                 'trx_no.required' => 'trx_no is required'
             ]);
 
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-
-            $payload = $validator->validated();
+            $payload = $validated;
             $payload['is_split'] = array_key_exists('is_split', $payload) ? (int) $payload['is_split'] : null;
             $payload['key'] = base64_decode(config('services.secure.key'));
             $data = $this->suretyBondService->handleGetDetailPaymentSrtb($payload);
@@ -328,7 +282,7 @@ class SuretyBondTransactionController extends Controller
     public function uploadPembayaranManual(Request $request)
     {
         try {
-            $validator = Validator::make($request->all(), [
+            $validated = $request->validate([
                 'trx_no' => 'required|string|max:100',
                 'amount' => 'required|numeric|min:0',
                 'selected_items' => 'required|string',
@@ -339,19 +293,11 @@ class SuretyBondTransactionController extends Controller
                 'file.required' => 'file is required'
             ]);
 
-            if ($validator->fails()) {
-                throw new ValidationException($validator);
-            }
-
-            $payload = $validator->validated();
+            $payload = $validated;
             $payload['selected_items'] = json_decode($payload['selected_items'], true);
             $payload['file'] = $request->file('file');
             $message = $this->suretyBondService->handleUploadPembayaranManual($payload);
-
-            return response()->json([
-                'success' => true,
-                'message' => $message
-            ]);
+           return ApiResponse::success($message);
         } catch (ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',

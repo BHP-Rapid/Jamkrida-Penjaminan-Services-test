@@ -29,26 +29,23 @@ class MultigunaRepository
 
     public function getMultigunaDebitur(int $multigunaId)
     {
-        $query = DB::table('institution as a')
+        return Institution::query()
+            ->from('institution as a')
             ->join('multiguna_debitur as b', 'a.institution_id', '=', 'b.institution_id')
             ->where('b.multiguna_trx_id', $multigunaId)
             ->select('b.*', 'a.*')
             ->get();
-
-        return $query;
     }
 
     public function getMultigunaLampiran(string $trxNo)
     {
         $query = PenjaminanLampiranDtl::where('trx_no', $trxNo)->get();
-
         return $query;
     }
 
     public function getMultigunaFlow(string $trxNo)
     {
         $query = PenjaminanFlow::where('trx_no', $trxNo)->orderBy('created_at', 'desc')->get();
-
         return $query;
     }
 

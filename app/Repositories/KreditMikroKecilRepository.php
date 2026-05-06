@@ -4,6 +4,9 @@ namespace App\Repositories;
 
 use App\Models\DebiturInvoiceHeader;
 use App\Models\DebiturTenorSchedule;
+use App\Models\Institution;
+use App\Models\PenjaminanFlow;
+use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
 use App\Models\TrxDebiturDefaultBase;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +41,29 @@ class KreditMikroKecilRepository
             ])
             ->get();
     }
+
+    public function getKmkDebitur(int $multigunaId)
+    {
+        return Institution::query()
+            ->from('institution as a')
+            ->join('trx_debitur as b', 'a.institution_id', '=', 'b.institution_id')
+            ->where('b.id_trx_debitur', $multigunaId)
+            ->select('b.*', 'a.*')
+            ->get();
+    }
+
+    public function getKMKLampiran(string $trxNo)
+    {
+        $query = PenjaminanLampiranDtl::where('trx_no', $trxNo)->get();
+        return $query;
+    }
+
+    public function getKMKFlow(string $trxNo)
+    {
+        $query = PenjaminanFlow::where('trx_no', $trxNo)->orderBy('created_at', 'desc')->get();
+        return $query;
+    }
+
 
     public function getUnpaidData(string $trx_no)
     {
@@ -144,5 +170,16 @@ class KreditMikroKecilRepository
                 'debitur_invoice_header.total_amount'
             )
             ->get();
+    }
+
+
+    public function getKmkDetail(string $trxNo)
+    {
+        $query = PenjaminanTransaction::join('multiguna_trx_kredit_mikro_kecil as mtkmk', 'transaction_penjaminan_header.trx_no', '=', 'mtkmk.trx_no')
+            ->where('transaction_penjaminan_header.trx_no', $trxNo)
+            ->select('transaction_penjaminan_header.*', 'mtkmk.*')
+            ->first();
+
+        return $query;
     }
 }

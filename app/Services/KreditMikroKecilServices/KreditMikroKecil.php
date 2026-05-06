@@ -3,7 +3,6 @@
 namespace App\Services\KreditMikroKecilServices;
 
 use App\Helpers\AesHelper;
-use App\Models\AjpDebiturInvoiceHeader;
 use App\Models\DebiturInvoiceHeader;
 use App\Models\DebiturPaymentGateway;
 use App\Models\DebiturTenorSchedule;
@@ -20,6 +19,7 @@ use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class KreditMikroKecil
@@ -27,29 +27,10 @@ class KreditMikroKecil
     public function __construct(
         protected KreditMikroKecilRepository $repository
     ) {}
-    public function processStore($request, $user)
+    public function processStore(array $payload, object $user)
     {
-        $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
-            ->select('mitra_id', 'alias', 'tenant_id')
-            ->first();
-
-        if (!$tenantMitraData) {
-            throw new Exception('Tenant mitra data not found.', 404);
-        }
-
-        $mitraAlias = $tenantMitraData->alias;
-        $tenant_ID = $tenantMitraData->tenant_id;
-
-        if ($request->data['trx_status'] == 'D') {
-            if (!empty($request->allFiles())) {
-                throw new Exception('File upload tidak diperbolehkan saat Save as Draft.', 422);
-            }
-        } else {
-            if (empty($request->allFiles())) {
-                throw new Exception('File upload wajib diisi (tidak ada file yang dikirim).', 422);
-            }
-        }
-
+        $mitraAlias = $user->alias;
+        $tenant_ID = $user->tenant_id;
         $penjaminanPKSResponse = $this->getPenjaminanPKS($user);
         $penjaminanPKSData = $penjaminanPKSResponse;
 
@@ -57,12 +38,12 @@ class KreditMikroKecil
             throw new Exception($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
         }
 
-        if (empty($request->allFiles()) && $request->data['trx_status'] !== 'D') {
+        if (empty($payload['files']) && $payload['data']['trx_status'] !== 'D') {
             throw new Exception('File upload wajib diisi (tidak ada file yang dikirim).', 422);
         }
 
-        $selectedPks = $request->data['selectedPks'];
-        $dataDebitur = $request->input('data.dataDebitur', []);
+        $selectedPks = $payload['data']['selectedPks'];
+        $dataDebitur = $payload['data']['dataDebitur'] ?? [];
 
         $result = $this->validateDebiturBatch($selectedPks, $penjaminanPKSData, $dataDebitur);
 
@@ -72,7 +53,7 @@ class KreditMikroKecil
 
         $dataDebitur = $result['dataDebitur'];
 
-        DB::transaction(function () use ($request, $user, $dataDebitur, $mitraAlias, $tenant_ID) {
+        DB::transaction(function () use ($payload, $user, $dataDebitur, $mitraAlias, $tenant_ID) {
 
             $currentYear = date('Y');
             $currentMonth = date('m');
@@ -91,16 +72,16 @@ class KreditMikroKecil
 
             $trxNo = 'PNJ-' . $currentYear . '-' . $currentMonth . '-' . str_pad($nextSeq, 4, '0', STR_PAD_LEFT);
 
-            $permohonanDate = Carbon::parse($request->data['tglSuratPermohonan'])->format('Y-m-d');
+            $permohonanDate = Carbon::parse($payload['data']['tglSuratPermohonan'])->format('Y-m-d');
             $nowJakarta = Carbon::now('Asia/Jakarta');
-            $spSplit = $request->boolean('data.spSplit');
+            $spSplit = $payload['data']['spSplit'];
 
             PenjaminanTransaction::create([
                 'trx_no' => $trxNo,
                 'sp_split' => $spSplit,
-                'no_surat_permohonan' => $request->data['noSuratPermohonan'],
+                'no_surat_permohonan' => $payload['data']['noSuratPermohonan'],
                 'tanggal_surat_permohonan' => $permohonanDate,
-                'trx_status' => $request->data['trx_status'],
+                'trx_status' => $payload['data']['trx_status'],
                 'status_sync_creatio' => 0,
                 'created_by_name' => $user->name,
                 'created_at' => $nowJakarta,
@@ -114,18 +95,18 @@ class KreditMikroKecil
                 'trx_no' => $trxNo,
                 'jenis_product' => 'kmk',
                 'jenis_product_description' => 'Kredit Mikro Kecil',
-                'pks_number' => $request->data['pks'],
-                'fee_base_number' => $request->data['feeBasePercentage'],
-                'fee_base_percentage' => $request->data['feeBasePercentage'],
-                'bank_name' => $request->data['bankCabang'],
-                'bank_code' => $request->data['bank'],
-                'text_certified' => $request->data['teksPenjaminanSp'],
+                'pks_number' => $payload['data']['pks'],
+                'fee_base_number' => $payload['data']['feeBasePercentage'],
+                'fee_base_percentage' => $payload['data']['feeBasePercentage'],
+                'bank_name' => $payload['data']['bankCabang'],
+                'bank_code' => $payload['data']['bank'],
+                'text_certified' => $payload['data']['teksPenjaminanSp'],
                 'created_at' => $nowJakarta,
             ]);
 
             $kmkId = $kmk->getKey();
 
-            $mitraId = $request->data['mitra_id'];
+            $mitraId = $payload['data']['mitra_id'];
             $prefix = $mitraId . $currentYear;
 
             $lastLoan = TrxDebiturDefaultBase::lockForUpdate()
@@ -144,7 +125,7 @@ class KreditMikroKecil
             $key = base64_decode(config('services.secure.key'));
             $hashKey = config('services.secure.hash_key');
 
-            $rowInstitutions = collect(data_get($request->data, 'dataInstitution', []))
+            $rowInstitutions = collect(data_get($payload['data'], 'dataInstitution', []))
                 ->pluck('institution_data')
                 ->filter()
                 ->map(function ($value, $idx) use ($nowJakarta, &$institutionMap, &$user, $key, $hashKey, $mitraAlias, $tenant_ID) {
@@ -204,10 +185,10 @@ class KreditMikroKecil
             $rows = collect($dataDebitur)
                 ->pluck('debitur_multiguna')
                 ->filter()
-                ->map(function (array $d, int $idx) use ($request, $kmkId, $nowJakarta, $prefix, $startSeq, $institutionMap, $key, $countDebitur) {
+                ->map(function (array $d, int $idx) use ($payload, $kmkId, $nowJakarta, $prefix, $startSeq, $institutionMap, $key, $countDebitur) {
 
                     $spSequence = $idx + 1;
-                    $baseSp = $request->data['noSuratPermohonan'];
+                    $baseSp = $payload['data']['noSuratPermohonan'];
                     $jwBulan = (int) ($d['jangka_waktu'] ?? 0);
                     $seq = $startSeq + $idx;
                     $loanNumber = $prefix . str_pad((string)$seq, 4, '0', STR_PAD_LEFT);
@@ -234,9 +215,9 @@ class KreditMikroKecil
                 TrxDebiturDefaultBase::insert($rows);
             }
 
-            $allFiles = $request->allFiles();
+            $allFiles = $payload['data']['allFiles'] ?? [];
             $debiturFiles = data_get($allFiles, 'data.dataDebitur', []);
-            $debiturInputs = $request->input('data.dataDebitur', []);
+            $debiturInputs = data_get($payload['data'], 'data.dataDebitur', []);
             $savedAttachments = [];
 
             foreach ($debiturFiles as $idx => $attachments) {
@@ -306,10 +287,10 @@ class KreditMikroKecil
                 DB::table('penjaminan_lampiran_dtl')->insert($savedAttachments);
             }
 
-            if ($request->data['trx_status'] != 'D') {
+            if ($payload['data']['trx_status'] != 'D') {
                 PenjaminanFlow::create([
                     'trx_no' => $trxNo,
-                    'trx_status' => $request->data['trx_status'],
+                    'trx_status' => $payload['data']['trx_status'],
                     'created_at' => $nowJakarta,
                     'created_by_id' => $user->user_id,
                     'created_by_name' => $user->name,
@@ -320,7 +301,95 @@ class KreditMikroKecil
         return true;
     }
 
-    public function getPenjaminanPKS($user)
+    public function handleShow(array $payload)
+    {
+        $trxNo = $payload['data']['trx_no'];
+        $penjaminanDetail = $this->repository->getKmkDetail($trxNo);
+
+        if (!$penjaminanDetail) {
+            throw new Exception('Data not found.',404);
+        }
+
+        $rows = $this->repository->getKmkDebitur($penjaminanDetail->id_multiguna);
+        $lampiran = $this->repository->getKMKLampiran($trxNo);
+
+        if ($rows->isNotEmpty()) {
+            $key = base64_decode(config('services.secure.key'));
+
+            foreach ($rows as $row) {
+                if ($row->birth_date) {
+                    $row->birth_date = AesHelper::decrypt($row->birth_date, $key);
+                }
+                if ($row->nik) {
+                    $row->nik = AesHelper::decrypt($row->nik, $key);
+                }
+                if ($row->id_number) {
+                    $row->id_number = AesHelper::decrypt($row->id_number, $key);
+                }
+                if ($row->tax_id) {
+                    $row->tax_id = AesHelper::decrypt($row->tax_id, $key);
+                }
+                if ($row->email_1) {
+                    $row->email_1 = AesHelper::decrypt($row->email_1, $key);
+                }
+                if ($row->phone_1) {
+                    $row->phone_1 = AesHelper::decrypt($row->phone_1, $key);
+                }
+                if ($row->current_salary_amount) {
+                    $row->current_salary_amount = AesHelper::decrypt($row->current_salary_amount, $key);
+                }
+                $row->attachments = [];
+            }
+
+            // Attach lampiran to debitur
+            foreach ($lampiran as $att) {
+                $filename = $att->file_name ?? basename($att->file_path ?? '');
+                if (!$filename) {
+                    continue;
+                }
+
+                $parts = explode('-', $filename);
+                $fileNik = $parts[0] ?? null;
+                if (!$fileNik) {
+                    continue;
+                }
+
+                foreach ($rows as $row) {
+                    if (!empty($row->nik) && $row->nik === $fileNik) {
+                        $item = [
+                            'id' => $att->id ?? null,
+                            'file_path' => $att->file_info ?? null,
+                            'key_lampiran' => $att->lampiran_id ?? null,
+                            'is_additional' => $att->is_additional ?? null,
+                            'status_doc' => $att->status_doc ?? null,
+                            'uploaded_at' => $att->created_at ?? null,
+                            'blob' => [
+                                'name' => $att->file_name ?? null,
+                            ],
+                            'presigned_url' => Storage::disk('s3')->temporaryUrl(
+                                $att->file_info,
+                                now()->addMinutes(15)
+                            ),
+                        ];
+                        $row->attachments[] = $item;
+                    }
+                }
+            }
+        }
+        $kmkFlow = $this->repository->getKMKFlow($trxNo);
+        if ($kmkFlow->isNotEmpty()) {
+            $penjaminanDetail->flowMultiguna = $kmkFlow;
+        }
+
+        if ($rows->isNotEmpty()) {
+            $penjaminanDetail->debiturMultiguna = $rows;
+        }
+
+        return $penjaminanDetail;
+    }
+
+
+    public function getPenjaminanPKS(object $user)
     {
         $mitra_id = $user->mitra_id;
 
@@ -411,7 +480,7 @@ class KreditMikroKecil
 
             try {
                 $jatuhTempo = Carbon::createFromFormat('Y-m-d', trim((string) $tgl))->startOfDay();
-            } catch (\Exception $e) {
+            } catch (Exception) {
                 $invalid[] = [
                     'debitur_name' => $debiturName,
                     'nik' => $nik,
@@ -602,16 +671,16 @@ class KreditMikroKecil
             throw $ex;
         }
     }
-    public function processUploadPembayaranManualKMK($request)
+    public function processUploadPembayaranManualKMK(array $request)
     {
-        if (!json_validate($request->selected_items) || !is_array(json_decode($request->selected_items))) {
+        if (!json_validate($request['selected_items']) || !is_array(json_decode($request['selected_items']))) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid selected item data.'
             ], 400);
         }
 
-        $parsedItem = json_decode($request->selected_items);
+        $parsedItem = json_decode($request['selected_items'], true);
 
         $arrInvoiceNoTemp = collect($parsedItem)->pluck('invoice_number')->toArray();
 
@@ -643,10 +712,10 @@ class KreditMikroKecil
                     'td.no_sp_detail',
                 ])
                 ->whereIn('dts.invoice_number', $arrInvoiceNoTemp)
-                ->where('mtkmk.trx_no', $request->trx_no)
+                ->where('mtkmk.trx_no', $request['trx_no'])
                 ->get();
 
-            $kmkHeader = PenjaminanTransaction::where('trx_no', $request->trx_no)
+            $kmkHeader = PenjaminanTransaction::where('trx_no', $request['trx_no'])
                 ->select('no_surat_permohonan')
                 ->first();
 
@@ -659,7 +728,7 @@ class KreditMikroKecil
 
             $amountSum = $tenorData->sum('amount');
 
-            if ($amountSum != $request->amount) {
+            if ($amountSum != $request['amount']) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Incorrect amount.'
@@ -675,7 +744,7 @@ class KreditMikroKecil
                 : ($tenorSequence == 0 ? 'Full Payment' : 'Split');
 
             $invoiceHeaderData = DebiturInvoiceHeader::create([
-                'trx_no' => $request->trx_no,
+                'trx_no' => $request['trx_no'],
                 'invoice_scope' => $invoiceScope,
                 'total_amount' => $amountSum,
                 'status' => 'Paid',
@@ -703,7 +772,7 @@ class KreditMikroKecil
                     ]);
             }
 
-            $attachmentBuktiBayar = $request->file('file');
+            $attachmentBuktiBayar = $request['file'];
 
             $fileBase64 = base64_encode(file_get_contents($attachmentBuktiBayar->path()));
 
@@ -726,18 +795,18 @@ class KreditMikroKecil
                 'DataBase64' => $fileBase64
             ];
 
-            $svcCreatio = new \App\Services\CreatioService();
+            $svcCreatio = new CreatioService();
 
             $response = $svcCreatio->request('post', '/0/rest/PembayaranWebService/PembayaranManualV2', $creatioPayload);
 
             if ($response->status() !== 200) {
-                throw new \Exception("Failed to send Bukti Pembayaran Manual to Core Creatio API with status: " . $response->status());
+                throw new Exception("Failed to send Bukti Pembayaran Manual to Core Creatio API with status: " . $response->status());
             }
 
             $bodyResponse = json_decode($response->body(), true);
 
             if ($bodyResponse['Success'] !== true) {
-                throw new \Exception("Failed to send Bukti Pembayaran Manual to Core Creatio API with message: " . $bodyResponse['Message']);
+                throw new Exception("Failed to send Bukti Pembayaran Manual to Core Creatio API with message: " . $bodyResponse['Message']);
             }
 
             $localStackPath = $attachmentBuktiBayar->storeAs(
@@ -747,7 +816,7 @@ class KreditMikroKecil
             );
 
             PenjaminanLampiranDtl::create([
-                'trx_no' => $request->trx_no,
+                'trx_no' => $request['trx_no'],
                 'lampiran_id' => 'pembayaran',
                 'file_name' => $fn,
                 'status_doc' => 'N',
@@ -762,7 +831,7 @@ class KreditMikroKecil
                 'success' => true,
                 'message' => 'Bukti bayar manual successfully uploaded.'
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
 
             DB::rollBack();
 

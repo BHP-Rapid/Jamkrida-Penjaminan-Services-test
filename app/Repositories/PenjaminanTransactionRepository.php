@@ -486,6 +486,7 @@ class PenjaminanTransactionRepository
                 'md.no_sp_core_debitur as sp_polis',
             ]);
         $result = $query->get();
+        return $result;
     }
 
     public function getDetailCertifiedByIDSrtb(string $trxNo)
@@ -523,6 +524,8 @@ class PenjaminanTransactionRepository
                 'cbt.sp_polis',
             ]);
         $result = $query->get();
+
+        return $result;
     }
 
     public function getDetailCertifiedByIDKmk(string $trxNo)
@@ -539,7 +542,7 @@ class PenjaminanTransactionRepository
                 'td.no_sp_detail',
                 'td.no_sp_core_debitur as sp_polis',
             ]);
-        $result = $query->get();
+        return $query->get();
     }
 
     public function getDetailCertifiedByIDKU(string $trxNo)
@@ -557,6 +560,8 @@ class PenjaminanTransactionRepository
                 'td.no_sp_core_debitur as sp_polis',
             ]);
         $result = $query->get();
+
+        return $result;
     }
 
     public function getDetailCertifiedByIDKur(string $trxNo)
@@ -574,6 +579,7 @@ class PenjaminanTransactionRepository
                 'td.no_sp_core_debitur as sp_polis',
             ]);
         $result = $query->get();
+        return $result;
     }
 
     public function getDetailCertifiedByIDKkpbj(string $trxNo)
@@ -591,13 +597,14 @@ class PenjaminanTransactionRepository
                 'tdc.no_sp_core_debitur as sp_polis',
             ]);
         $result = $query->get();
+        return $result;
     }
 
     public function getDetailCertifiedByIDKpr(string $trxNo)
     {
         $query = PenjaminanTransaction::join('multiguna_trx_kredit_mikro_kecil as mtkmk', 'transaction_penjaminan_header.trx_no', '=', 'mtkmk.trx_no')
             ->join('trx_debitur as td', 'mtkmk.id_multiguna_kredit_mikro_kecil', '=', 'td.kredit_mikro_trx_id')
-            ->where('transaction_penjaminan_header.trx_no',$trxNo)
+            ->where('transaction_penjaminan_header.trx_no', $trxNo)
             ->select([
                 'transaction_penjaminan_header.trx_no',
                 'transaction_penjaminan_header.no_surat_permohonan',
@@ -607,5 +614,6 @@ class PenjaminanTransactionRepository
                 'td.no_sp_core_debitur as sp_polis',
             ]);
         $result = $query->get();
+        return $result;
     }
 }

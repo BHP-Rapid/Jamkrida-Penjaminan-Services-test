@@ -14,12 +14,13 @@ use Illuminate\Support\Str;
 
 class MultigunaService
 {
-    public function __construct(
-        protected MultigunaRepository $repository
-    ) {}
+    public function __construct(protected MultigunaRepository $repository) {}
 
-    public function getMultigunaDetailWithAttachments(string $trxNo)
+    public function getMultigunaDetailWithAttachments(array $payload)
     {
+        $trxNo = $payload['trx_no'] ?? null;
+        $noSuratPermohonan = $payload['no_surat_permohonan'] ?? null;
+
         $penjaminanDetail = $this->repository->getMultigunaDetail($trxNo);
 
         if (!$penjaminanDetail) {
@@ -150,14 +151,14 @@ class MultigunaService
         });
     }
 
-    public function storeMultiguna(Request $request, object $user, string $mitraAlias, array $penjaminanPKSData): void
+    public function storeMultiguna(array $payload, object $user, array $penjaminanPKSData)
     {
-        if (empty($request->allFiles())) {
-            throw new Exception('File upload wajib diisi (tidak ada file yang dikirim).');
+        if (empty($payload['files'])) {
+            throw new Exception('File upload wajib diisi (tidak ada file yang dikirim).', 422);
         }
 
-        $selectedPks = $request->data['selectedPks'];
-        $dataDebitur = $request->input('data.dataDebitur', []);
+        $selectedPks = $payload['selectedPks'];
+        $dataDebitur = $payload['dataDebitur'] ?? [];
 
         $result = ValidateDebitur::validateDebiturBatch([
             'selectedPks' => $selectedPks,
@@ -171,7 +172,7 @@ class MultigunaService
 
         $dataDebitur = $result['dataDebitur'];
 
-        DB::transaction(function () use ($request, $user, $dataDebitur, $mitraAlias) {
+        DB::transaction(function () use ($payload, $user, $dataDebitur) {
             $currentYear = date('Y');
             $currentMonth = date('m');
             $lastTrx = $this->repository->getLatestTrxNoByPeriod($currentYear, $currentMonth);
@@ -184,39 +185,39 @@ class MultigunaService
             }
 
             $trxNo = 'PNJ-' . $currentYear . '-' . $currentMonth . '-' . str_pad($nextSeq, 4, '0', STR_PAD_LEFT);
-            $permohonanDate = Carbon::parse($request->data['tglSuratPermohonan'])->format('Y-m-d');
+            $permohonanDate = Carbon::parse($payload['tglSuratPermohonan'])->format('Y-m-d');
             $nowJakarta = $this->repository->getNowJakarta();
-            $spSplit = $request->boolean('data.spSplit');
+            $spSplit = $payload['spSplit'];
 
             $this->repository->createPenjaminanTransaction([
                 'trx_no' => $trxNo,
                 'sp_split' => $spSplit,
-                'no_surat_permohonan' => $request->data['noSuratPermohonan'],
+                'no_surat_permohonan' => $payload['noSuratPermohonan'],
                 'tanggal_surat_permohonan' => $permohonanDate,
-                'trx_status' => $request->data['trx_status'],
+                'trx_status' => $payload['trx_status'],
                 'status_sync_creatio' => 0,
                 'created_by_name' => $user->name,
                 'created_at' => $nowJakarta,
                 'created_by_id' => $user->user_id,
                 'product' => 'mlt',
-                'mitra_id' => $mitraAlias,
+                'mitra_id' => $user->mitra_id,
                 'no_rek' => '012312'
             ]);
 
             $multiguna = $this->repository->createMultigunaTransaction([
                 'trx_no' => $trxNo,
                 'jenis_product_description' => 'Multiguna',
-                'pks_number' => $request->data['pks'],
-                'fee_base_number' => $request->data['feeBasePercentage'],
-                'fee_base_percentage' => $request->data['feeBasePercentage'],
-                'bank_name' => $request->data['bankCabang'],
-                'bank_code' => $request->data['bank'],
-                'text_certified' => $request->data['teksPenjaminanSp'],
+                'pks_number' => $payload['pks'],
+                'fee_base_number' => $payload['feeBasePercentage'],
+                'fee_base_percentage' => $payload['feeBasePercentage'],
+                'bank_name' => $payload['bankCabang'],
+                'bank_code' => $payload['bank'],
+                'text_certified' => $payload['teksPenjaminanSp'],
                 'created_at' => $nowJakarta,
             ]);
 
             $multigunaId = $multiguna->getKey();
-            $mitraId = $request->data['mitra_id'];
+            $mitraId = $user->mitra_id;
             $currentMitraAlias = $this->repository->findMitraAlias($mitraId) ?? $mitraId;
             $prefix = $currentMitraAlias . $currentYear;
             $lastLoan = $this->repository->getLatestLoanNumberByPrefix($prefix);
@@ -231,7 +232,7 @@ class MultigunaService
             $key = base64_decode(config('services.secure.key'));
             $hashKey = config('services.secure.hash_key');
 
-            $rowInstitutions = collect(data_get($request->data, 'dataInstitution', []))
+            $rowInstitutions = collect(data_get($payload, 'dataInstitution', []))
                 ->pluck('institution_data')
                 ->filter()
                 ->map(function ($value) use ($nowJakarta, &$institutionMap, $user, $key, $hashKey, $currentMitraAlias) {
@@ -289,10 +290,10 @@ class MultigunaService
             $rows = collect($dataDebitur)
                 ->pluck('debitur_multiguna')
                 ->filter()
-                ->map(function (array $d, int $idx) use ($request, $multigunaId, $nowJakarta, $prefix, $startSeq, $institutionMap, $key, $countDebitur) {
+                ->map(function (array $d, int $idx) use ($payload, $multigunaId, $nowJakarta, $prefix, $startSeq, $institutionMap, $key, $countDebitur) {
                     $enc = fn($v) => $v ? AesHelper::encrypt($v, $key) : null;
                     $spSequence = $idx + 1;
-                    $baseSp = $request->data['noSuratPermohonan'];
+                    $baseSp = $payload['noSuratPermohonan'];
                     $seq = $startSeq + $idx;
                     $loanNumber = $prefix . str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
                     $nik = $d['nik'] ?? null;
@@ -328,9 +329,8 @@ class MultigunaService
 
             $this->repository->insertMultigunaDebitur($rows);
 
-            $allFiles = $request->allFiles();
-            $debiturFiles = data_get($allFiles, 'data.dataDebitur', []);
-            $debiturInputs = $request->input('data.dataDebitur', []);
+            $debiturFiles = data_get('data.dataDebitur', []);
+            $debiturInputs = $payload['data']['dataDebitur'] ?? [];
             $savedAttachments = [];
 
             foreach ($debiturFiles as $idx => $attachments) {
@@ -391,10 +391,10 @@ class MultigunaService
 
             $this->repository->insertLampiranDetails($savedAttachments);
 
-            if ($request->data['trx_status'] != 'D') {
+            if ($payload['data']['trx_status'] != 'D') {
                 $this->repository->createPenjaminanFlow([
                     'trx_no' => $trxNo,
-                    'trx_status' => $request->data['trx_status'],
+                    'trx_status' => $payload['data']['trx_status'],
                     'created_at' => $nowJakarta,
                     'created_by_id' => $user->user_id,
                     'created_by_name' => $user->name,
@@ -403,6 +403,8 @@ class MultigunaService
             }
         });
     }
+
+   
 
     public function processGetDetailListPaymentMLT(array $payload)
     {
@@ -413,7 +415,7 @@ class MultigunaService
 
         $dataHeader = $this->repository->getDetailHeaderPayment($trx_no, $no_surat_permohonan, $isSplit);
         if (!$dataHeader) {
-            throw new \Exception('Data tidak ditemukan', 404);
+            throw new Exception('Data tidak ditemukan', 404);
         }
 
         $debiturData = $this->repository->getDetailListPaymentDebitur($dataHeader->id_multiguna);
@@ -421,7 +423,7 @@ class MultigunaService
         $debiturById = $debiturData->keyBy('id_trx_debitur');
         $debiturIds  = $debiturData->pluck('id_trx_debitur')->filter()->unique()->values();
         if ($debiturIds->isEmpty()) {
-            throw new \Exception('Data debitur tidak ditemukan', 404);
+            throw new Exception('Data debitur tidak ditemukan', 404);
         }
 
         $schedules = $this->repository->getSchedules($debiturIds);
@@ -445,7 +447,7 @@ class MultigunaService
             $row->nik = $decryptedNik;
         });
         if (!$dataHeader) {
-            throw new \Exception('Data tidak ditemukan', 404);
+            throw new Exception('Data tidak ditemukan', 404);
         }
         $dataUnpaid = $this->repository->getDetailUnpaidPaymentMLT($dataHeader->id_multiguna);
         $result = [
