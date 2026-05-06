@@ -643,6 +643,79 @@ class KontraBankGaransiService
         ];
     }
 
+    public function getKbgPaymentDetail(Request $request)
+    {
+        $no_surat_permohonan = $request->query('no_surat_permohonan');
+        $trx_no              = $request->query('trx_no');
+        $isSplit             = (int) $request->query('is_split', null);
+        $data = [];
+        $resultPending = [];
+        $key = base64_decode(config('services.secure.key'));
+        $dataPending = $this->repository->getPendingPaymentKbg($trx_no, $isSplit);
+        
+        // if(!$dataPending) {
+        //     return response()->json(['message' => 'Data tidak ditemukan'], 404);
+        // }
+        // $dataPending->each(function ($row) use ($key) {
+        //     $decryptedIdNumber = AesHelper::decrypt($row->id_number, $key);
+        //     $row->id_number = $decryptedIdNumber;
+        //     $row->amount = (int) $row->amount;
+        //     $row->collateral_amount = (int) $row->collateral_amount;
+        // });
+        foreach ($dataPending as $pending) {
+            $decryptedIdNumber = AesHelper::decrypt($pending->id_number, $key);
+            $numAmount = (int) $pending->amount;
+            // $numCollateralAmount = (int) $pending->collateral_amount;
+            if($pending->status == 'Pending') {
+                $resultPending[] = [
+                    'schedule_id' => $pending->kbg_schedule_id,
+                    'id_trx_product' => $pending->id_trx_product,
+                    'id_number' => $decryptedIdNumber,
+                    'id_type' => $pending->id_type,
+                    'full_name' => $pending->full_name,
+                    'amount' => $numAmount,
+                    'invoice_number' => $pending->invoice_number,
+                    'due_date' => $pending->due_date,
+                    'status' => $pending->status,
+                    'tenor_sequence' => $isSplit ? $pending->tenor_sequence : 0,
+                    // 'is_collateral' => false
+                ];
+            }
+            // if (!empty($pending->invoice_number_collateral)) {
+            // if (!empty($pending->invoice_number_collateral) && 
+            //     $pending->status_collateral == 'Pending') {
+            //     $resultPending[] = [
+            //         'schedule_id' => $pending->srtb_schedule_id,
+            //         'id_trx_product' => $pending->id_trx_product,
+            //         'id_number' => $decryptedIdNumber,
+            //         'id_type' => $pending->id_type,
+            //         'full_name' => $pending->full_name,
+            //         'amount' => $numCollateralAmount,
+            //         'invoice_number' => $pending->invoice_number_collateral,
+            //         'due_date' => $pending->due_date,
+            //         'status' => $pending->status_collateral,
+            //         'tenor_sequence' => $isSplit ? $pending->tenor_sequence : 0,
+            //         'is_collateral' => true
+            //     ];
+            // }
+        }
+        // $resultPending = array_filter($resultPending, function ($item) {
+        //     return $item['status'] == 'Pending';
+        // });
+        $dataUnpaid = $this->repository->getUnpaidPaymentKbg($trx_no, $isSplit);
+        $data = [
+            'dataHeader' => [
+                // 'data_pending' => $dataPending,
+                'data_pending' => $resultPending,
+                'data_unpaid' => $dataUnpaid
+            ]
+        ];
+        return [
+            'success' => true,
+            'data' => $data
+        ];
+    }
+
     private function getTenantDataOrFail(string $mitra_id)
     {
         $tenantData = $this->repository->getTenantMitraData($mitra_id);

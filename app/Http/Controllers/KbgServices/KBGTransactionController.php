@@ -336,4 +336,30 @@ class KBGTransactionController extends Controller
             );
         }
     }
+
+    public function getDetailPaymentKbg(Request $request)
+    {
+        try {
+            $result = $this->kbgService->getKbgPaymentDetail($request);
+            if(!$result['success']) {
+                return ApiResponse::error($result['message'], 422);
+            }
+            return ApiResponse::success($result['data'], 'Successfully get detail payment data.');
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error(
+                $nfe->getMessage(),
+                $nfe->getStatus()
+            );
+        } catch (ValidationException $ve) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $ve->errors()
+            );
+        } catch (Exception $ex) {
+            return ApiResponse::error(
+                $ex->getMessage()
+            );
+        }
+    }
 }

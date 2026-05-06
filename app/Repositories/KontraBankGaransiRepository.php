@@ -256,6 +256,75 @@ class KontraBankGaransiRepository
             ->get();
     }
 
+    public function getPendingPaymentKbg(string $trx_no, int $is_split)
+    {
+        return PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('kbg_transaction as sbt', 'tph.trx_no', '=', 'sbt.trx_no')
+            ->join('institution as inst', 'sbt.id_institution', '=', 'inst.id')
+            ->join('kbg_tenor_schedule as srbs', 'sbt.id_trx_product', '=', 'srbs.id_trx_product')
+            ->where('tph.trx_no', $trx_no)
+            // ->where('srbs.status', 'Pending')
+            // ->where(function ($subquery) {
+            //     $subquery->where('srbs.status', 'Pending')
+            //         ->orWhere('srbs.status_collateral', 'Pending');
+            // })
+            // ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+            ->where('tph.sp_split', $is_split)
+            ->select([
+                'srbs.kbg_schedule_id',
+                'sbt.id_trx_product',
+                'inst.id_number',
+                'inst.id_type',
+                'inst.full_name',
+                'srbs.amount',
+                'srbs.invoice_number',
+                // 'srbs.invoice_number_collateral',
+                // 'srbs.collateral_amount',
+                // 'srbs.status_collateral',
+                'srbs.due_date',
+                'srbs.status',
+                'srbs.tenor_sequence'
+            ])->get();
+    }
+
+    public function getUnpaidPaymentKbg(string $trx_no, int $is_split)
+    {
+        return PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('kbg_transaction as sbt', 'tph.trx_no', '=', 'sbt.trx_no')
+            ->join('institution as inst', 'sbt.id_institution', '=', 'inst.id')
+            ->join('kbg_tenor_schedule as srbs', 'sbt.id_trx_product', '=', 'srbs.id_trx_product')
+            ->join('kbg_invoice_header as tsih', 'tsih.kbg_schedule_id', '=', 'srbs.kbg_schedule_id')
+            ->join('kbg_payment_gateway as tspg', 'tspg.kbg_invoice_id', '=', 'tsih.kbg_invoice_id')
+            ->where('tph.trx_no', $trx_no)
+            ->where('tsih.status', 'Unpaid')
+            // // ->where('srbs.status', 'Pending')
+            // ->where(function ($subquery) {
+            //     $subquery->where('srbs.status', 'Pending')
+            //         ->orWhere('srbs.status_collateral', 'Pending');
+            // })
+            // ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+            ->where('tph.sp_split', $is_split)
+            ->select([
+                'tspg.order_id',
+                'tspg.kbg_payment_id as payment_id',
+                'tph.trx_no',
+                'tspg.payment_amount_ijp as total_amount',
+                'tspg.order_payment_token',
+                // 'inst.full_name',
+                // 'srbs.amount',
+                // 'srbs.invoice_number',
+                // 'srbs.invoice_number_collateral',
+                // 'srbs.collateral_amount',
+                // 'srbs.status_collateral',
+                // 'srbs.due_date',
+                // 'srbs.status',
+                // 'srbs.tenor_sequence'
+            ])
+            ->get();
+    }
+
     public function insertHeaderKbg($data)
     {
         PenjaminanTransaction::create($data);

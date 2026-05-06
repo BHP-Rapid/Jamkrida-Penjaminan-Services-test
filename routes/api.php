@@ -319,6 +319,11 @@ Route::prefix('/v2/penjaminan/kontra-bank-garansi')->group(function () {
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
     ]);
+    Route::get('/detail-payment-kontra-bank-garansi', [KBGTransactionController::class, 'getDetailPaymentKbg'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
     Route::post('/upload-bukti-bayar-manual', [KBGTransactionController::class, 'uploadPembayaranManual'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
