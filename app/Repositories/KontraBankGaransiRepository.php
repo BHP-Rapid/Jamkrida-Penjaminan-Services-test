@@ -2,7 +2,9 @@
 
 namespace App\Repositories;
 
+use App\Models\Institution;
 use App\Models\KBGTransaction;
+use App\Models\NotifMitra;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
@@ -15,10 +17,10 @@ use Illuminate\Support\Facades\DB;
 
 class KontraBankGaransiRepository
 {
-    public function getTenantMitraData($mitra_id)
+    public function getTenantMitraData(string $mitra_id)
     {
         return TenantMitra::where('mitra_id', $mitra_id)
-            ->select('mitra_id', 'alias', 'tenant_id')
+            ->select('mitra_id', 'alias', 'tenant_id', 'is_syariah', 'is_conventional')
             ->first();
     }
 
@@ -35,6 +37,12 @@ class KontraBankGaransiRepository
             ->where('trx_no', 'like', 'PNJ-' . $year . '-' . $month . '%')
             ->orderBy('trx_no', 'desc')
             ->value('trx_no');
+    }
+
+    public function getInstitutionNameIdNumber(int $id)
+    {
+        return Institution::where('id', $id)
+            ->select('full_name', 'id_number')->first();
     }
 
     public function getIdInstitution(string $institution_guid)
@@ -99,6 +107,17 @@ class KontraBankGaransiRepository
     {
         return PenjaminanTransaction::where('trx_no', $trx_no)
             ->select('trx_no', 'trx_status')->first();
+    }
+
+    public function getUnsyncedTrxKbg(string $trx_no)
+    {
+        return PenjaminanTransaction::join(
+            'kbg_transaction as kbg',
+            'transaction_penjaminan_header.trx_no',
+            '=', 'kbg.trx_no')
+        ->where('transaction_penjaminan_header.trx_no', $trx_no)
+        ->where('transaction_penjaminan_header.status_sync_creatio', 0)
+        ->first();
     }
 
     public function getTrxKbgDetail(string $trx_no)
@@ -252,7 +271,7 @@ class KontraBankGaransiRepository
         DB::table('penjaminan_lampiran_dtl')->insert($data);
     }
 
-    public function insertPenjaminanKbgFlow(string $trx_no, string $status_code, object $user, $status_approval = null)
+    public function insertPenjaminanKbgFlow(string $trx_no, string $status_code, object $user, $status_approval = null, bool $updated_at_is_set = false)
     {
         PenjaminanFlow::create([
             'trx_no' => $trx_no,
@@ -261,7 +280,7 @@ class KontraBankGaransiRepository
             'created_by_id' => $user->user_id,
             'created_by_name' => $user->name,
             'status'=> $status_approval,
-            'updated_at' => null
+            'updated_at' => $updated_at_is_set ? now() : null
         ]);
     }
 
@@ -289,6 +308,15 @@ class KontraBankGaransiRepository
             'order_id' => $order_id,
             'created_at' => $time_now_jakarta,
             'updated_at' => $time_now_jakarta
+        ]);
+    }
+
+    public function insertNotifApprovalKbg(string $trx_no, object $user)
+    {
+        NotifMitra::create([
+            'mitra_user_id' => $user->user_id,
+            'title' => "Mitra Portal - Penjaminan Kontra Bank Garansi Approval",
+            'message' => "Status Penjaminan dengan nomor " . $trx_no . " menjadi " . "Approved",
         ]);
     }
 

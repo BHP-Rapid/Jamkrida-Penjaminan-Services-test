@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class KontraBankGaransiService
@@ -490,6 +491,87 @@ class KontraBankGaransiService
         });
     }
 
+    public function approveKBG(Request $request, object $user)
+    {
+        ini_set('max_execution_time', 0);
+        ini_set('memory_limit', '-1');
+        $trx_no = $request->trxNo;
+        $key = base64_decode(config('services.secure.key'));
+        Log::info('User ID for Kontra Bank Garansi approval: ' . $user->user_id . ' Name: ' . $user->name);
+        $penjaminan = $this->getUnsyncedKbgOrFail($trx_no);
+        $institutionData = $this->getInstitutionNameIdNumberOrFail($trx_no, $penjaminan->id_institution);
+        $mitraData = $this->getTenantDataOrFail($user->mitra_id);
+        DB::transaction(function () use ($trx_no, $penjaminan, $institutionData, $mitraData, $user) {
+            $finalTrxStatus = 'S';
+            $KbgPayload = [
+                "NomorPermohonan" => $penjaminan->no_surat_permohonan ?? 'XTTR10314',
+                "NomorSuratPermohonan" => $penjaminan->no_surat_permohonan ?? 'NSP-2025-001',
+                "NoSuratPermohonan" => $penjaminan->no_surat_permohonan ?? 'NSP-2025-001',
+                "NamaPrincipal" => $penjaminan->principal_name,
+                "PenerimaPenjaminan" => $institutionData->full_name,
+                "NamaProyek" => $penjaminan->project_name ?? 0,
+                "NilaiProyek" => (int) $penjaminan->project_amount ?? 0,
+                "NilaiBond" => (int) $penjaminan->amount_garansi ?? 0,
+                "NilaiBondPersentase" => (float) $penjaminan->garansi_percentage,
+                "TanggalSuratPerjanjian" => $penjaminan->tgl_surat_perjanjian,
+                "TanggalSuratPermohonan" => $penjaminan->tanggal_surat_permohonan,
+                "TanggalSuratBAST" => $penjaminan->is_bast == 1 ? $penjaminan->bast_date : null,
+                "PeriodeAwalBerlaku" => $penjaminan->start_period_date,
+                "PeriodeAkhirBerlaku" => $penjaminan->end_period_date,
+                "NoSuratBAST" => $penjaminan->is_bast == 1 ? $penjaminan->no_surat_bast : null,
+                "NoSuratPerjanjian" => $penjaminan->tgl_surat_perjanjian,
+                "IsBAST" => $penjaminan->is_bast == 1 ? true : false,
+                "JangkaWaktu" => $penjaminan->total_day,
+                "JangkaWaktuHari" => $penjaminan->total_day ?? 0,
+                "TarifPercentage" => (float) $penjaminan->tarif_percentage ?? 0,
+                "BiayaAdministrasi" => (int) $penjaminan->administrative_amount ?? 0,
+                "IJP" => (int) $penjaminan->ijp_amount ?? 0,
+                "BiayaMaterai" => (int) $penjaminan->stamp_amount ?? 0,
+                "PlafondKredit" => 0,
+                "JenisBond" => $penjaminan->jenis_bond_description,
+                // "JenisBond"=> "Performance Bond",
+                "SkemaPenalty" => $penjaminan->skema_penalty,
+                "JenisPersyaratan" => $penjaminan->jenis_persyaratan,
+                "Sektor" => $penjaminan->sektor,
+                "JenisSuratPerjanjian" => $penjaminan->jenis_surat_perjanjian,
+                "Provinsi" => $penjaminan->province,
+                "NamaObligee" => $penjaminan->obligee_name,
+                "NilaiAgunan" => $penjaminan->agunan_amount,
+                "BankCabang" => "",
+                "PKS" => "",
+                "MitraId" => "MDR",
+                "CaraBayar" => $penjaminan->sp_split == true ? 'Installment' : 'Full Payment',
+                "IsConven" => (bool)$mitraData->is_conventional  ? true : false,
+            ];
+            $creatioPayload = [
+                "PermohonanPenjaminanSuretyBond" => [$KbgPayload]
+            ];
+            // $svcCreatio = new CreatioService();
+            // $response = $svcCreatio->request('post', '/0/rest/PermohonanPenjaminan/RegistrasiSuretyBond', $creatioPayload);
+            // if ($response->status() !== 200) {
+            //     throw new Exception("Failed to send Bukti Pembayaran Manual to Core Creatio API with status: " . $response->status());
+            // }
+            // $bodyResponse = json_decode($response->body(), true);
+            // if ($bodyResponse['Success'] !== true) {
+            //     throw new Exception("Failed to send Bukti Pembayaran Manual to Core Creatio API with message: " . $bodyResponse['Message']);
+            // }
+
+            // skipped send lampiran to core,
+            // since there is no API yet to
+            // send KBG attachments to core
+            $this->repository->updateHeaderKbgDraft($trx_no, [
+                'status_sync_creatio' => 1,
+                'trx_status' => $finalTrxStatus,
+                'updated_by_id' => $user->user_id,
+                'updated_by_name' => $user->name,
+                'updated_at' => now(),
+            ]);
+            $this->repository->insertPenjaminanKbgFlow($trx_no, $finalTrxStatus, $user, true, true);
+            $this->repository->insertNotifApprovalKbg($trx_no, $user);
+            Log::info("Penjaminan Kontra Bank Garansi {$trx_no} approved successfully.");
+        });
+    }
+
     public function deleteInstitutionData(array $institution_id)
     {
         $this->repository->deleteInstitutionData($institution_id);
@@ -571,6 +653,16 @@ class KontraBankGaransiService
         return $tenantData;
     }
 
+    private function getInstitutionNameIdNumberOrFail(string $trx_no, int $id)
+    {
+        $data = $this->repository->getInstitutionNameIdNumber($id);
+        if(!$data)
+        {
+            throw new NotFoundException('Penjaminan ' . $trx_no . ' does not have institution data.');
+        }
+        return $data;
+    }
+
     private function getSuratPermohonanKbgOrFail(string $trx_no)
     {
         $data = $this->repository->getSuratPermohonanKbg($trx_no);
@@ -596,6 +688,16 @@ class KontraBankGaransiService
         if(!$data)
         {
             throw new NotFoundException('Penjaminan data is not found.');
+        }
+        return $data;
+    }
+
+    private function getUnsyncedKbgOrFail(string $trx_no)
+    {
+        $data = $this->repository->getUnsyncedTrxKbg($trx_no);
+        if(!$data)
+        {
+            throw new NotFoundException('Penjaminan ' . $trx_no . ' not found or already synced.');
         }
         return $data;
     }

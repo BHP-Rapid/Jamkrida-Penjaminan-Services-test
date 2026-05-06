@@ -312,4 +312,28 @@ class KBGTransactionController extends Controller
             );
         }
     }
+
+    public function approvePenjaminanKBG(Request $request)
+    {
+        try {
+            $user = AuthUserHelper::getUser($request);
+            $this->kbgService->approveKBG($request, $user);
+            return ApiResponse::success(null, 'Successfully approved Penjaminan Kontra Bank Garansi.');
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error(
+                $nfe->getMessage(),
+                $nfe->getStatus()
+            );
+        } catch (ValidationException $ve) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $ve->errors()
+            );
+        } catch (Exception $ex) {
+            return ApiResponse::error(
+                $ex->getMessage()
+            );
+        }
+    }
 }
