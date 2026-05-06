@@ -126,14 +126,14 @@ class Konstruksi
         })->values()->toArray();
     }
 
-    public function store($request, $user, string $mitraAlias, string $tenant_ID, array $penjaminanPKSData)
+    public function store($request, $user, string $mitraAlias, string $tenant_ID, array $penjaminanPKSData = null)
     {
         //
         if (empty($request->allFiles()) && $request->data['trx_status'] != 'D') {
-            return response()->json([
+            return [
                 'success' => false,
                 'message' => 'File upload wajib diisi (tidak ada file yang dikirim).',
-            ], 422);
+            ];
         }
 
         $selectedPks = $request->data['selectedPks'];
@@ -142,7 +142,7 @@ class Konstruksi
         $result = ValidateDebitur::validateDebiturBatch(['selectedPks' => $selectedPks, 'penjaminanPKSData' => $penjaminanPKSData, 'dataDebitur' => $dataDebitur]);
         $dataDebitur = $result['dataDebitur'];
         if (!$result['success']) {
-            return response()->json($result, 422);
+            return $result;
         }
 
         DB::transaction(function () use ($request, &$user, &$dataDebitur, $mitraAlias, $tenant_ID) {
@@ -401,22 +401,22 @@ class Konstruksi
             $result = ValidateDebitur::validateDebiturBatch($selectedPks, $penjaminanPKSData, $dataDebitur);
             $dataDebitur = $result['dataDebitur'];
             if (!$result['success']) {
-                return response()->json($result, 422);
+                return $result;
             }
         }
         if ($newStatus === 'D') {
             if (!empty($request->allFiles())) {
-                return response()->json([
+                return [
                     'success' => false,
                     'message' => 'File upload tidak diperbolehkan saat Save as Draft.',
-                ], 422);
+                ];
             }
         } else {
             if (empty($request->allFiles())) {
-                return response()->json([
+                return [
                     'success' => false,
                     'message' => 'File upload wajib diisi saat Submit.',
-                ], 422);
+                ];
             }
         }
 
@@ -660,7 +660,7 @@ class Konstruksi
         $dataHeader = $this->repository->dataHeader($trx_no, $no_surat_permohonan, $isSplit);
 
         if (!$dataHeader) {
-            return response()->json(['message' => 'Data tidak ditemukan'], 404);
+            return ['success' => false, 'message' => 'Data tidak ditemukan'];
         }
         $dataHeader->each(function ($row) use ($key) {
             $decryptedNik = AesHelper::decrypt($row->nik, $key);
@@ -691,7 +691,7 @@ class Konstruksi
         $dataHeader = $this->repository->dataHeaderList($trx_no, $no_surat_permohonan, $isSplit);
 
         if (!$dataHeader) {
-            return response()->json(['message' => 'Data tidak ditemukan'], 404);
+            return ['success' => false, 'message' => 'Data tidak ditemukan'];
         }
 
         $dataDebitur = $this->repository->dataDebitur($dataHeader->id_multiguna_konstruksi);
@@ -699,7 +699,7 @@ class Konstruksi
         $debiturById = $dataDebitur->keyBy('id_trx_debitur_konstruksi');
         $debiturIds  = $dataDebitur->pluck('id_trx_debitur_konstruksi')->filter()->unique()->values();
         if ($debiturIds->isEmpty()) {
-            return response()->json(['data' => []]);
+            return ['message' => 'Debitur ID empty', 'data' => []];
         }
 
         $schedules = $this->repository->schedule($debiturIds);
@@ -751,7 +751,8 @@ class Konstruksi
                 ];
             })->values();
 
-        return $result;
+
+        return ['success' => true, 'data' => $result];
     }
     public function uploadPembayaranManual($request)
     {
@@ -759,10 +760,10 @@ class Konstruksi
             !json_validate($request->selected_items) ||
             !is_array(json_decode($request->selected_items))
         ) {
-            return response()->json([
+            return [
                 'success' => false,
                 'message' => 'Invalid selected item data.'
-            ], 400);
+            ];
         }
         $parsedItem = json_decode($request->selected_items);
         // $debugFile = $request->file('file');
@@ -774,10 +775,10 @@ class Konstruksi
         // dd($request);
         $duplicateInvoiceNo = count($arrInvoiceNoTemp) != count(array_unique($arrInvoiceNoTemp));
         if ($duplicateInvoiceNo) {
-            return response()->json([
+            return [
                 'success' => false,
                 'message' => 'Duplicate invoice data.'
-            ], 404);
+            ];
         }
 
         DB::beginTransaction();
@@ -786,18 +787,18 @@ class Konstruksi
         $mltHeader = $this->repository->mltHeader($request->trx_no);
 
         if (count($tenorData) < 1 || !$mltHeader) {
-            return response()->json([
+            return [
                 'success' => false,
                 'message' => 'Penjaminan multiguna not found.'
-            ], 404);
+            ];
         }
 
         $amountSum = $tenorData->sum('amount');
         if ($amountSum != $request->amount) {
-            return response()->json([
+            return [
                 'success' => false,
                 'message' => 'Incorrect amount.'
-            ], 400);
+            ];
         }
 
         $noSuratPermohonan = $mltHeader->no_surat_permohonan;
