@@ -23,7 +23,6 @@ class PenjaminanTransactionService
     {
         $mitraId = $this->getTenantMitraDataOrFail($user);
         $query = $this->repository->getTransactionList();
-        dd($query);
         if (!is_null($mitraId)) {
             $mitraAlias = $mitraId->alias;
             $query->where('tph.mitra_id', $mitraAlias);
