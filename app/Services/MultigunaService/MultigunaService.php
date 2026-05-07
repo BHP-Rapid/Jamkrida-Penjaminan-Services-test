@@ -2,12 +2,13 @@
 
 namespace App\Services\MultigunaService;
 
+use App\Exceptions\NotFoundException;
 use App\Helpers\AesHelper;
 use App\Helpers\ValidateDebitur;
 use App\Repositories\MultigunaRepository;
 use Carbon\Carbon;
 use Exception;
-use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -154,7 +155,7 @@ class MultigunaService
     public function storeMultiguna(array $payload, object $user, array $penjaminanPKSData)
     {
         if (empty($payload['files'])) {
-            throw new Exception('File upload wajib diisi (tidak ada file yang dikirim).', 422);
+            throw new NotFoundException('File upload wajib diisi (tidak ada file yang dikirim).');
         }
 
         $selectedPks = $payload['selectedPks'];
@@ -167,7 +168,7 @@ class MultigunaService
         ]);
 
         if (!$result['success']) {
-            throw new Exception($result['message'] ?? 'Validasi debitur gagal', 422);
+            throw new NotFoundException('Validasi debitur gagal',$result['message'] ?? null, 422);
         }
 
         $dataDebitur = $result['dataDebitur'];
@@ -365,7 +366,7 @@ class MultigunaService
                     } else {
                         $file = $fileOrArray;
 
-                        if ($file instanceof \Illuminate\Http\UploadedFile) {
+                        if ($file instanceof UploadedFile) {
                             $ext = $file->getClientOriginalExtension();
                             $fn = "{$trxNo}-ktp-mlt-{$idx}-{$fileKey}";
                             $path = $file->storeAs(
@@ -402,9 +403,13 @@ class MultigunaService
                 ]);
             }
         });
+
+        return [
+            'message' => 'Data Product Multiguna berhasil disimpan',
+        ];
     }
 
-   
+
 
     public function processGetDetailListPaymentMLT(array $payload)
     {
@@ -415,7 +420,7 @@ class MultigunaService
 
         $dataHeader = $this->repository->getDetailHeaderPayment($trx_no, $no_surat_permohonan, $isSplit);
         if (!$dataHeader) {
-            throw new Exception('Data tidak ditemukan', 404);
+            throw new NotFoundException('Data Payment tidak ditemukan');
         }
 
         $debiturData = $this->repository->getDetailListPaymentDebitur($dataHeader->id_multiguna);
@@ -423,7 +428,7 @@ class MultigunaService
         $debiturById = $debiturData->keyBy('id_trx_debitur');
         $debiturIds  = $debiturData->pluck('id_trx_debitur')->filter()->unique()->values();
         if ($debiturIds->isEmpty()) {
-            throw new Exception('Data debitur tidak ditemukan', 404);
+            throw new NotFoundException('Data debitur tidak ditemukan');
         }
 
         $schedules = $this->repository->getSchedules($debiturIds);
@@ -447,7 +452,7 @@ class MultigunaService
             $row->nik = $decryptedNik;
         });
         if (!$dataHeader) {
-            throw new Exception('Data tidak ditemukan', 404);
+            throw new NotFoundException('Data Header tidak ditemukan');
         }
         $dataUnpaid = $this->repository->getDetailUnpaidPaymentMLT($dataHeader->id_multiguna);
         $result = [

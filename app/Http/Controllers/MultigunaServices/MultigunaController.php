@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\MultigunaServices;
 
+use App\Exceptions\NotFoundException;
 use App\Helpers\ApiResponse;
 use App\Helpers\AuthUserHelper;
 use App\Services\CreatioService;
@@ -69,10 +70,14 @@ class MultigunaController extends Controller
                 $payload,
                 $user,
                 $penjaminanPKSData,
-                $files
+                // $files
             );
 
             return ApiResponse::success($result, 'Data berhasil disimpan');
+        } catch (ValidationException $e) {
+            return ApiResponse::error('Validation error', 422, $e->errors());
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             $status = $ex->getCode() === 422 ? 422 : 500;
             return ApiResponse::error('Error While Storing Multiguna: ' . $ex->getMessage(), $status);
@@ -93,6 +98,10 @@ class MultigunaController extends Controller
             ]);
             $data = $this->multigunaService->getMultigunaDetailWithAttachments($validated);
             return ApiResponse::success($data, 'Data retrieved successfully');
+        } catch (ValidationException $e) {
+            return ApiResponse::error('Validation error', 422, $e->errors());
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error('Error While Get Data Multiguna: ' . $ex->getMessage(), 500);
         }
@@ -110,8 +119,10 @@ class MultigunaController extends Controller
             );
 
             return ApiResponse::success([], 'Data berhasil diupdate');
-        } catch (ModelNotFoundException $ex) {
-            return ApiResponse::error('Data tidak ditemukan', 404);
+        } catch (ValidationException $ex) {
+            return ApiResponse::error('Validation error', 422, $ex->errors());
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error('Error While Updating Multiguna: ' . $ex->getMessage(), 500);
         }
@@ -191,11 +202,10 @@ class MultigunaController extends Controller
             return ApiResponse::success($result, 'Success get detail list payment');
         } catch (ValidationException $e) {
             return ApiResponse::error('Validation error', 422, $e->errors());
-        } catch (\Exception $ex) {
-            return ApiResponse::error(
-                $ex->getMessage(),
-                $ex->getCode() ?: 500
-            );
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
+        } catch (Exception $ex) {
+            return ApiResponse::error($ex->getMessage(), $ex->getCode() ?: 500);
         }
     }
 
@@ -221,6 +231,8 @@ class MultigunaController extends Controller
             return ApiResponse::success($result, 'Success get detail list payment');
         } catch (ValidationException $e) {
             return ApiResponse::error('Validation error', 422, $e->errors());
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (\Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),

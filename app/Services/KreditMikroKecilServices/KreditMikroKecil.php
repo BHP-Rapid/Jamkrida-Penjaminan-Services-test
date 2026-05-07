@@ -2,6 +2,7 @@
 
 namespace App\Services\KreditMikroKecilServices;
 
+use App\Exceptions\NotFoundException;
 use App\Helpers\AesHelper;
 use App\Models\DebiturInvoiceHeader;
 use App\Models\DebiturPaymentGateway;
@@ -307,7 +308,7 @@ class KreditMikroKecil
         $penjaminanDetail = $this->repository->getKmkDetail($trxNo);
 
         if (!$penjaminanDetail) {
-            throw new Exception('Data not found.',404);
+            throw new Exception('Data not found.', 404);
         }
 
         $rows = $this->repository->getKmkDebitur($penjaminanDetail->id_multiguna);
@@ -612,7 +613,7 @@ class KreditMikroKecil
         $dataHeader = $this->repository->getPendingTenorSchedule($no_surat_permohonan, $trx_no, $isSplit);
 
         if (!$dataHeader) {
-            throw new \Exception('Data tidak ditemukan', 404);
+            throw new NotFoundException('Data tidak ditemukan', null, 404);
         }
 
         $dataHeader->each(function ($row) use ($key) {
@@ -628,156 +629,99 @@ class KreditMikroKecil
         ];
     }
 
-    public function processGetDetailListPaymentKMK($payload)
+    public function processGetDetailListPaymentKMK(array $payload)
     {
         $key = base64_decode(config('services.secure.key'));
-
-        try {
-            $trxNo = $payload['trx_no'];
-            $noSurat = $payload['no_surat_permohonan'];
-            $isSplit = (int) $payload['is_split'];
-            $header = $this->repository->getHeader($trxNo, $noSurat, $isSplit);
-            if (!$header) {
-                throw new \Exception('Data tidak ditemukan', 404);
-            }
-
-            $debitur = $this->repository->getDebiturByKreditId(
-                $header->id_multiguna_kredit_mikro_kecil
-            );
-
-            $debitur->each(function ($row) use ($key) {
-                $row->nik = AesHelper::decrypt($row->nik, $key);
-            });
-
-            $debiturById = $debitur->keyBy('id_trx_debitur');
-            $ids = $debitur->pluck('id_trx_debitur')->filter()->unique();
-
-            if ($ids->isEmpty()) {
-                return ['data' => []];
-            }
-
-            $schedules = $this->repository->getSchedules($ids);
-            $unpaid    = $this->repository->getUnpaidSchedules($ids);
-
-            $result = $this->mapResult($schedules, $debiturById, $unpaid);
-
-            return ['data' => $result];
-        } catch (\Exception $ex) {
-            Log::error("Error fetching payment details", [
-                'exception' => $ex,
-                'trx_no' => $trxNo ?? null,
-            ]);
-
-            throw $ex;
+        $trxNo = $payload['trx_no'];
+        $noSurat = $payload['no_surat_permohonan'];
+        $isSplit = (int) $payload['is_split'];
+        $header = $this->repository->getHeader($trxNo, $noSurat, $isSplit);
+        if (!$header) {
+            throw new NotFoundException('Data tidak ditemukan', null, 404);
         }
+
+        $debitur = $this->repository->getDebiturByKreditId(
+            $header->id_multiguna_kredit_mikro_kecil
+        );
+
+        $debitur->each(function ($row) use ($key) {
+            $row->nik = AesHelper::decrypt($row->nik, $key);
+        });
+
+        $debiturById = $debitur->keyBy('id_trx_debitur');
+        $ids = $debitur->pluck('id_trx_debitur')->filter()->unique();
+
+        if ($ids->isEmpty()) {
+            return ['data' => []];
+        }
+
+        $schedules = $this->repository->getSchedules($ids);
+        $unpaid    = $this->repository->getUnpaidSchedules($ids);
+
+        $result = $this->mapResult($schedules, $debiturById, $unpaid);
+
+        return ['data' => $result];
     }
     public function processUploadPembayaranManualKMK(array $request)
     {
+        $trxNo = $request['trx_no'];
+        $files = $request['file'];
+        $amount = $request['amount'];
+
         if (!json_validate($request['selected_items']) || !is_array(json_decode($request['selected_items']))) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid selected item data.'
-            ], 400);
+            throw new NotFoundException('Invalid selected item data.', null, 400);
         }
-
         $parsedItem = json_decode($request['selected_items'], true);
-
         $arrInvoiceNoTemp = collect($parsedItem)->pluck('invoice_number')->toArray();
-
         $duplicateInvoiceNo = count($arrInvoiceNoTemp) != count(array_unique($arrInvoiceNoTemp));
-
         if ($duplicateInvoiceNo) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Duplicate invoice data.'
-            ], 404);
+            throw new NotFoundException('Duplicate invoice data.', null, 422);
         }
-
-        DB::beginTransaction();
-
-        try {
-
-            $tenorData = MultigunaTrxKreditMikroKecil::query()
-                ->from('multiguna_trx_kredit_mikro_kecil as mtkmk')
-                ->join('trx_debitur as td', 'td.kredit_mikro_trx_id', '=', 'mtkmk.id_multiguna_kredit_mikro_kecil')
-                ->join('debitur_tenor_schedule as dts', 'dts.id_trx_debitur', '=', 'td.id_trx_debitur')
-                ->select([
-                    'mtkmk.id_kredit_usaha',
-                    'dts.schedule_id',
-                    'dts.id_trx_debitur',
-                    'dts.tenor_sequence',
-                    'dts.invoice_number',
-                    'dts.amount',
-                    'td.id_trx_debitur',
-                    'td.no_sp_detail',
-                ])
-                ->whereIn('dts.invoice_number', $arrInvoiceNoTemp)
-                ->where('mtkmk.trx_no', $request['trx_no'])
-                ->get();
-
-            $kmkHeader = PenjaminanTransaction::where('trx_no', $request['trx_no'])
-                ->select('no_surat_permohonan')
-                ->first();
-
+        DB::transaction(function () use ($arrInvoiceNoTemp, $trxNo, $files, $amount) {
+            $tenorData = $this->repository->getTenorData($trxNo, $arrInvoiceNoTemp);
+            $kmkHeader = $this->repository->headerData($trxNo);
             if (count($tenorData) < 1 || !$kmkHeader) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Penjaminan multiguna not found.'
-                ], 404);
+                throw new NotFoundException('Penjaminan multiguna not found.', null, 404);
             }
-
             $amountSum = $tenorData->sum('amount');
 
-            if ($amountSum != $request['amount']) {
+            if ($amountSum != $amount) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Incorrect amount.'
                 ], 400);
             }
-
             $noSuratPermohonan = $kmkHeader->no_surat_permohonan;
-
             $tenorSequence = $tenorData->pluck('tenor_sequence')[0];
 
             $invoiceScope = count($tenorData) > 1
                 ? 'Merge Payment'
                 : ($tenorSequence == 0 ? 'Full Payment' : 'Split');
 
-            $invoiceHeaderData = DebiturInvoiceHeader::create([
-                'trx_no' => $request['trx_no'],
+            $invoiceHeaderData = $this->repository->CreateDebiturInvoiceHeader([
+                'trx_no' => $trxNo,
                 'invoice_scope' => $invoiceScope,
                 'total_amount' => $amountSum,
                 'status' => 'Paid',
                 'is_manual' => 1,
                 'tenor_sequence' => $tenorSequence
             ]);
-
             $newInvoiceId = $invoiceHeaderData->invoice_id;
-
             $orderId = 'ORDER-' . now()->format('YmdHis') . '-' . mt_rand(1000, 9999);
-
-            DebiturPaymentGateway::create([
+            $this->repository->createDebiturPaymentGateway([
                 'invoice_id' => $newInvoiceId,
                 'status' => 'Paid',
                 'payment_amount_ijp' => $amountSum,
                 'order_id' => $orderId
             ]);
-
-            foreach ($tenorData as $tenorDebitur) {
-
-                DebiturTenorSchedule::where('schedule_id', $tenorDebitur->schedule_id)
-                    ->update([
-                        'invoice_id' => $newInvoiceId,
-                        'status' => 'Paid'
-                    ]);
-            }
-
-            $attachmentBuktiBayar = $request['file'];
-
+            $scheduleIds = collect($tenorData)->pluck('schedule_id');
+            $this->repository->updateInvoiceAndStatusByScheduleIds(
+                $scheduleIds->toArray(),
+                $newInvoiceId
+            );
+            $attachmentBuktiBayar = $files;
             $fileBase64 = base64_encode(file_get_contents($attachmentBuktiBayar->path()));
-
             $ext = $attachmentBuktiBayar->getClientOriginalExtension();
-
             $fn = $orderId . '-pembayaran-kmk';
 
             $debiturPayload = $tenorData->map(function ($itemDebitur) use ($noSuratPermohonan) {
@@ -814,9 +758,8 @@ class KreditMikroKecil
                 $fn . '.' . $ext,
                 's3'
             );
-
-            PenjaminanLampiranDtl::create([
-                'trx_no' => $request['trx_no'],
+            $this->repository->createLampiranDtl([
+                'trx_no' => $trxNo,
                 'lampiran_id' => 'pembayaran',
                 'file_name' => $fn,
                 'status_doc' => 'N',
@@ -824,22 +767,12 @@ class KreditMikroKecil
                 'mime_type' => $attachmentBuktiBayar->getMimeType(),
                 'file_info' => $localStackPath
             ]);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Bukti bayar manual successfully uploaded.'
-            ]);
-        } catch (Exception $e) {
-
-            DB::rollBack();
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error upload bukti bayar manual (' . $e->getMessage() . ')'
-            ], 500);
-        }
+            
+        });
+        return response()->json([
+            'success' => true,
+            'message' => 'Bukti bayar manual successfully uploaded.'
+        ]);
     }
 
     private function mapResult($schedules, $debiturById, $schedulesUnpaid)

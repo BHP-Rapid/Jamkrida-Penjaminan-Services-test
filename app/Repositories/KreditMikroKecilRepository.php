@@ -3,8 +3,10 @@
 namespace App\Repositories;
 
 use App\Models\DebiturInvoiceHeader;
+use App\Models\DebiturPaymentGateway;
 use App\Models\DebiturTenorSchedule;
 use App\Models\Institution;
+use App\Models\MultigunaTrxKreditMikroKecil;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
@@ -16,7 +18,7 @@ class KreditMikroKecilRepository
     public function getPendingTenorSchedule(
         string $trxNo,
         string $noSuratPermohonan,
-        $isSplit
+        bool $isSplit
     ) {
         return PenjaminanTransaction::query()
             ->from('transaction_penjaminan_header as tph')
@@ -144,6 +146,34 @@ class KreditMikroKecilRepository
             ->get();
     }
 
+    public function getTenorData(string $trxNo, array $arrInvoiceNoTemp)
+    {
+        return MultigunaTrxKreditMikroKecil::query()
+            ->from('multiguna_trx_kredit_mikro_kecil as mtkmk')
+            ->join('trx_debitur as td', 'td.kredit_mikro_trx_id', '=', 'mtkmk.id_multiguna_kredit_mikro_kecil')
+            ->join('debitur_tenor_schedule as dts', 'dts.id_trx_debitur', '=', 'td.id_trx_debitur')
+            ->select([
+                'mtkmk.id_kredit_usaha',
+                'dts.schedule_id',
+                'dts.id_trx_debitur',
+                'dts.tenor_sequence',
+                'dts.invoice_number',
+                'dts.amount',
+                'td.id_trx_debitur',
+                'td.no_sp_detail',
+            ])
+            ->whereIn('dts.invoice_number', $arrInvoiceNoTemp)
+            ->where('mtkmk.trx_no', $trxNo)
+            ->get();
+    }
+
+    public function headerData(string $trxNo)
+    {
+        return PenjaminanTransaction::where('trx_no', $trxNo)
+            ->select('no_surat_permohonan')
+            ->first();
+    }
+
     public function getUnpaidSchedules(array $debiturIds)
     {
         return DebiturInvoiceHeader::select(
@@ -181,5 +211,32 @@ class KreditMikroKecilRepository
             ->first();
 
         return $query;
+    }
+
+    public function CreateDebiturInvoiceHeader(array $data)
+    {
+        return DebiturInvoiceHeader::create($data);
+    }
+
+    public function createDebiturPaymentGateway(array $data)
+    {
+        return DebiturPaymentGateway::create($data);
+    }
+
+    public function createLampiranDtl(array $data)
+    {
+        return PenjaminanLampiranDtl::create($data);
+    }
+
+    public function updateInvoiceAndStatusByScheduleIds(
+        array $scheduleIds,
+        int $invoiceId,
+        string $status = 'Paid'
+    ) {
+        return DebiturTenorSchedule::whereIn('schedule_id', $scheduleIds)
+            ->update([
+                'invoice_id' => $invoiceId,
+                'status' => $status
+            ]);
     }
 }

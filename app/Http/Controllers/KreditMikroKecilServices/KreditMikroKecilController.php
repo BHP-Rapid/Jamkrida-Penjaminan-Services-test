@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\KreditMikroKecilServices;
 
+use App\Exceptions\NotFoundException;
 use App\Exports\KreditMikroKecilExport;
 use App\Helpers\ApiResponse;
 use App\Helpers\AuthUserHelper;
@@ -25,10 +26,7 @@ class KreditMikroKecilController extends Controller
             $trxStatus = $request->input('data.trx_status');
             if ($trxStatus === 'D') {
                 if ($request->has('data.dataDebitur') || $request->has('data.dataInstitution')) {
-                    return ApiResponse::error(
-                        'Excel tidak boleh diisi jika ingin Save as Draft',
-                        400
-                    );
+                    return ApiResponse::error('Excel tidak boleh diisi jika ingin Save as Draft', 400);
                 }
             }
 
@@ -59,6 +57,8 @@ class KreditMikroKecilController extends Controller
             return ApiResponse::success(null, 'Data berhasil disimpan');
         } catch (ValidationException $e) {
             return ApiResponse::error('Validation error', 422, $e->errors());
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),
@@ -117,6 +117,8 @@ class KreditMikroKecilController extends Controller
                 422,
                 $e->errors()
             );
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),
@@ -137,6 +139,8 @@ class KreditMikroKecilController extends Controller
                 422,
                 $e->errors()
             );
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),
@@ -163,6 +167,8 @@ class KreditMikroKecilController extends Controller
             return ApiResponse::success($result, 'Success get detail payment');
         } catch (ValidationException $e) {
             return ApiResponse::error('Validation error', 422, $e->errors());
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (\Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),
@@ -190,6 +196,8 @@ class KreditMikroKecilController extends Controller
             return ApiResponse::success($result, 'Success get detail list payment');
         } catch (ValidationException $e) {
             return ApiResponse::error('Validation error', 422, $e->errors());
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (\Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),
@@ -215,7 +223,9 @@ class KreditMikroKecilController extends Controller
             return ApiResponse::success($result, 'Success get detail payment');
         } catch (ValidationException $e) {
             return ApiResponse::error('Validation error', 422, $e->errors());
-        } catch (\Exception $ex) {
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
+        } catch (Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),
                 $ex->getCode() ?: 500
