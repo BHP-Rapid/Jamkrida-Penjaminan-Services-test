@@ -111,6 +111,24 @@ class MultigunaController extends Controller
     {
         $user = AuthUserHelper::getUser($request);
         try {
+            $this->validate($request, [
+                'data.noSuratPermohonan' => 'required|string',
+                'data.pks' => 'required|string',
+                'data.jenisProduk' => 'required|string',
+                'data.bank' => 'required|string',
+                'data.tglSuratPermohonan' => 'required|date',
+                'data.spSplit' => 'required|string',
+                'data.bankCabang' => 'nullable|string',
+                'data.feeBasePercentage' => 'nullable|numeric',
+                'data.teksPenjaminanSp' => 'nullable|string',
+                'data.dataDebitur' => 'nullable|array',
+                'data.dataDebitur.*.attachments' => 'nullable|array',
+                'data.dataDebitur.*.attachments.nik' => 'nullable|string',
+                'data.dataDebitur.*.attachments.uploads' => 'nullable|array',
+                'data.dataDebitur.*.attachments.uploads.*' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+                'data.dataInstitution' => 'nullable|array',
+                'data.tariftarifPercentage' => 'nullable|numeric',
+            ]);
             $this->multigunaService->updateMultigunaDraft(
                 $trxNo,
                 $request->input(),
@@ -118,7 +136,7 @@ class MultigunaController extends Controller
                 $user->name ?? null
             );
 
-            return ApiResponse::success([], 'Data berhasil diupdate');
+            return ApiResponse::success(null, 'Data berhasil diupdate');
         } catch (ValidationException $ex) {
             return ApiResponse::error('Validation error', 422, $ex->errors());
         } catch (NotFoundException $nfe) {

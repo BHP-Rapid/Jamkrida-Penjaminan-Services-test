@@ -239,4 +239,16 @@ class KreditMikroKecilRepository
                 'status' => $status
             ]);
     }
+
+    public function getPenjaminanTransaction(string $trxNo)
+    {
+        return PenjaminanTransaction::lockForUpdate()
+            ->where('trx_no', $trxNo)
+            ->firstOrFail();
+    }
+
+    public function getMultigunaKmkByTrxNo(string $trxNo)
+    {
+        return MultigunaTrxKreditMikroKecil::where('trx_no', $trxNo)->first();
+    }
 }

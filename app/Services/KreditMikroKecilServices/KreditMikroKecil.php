@@ -558,21 +558,12 @@ class KreditMikroKecil
     public function processUpdateDraft($request, $trxNo, $user)
     {
         $data = $request->input();
-
         DB::transaction(function () use ($data, $trxNo, $user) {
-
             $nowJakarta = Carbon::now('Asia/Jakarta');
-
             $key = base64_decode(config('services.secure.key'));
-
             $enc = fn($v) => $v ? AesHelper::encrypt($v, $key) : null;
-
-            $penjaminan = PenjaminanTransaction::lockForUpdate()
-                ->where('trx_no', $trxNo)
-                ->firstOrFail();
-
+            $penjaminan = $this->repository->getPenjaminanTransaction($trxNo);
             $permohonanDate = Carbon::parse($data['tglSuratPermohonan'])->format('Y-m-d');
-
             $penjaminan->update([
                 'no_surat_permohonan' => $data['noSuratPermohonan'],
                 'tanggal_surat_permohonan' => $permohonanDate,
@@ -583,11 +574,7 @@ class KreditMikroKecil
                 'updated_by_id' => $user->user_id ?? null,
                 'updated_by_name' => $user->name ?? null,
             ]);
-
-            $multiguna = MultigunaTrxKreditMikroKecil::lockForUpdate()
-                ->where('trx_no', $trxNo)
-                ->firstOrFail();
-
+            $multiguna = $this->repository->getMultigunaKmkByTrxNo($trxNo);
             $multiguna->update([
                 'pks_number' => $data['pks'] ?? $multiguna->pks_number,
                 'fee_base_number' => $data['tarifPercentage'] ?? $multiguna->fee_base_number,
@@ -767,7 +754,6 @@ class KreditMikroKecil
                 'mime_type' => $attachmentBuktiBayar->getMimeType(),
                 'file_info' => $localStackPath
             ]);
-            
         });
         return response()->json([
             'success' => true,

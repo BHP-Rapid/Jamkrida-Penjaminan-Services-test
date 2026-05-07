@@ -112,9 +112,7 @@ class MultigunaService
     {
         DB::transaction(function () use ($trxNo, $data, $userId, $userName) {
             $nowJakarta = Carbon::now('Asia/Jakarta');
-
             $penjaminan = $this->repository->findPenjaminanForUpdate($trxNo);
-
             $permohonanDate = $penjaminan->tanggal_surat_permohonan;
             if (!empty($data['tglSuratPermohonan'])) {
                 $permohonanDate = Carbon::parse($data['tglSuratPermohonan'])->format('Y-m-d');
