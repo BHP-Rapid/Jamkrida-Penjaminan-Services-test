@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\ApiResponse;
+use App\Helpers\AuthUserHelper;
 use App\Services\PenjaminanTransactionService;
 use Exception;
 use Illuminate\Http\Request;
@@ -17,11 +18,17 @@ class PenjaminanTransactionController extends Controller
     public function index(Request $request)
     {
         try {
-            $result = $this->penjaminanService->getList($request->all());
-            return response()->json([
-                'success' => true,
-                'data' => $result
-            ]);
+            $user = AuthUserHelper::getUser($request);
+            $params = [
+                'page' => $request->query('page', 1),
+                'show_page' => $request->query('show_page', 10),
+                'sort_column' => $request->query('sort_column', 'created_at'),
+                'sort' => $request->query('sort', 'desc'),
+                'search' => $request->query('search'),
+                'mitra_id' => $request->query('mitra_id'),
+            ];
+            $result = $this->penjaminanService->getList($params, $user);
+            return ApiResponse::success($result);
         } catch (ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',

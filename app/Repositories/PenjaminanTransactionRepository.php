@@ -9,14 +9,10 @@ use Illuminate\Support\Facades\DB;
 class PenjaminanTransactionRepository
 {
     //
-    public function getTransactionList(array $params)
+    public function getTransactionList()
     {
-        $mitraAlias = null;
-        if (!empty($params['mitra_id'])) {
-            $mitraAlias = TenantMitra::where('mitra_id', $params['mitra_id'])
-                ->value('alias');
-        }
-        $query = PenjaminanTransaction::query()
+     
+        return PenjaminanTransaction::query()
             ->from('transaction_penjaminan_header as tph')
             ->leftJoin('surety_bond_transaction as sbt', 'sbt.trx_no', '=', 'tph.trx_no')
             ->leftJoin('custom_bond_transaction as cbt', 'cbt.trx_no', '=', 'tph.trx_no')
@@ -53,69 +49,15 @@ class PenjaminanTransactionRepository
                 'mv1.label',
                 'mv2.label',
             );
-
-        // FILTER MITRA
-        if (!is_null($mitraAlias)) {
-            $query->where('tph.mitra_id', $mitraAlias);
-        }
-
-        // FILTER DINAMIS
-        if (!empty($params['filter'])) {
-            foreach ($params['filter'] as $filter) {
-                if (!isset($filter['id'], $filter['value'])) continue;
-
-                $field = $filter['id'];
-                $value = $filter['value'];
-
-                switch ($field) {
-                    case 'trx_no':
-                        $query->where('tph.trx_no', 'like', "%{$value}%");
-                        break;
-
-                    case 'no_surat_permohonan':
-                        $query->where('tph.no_surat_permohonan', 'like', "%{$value}%");
-                        break;
-
-                    case 'product':
-                        $query->where('tph.product', 'like', "%{$value}%");
-                        break;
-
-                    case 'trx_status':
-                        $query->where('tph.trx_status', 'like', "%{$value}%");
-                        break;
-
-                    case 'created_at':
-                        if (is_array($value) && count($value) === 2) {
-                            $query->whereBetween('tph.tanggal_surat_permohonan', [
-                                min($value),
-                                max($value)
-                            ]);
-                        }
-                        break;
-                }
-            }
-        }
-
-        // SORTING
-        $sortable = [
-            'trx_no' => 'tph.trx_no',
-            'created_at' => 'tph.created_at',
-        ];
-
-        if (!empty($params['sort_column']) && !empty($params['sort'])) {
-            if (isset($sortable[$params['sort_column']])) {
-                $query->orderBy($sortable[$params['sort_column']], $params['sort']);
-            }
-        } else {
-            $query->orderBy('tph.created_at', 'desc');
-        }
-
-        // PAGINATION
-        $perPage = (int)($params['show_page'] ?? 10);
-
-        return $query->paginate($perPage);
+       
     }
 
+    public function getTenantMitraData($mitra_id)
+    {
+        return TenantMitra::where('mitra_id', $mitra_id)
+            ->select('mitra_id', 'alias', 'tenant_id')
+            ->first();
+    }
 
     public function findValidAdditionalDocTransaction(string $penjaminanNo, string $noSuratPermohonan)
     {

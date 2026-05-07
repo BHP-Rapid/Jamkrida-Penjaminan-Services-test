@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\NotFoundException;
 use App\Helpers\ApiResponse;
 use App\Helpers\ZipHelper;
 use App\Repositories\PenjaminanTransactionRepository;
@@ -18,21 +19,64 @@ class PenjaminanTransactionService
         protected PenjaminanTransactionRepository $repository
     ) {}
 
-    public function getList(array $params)
+    public function getList(array $params, object $user)
     {
-        $validator = Validator::make($params, [
-            'sort' => 'nullable|string|in:asc,desc',
-            'sort_column' => 'nullable|string',
-            'page' => 'nullable|integer|min:1',
-            'show_page' => 'nullable|integer|min:1',
-            'filter' => 'nullable|array',
-            'mitra_id' => 'nullable|string',
-        ]);
-
-        if ($validator->fails()) {
-            throw new \Exception($validator->errors()->first());
+        $mitraId = $this->getTenantMitraDataOrFail($user);
+        $query = $this->repository->getTransactionList();
+        dd($query);
+        if (!is_null($mitraId)) {
+            $mitraAlias = $mitraId->alias;
+            $query->where('tph.mitra_id', $mitraAlias);
         }
-        return $this->repository->getTransactionList($params);
+        if (!empty($params['filter'])) {
+            foreach ($params['filter'] as $filter) {
+                if (!isset($filter['id'], $filter['value'])) continue;
+                $field = $filter['id'];
+                $value = $filter['value'];
+                switch ($field) {
+                    case 'trx_no':
+                        $query->where('tph.trx_no', 'like', "%{$value}%");
+                        break;
+
+                    case 'no_surat_permohonan':
+                        $query->where('tph.no_surat_permohonan', 'like', "%{$value}%");
+                        break;
+
+                    case 'product':
+                        $query->where('tph.product', 'like', "%{$value}%");
+                        break;
+
+                    case 'trx_status':
+                        $query->where('tph.trx_status', 'like', "%{$value}%");
+                        break;
+
+                    case 'created_at':
+                        if (is_array($value) && count($value) === 2) {
+                            $query->whereBetween('tph.tanggal_surat_permohonan', [
+                                min($value),
+                                max($value)
+                            ]);
+                        }
+                        break;
+                }
+            }
+        }
+
+        // SORTING
+        $sortable = [
+            'trx_no' => 'tph.trx_no',
+            'created_at' => 'tph.created_at',
+        ];
+
+        if (!empty($params['sort_column']) && !empty($params['sort'])) {
+            if (isset($sortable[$params['sort_column']])) {
+                $query->orderBy($sortable[$params['sort_column']], $params['sort']);
+            }
+        } else {
+            $query->orderBy('tph.created_at', 'desc');
+        }
+        $perPage = (int)($params['show_page'] ?? 10);
+        return $query->paginate($perPage);
     }
 
     public function storeAdditionalDoc(array $payload)
@@ -337,5 +381,14 @@ class PenjaminanTransactionService
             throw new \Exception('Data tidak ditemukan', 404);
         }
         return $result;
+    }
+
+    private function getTenantMitraDataOrFail(object $user)
+    {
+        $tenantData = $this->repository->getTenantMitraData($user->mitra_id);
+        if (!$tenantData) {
+            throw new NotFoundException('Tenant mitra data is not found.');
+        }
+        return $tenantData;
     }
 }
