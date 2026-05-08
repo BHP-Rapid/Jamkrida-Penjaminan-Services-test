@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ApiResponse;
 use App\Helpers\AuthUserHelper;
+use App\Services\PenjaminanService;
 use App\Services\PenjaminanTransactionService;
 use Exception;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 class PenjaminanTransactionController extends Controller
 {
     //
-    public function __construct(protected PenjaminanTransactionService $penjaminanService) {}
+    public function __construct(protected PenjaminanTransactionService $penjaminanService , protected PenjaminanService $penjaminanDataService) {}
 
     public function index(Request $request)
     {
@@ -87,6 +88,23 @@ class PenjaminanTransactionController extends Controller
     {
         try {
             $result = $this->penjaminanService->getDetailCertificateByID($req);
+            return ApiResponse::success($result);
+        } catch (ValidationException $e) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $e->errors()
+            );
+        } catch (Exception $ex) {
+            return ApiResponse::error($ex->getMessage(), 500);
+        }
+    }
+
+    public function getPenjaminanPKS(Request $request)
+    {
+        try {
+            $user = AuthUserHelper::getUser($request);
+            $result = $this->penjaminanDataService->getPenjaminanPks($user);
             return ApiResponse::success($result);
         } catch (ValidationException $e) {
             return ApiResponse::error(
