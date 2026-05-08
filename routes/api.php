@@ -86,7 +86,7 @@ Route::prefix('/v2/payment-gateway')->group(function () {
 
 // PENJAMINAN MULTIGUNA
 Route::prefix('/v2/penjaminan/multiguna')->group(function () {
-    Route::get('/detail/{id}', [MultigunaServicesMultigunaController::class, 'show'])
+    Route::get('/detail/{trx_no}', [MultigunaServicesMultigunaController::class, 'show'])
         ->middleware([
             'auth.context',
             'auth.role:admin,super_admin,admin_mitra,mitra',

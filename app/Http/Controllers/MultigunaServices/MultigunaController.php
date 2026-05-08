@@ -84,26 +84,41 @@ class MultigunaController extends Controller
         }
     }
 
-    public function show(Request $request)
+    public function show(string $trx_no)
     {
         try {
-            $validated = $request->validate([
-                'trx_no' => 'required|string|max:100',
-                'no_surat_permohonan' => 'required|string|max:100'
-            ], [
-                'trx_no.required' => 'trx_no is required',
-                'trx_no.string' => 'trx_no must be a string',
-                'no_surat_permohonan.required' => 'no_surat_permohonan is required',
-                'no_surat_permohonan.string' => 'no_surat_permohonan must be a string'
-            ]);
+            $validated = validator(['trx_no' => $trx_no],
+                [
+                    'trx_no' => 'required|string|max:100',
+                ],
+                [
+                    'trx_no.required' => 'trx_no is required',
+                    'trx_no.string' => 'trx_no must be a string',
+                    'trx_no.max' => 'trx_no max 100 characters',
+                ]
+            )->validate();
             $data = $this->multigunaService->getMultigunaDetailWithAttachments($validated);
-            return ApiResponse::success($data, 'Data retrieved successfully');
+            return ApiResponse::success(
+                $data,
+                'Data retrieved successfully'
+            );
         } catch (ValidationException $e) {
-            return ApiResponse::error('Validation error', 422, $e->errors());
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $e->errors()
+            );
         } catch (NotFoundException $nfe) {
-            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
+            return ApiResponse::error(
+                $nfe->getMessage(),
+                $nfe->getStatus(),
+                $nfe->getMessageData()
+            );
         } catch (Exception $ex) {
-            return ApiResponse::error('Error While Get Data Multiguna: ' . $ex->getMessage(), 500);
+            return ApiResponse::error(
+                'Error While Get Data Multiguna: ' . $ex->getMessage(),
+                500
+            );
         }
     }
 

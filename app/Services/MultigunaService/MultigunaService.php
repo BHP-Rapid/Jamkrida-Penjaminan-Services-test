@@ -20,7 +20,6 @@ class MultigunaService
     public function getMultigunaDetailWithAttachments(array $payload)
     {
         $trxNo = $payload['trx_no'] ?? null;
-        $noSuratPermohonan = $payload['no_surat_permohonan'] ?? null;
 
         $penjaminanDetail = $this->repository->getMultigunaDetail($trxNo);
 
@@ -30,7 +29,6 @@ class MultigunaService
 
         $rows = $this->repository->getMultigunaDebitur($penjaminanDetail->id_multiguna);
         $lampiran = $this->repository->getMultigunaLampiran($trxNo);
-
         if ($rows->isNotEmpty()) {
             $key = base64_decode(config('services.secure.key'));
 
@@ -89,7 +87,9 @@ class MultigunaService
                                 now()->addMinutes(15)
                             ),
                         ];
-                        $row->attachments[] = $item;
+                        // $row->attachments[] = $item;
+                        $attachments[] = $item;
+                        $row->attachments = $attachments;
                     }
                 }
             }
@@ -166,7 +166,7 @@ class MultigunaService
         ]);
 
         if (!$result['success']) {
-            throw new NotFoundException('Validasi debitur gagal',$result['message'] ?? null, 422);
+            throw new NotFoundException('Validasi debitur gagal', $result['message'] ?? null, 422);
         }
 
         $dataDebitur = $result['dataDebitur'];
