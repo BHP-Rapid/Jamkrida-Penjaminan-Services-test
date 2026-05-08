@@ -54,6 +54,16 @@ Route::prefix('/v2/penjaminan')->group(function () {
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
     ]);
+    Route::get('/get-pks-data', [PenjaminanTransactionController::class, 'getPenjaminanPks'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
+     Route::post('/upload-additional-document', [PenjaminanTransactionController::class, 'uploadAdditionalDoc'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    ]);
 });
 
 Route::prefix('/v2/payment-gateway')->group(function () {
