@@ -40,6 +40,8 @@ RUN apt-get update && apt-get install -y \
     libpng-dev libonig-dev libxml2-dev \
     libzip-dev libjpeg-dev libfreetype6-dev \
     libicu-dev \
+    && pecl install xdebug \
+    && docker-php-ext-enable xdebug\
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install \
         pdo_mysql mbstring exif pcntl bcmath gd zip intl
