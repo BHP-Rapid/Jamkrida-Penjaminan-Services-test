@@ -45,6 +45,10 @@ class PenjaminanTransactionService
                         $query->where('tph.product', 'like', "%{$value}%");
                         break;
 
+                    case 'product_description':
+                        $query->where('mv1.label', 'like', "%{$value}%");
+                        break;
+
                     case 'trx_status':
                         $query->where('tph.trx_status', 'like', "%{$value}%");
                         break;

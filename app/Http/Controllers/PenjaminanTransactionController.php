@@ -26,6 +26,7 @@ class PenjaminanTransactionController extends Controller
                 'sort_column' => $request->query('sort_column', 'created_at'),
                 'sort' => $request->query('sort', 'desc'),
                 'search' => $request->query('search'),
+                'filter' => $request->query('filter'),
                 'mitra_id' => $request->query('mitra_id'),
             ];
             $result = $this->penjaminanService->getList($params, $user);
