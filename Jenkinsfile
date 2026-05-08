@@ -27,8 +27,9 @@ pipeline {
                 php:8.4-cli \
                 sh -c "
                     apt update &&
-                    apt install -y git unzip libzip-dev curl &&
-                    docker-php-ext-install zip &&
+                    apt install -y git unzip libzip-dev curl libpng-dev libjpeg-dev libfreetype6-dev &&
+                    docker-php-ext-configure gd --with-freetype --with-jpeg &&
+                    docker-php-ext-install gd zip &&
                     pecl install xdebug &&
                     docker-php-ext-enable xdebug &&
                     curl -sS https://getcomposer.org/installer | php &&
