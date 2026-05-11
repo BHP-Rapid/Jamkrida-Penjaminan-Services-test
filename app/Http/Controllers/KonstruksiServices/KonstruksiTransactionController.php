@@ -99,9 +99,12 @@ class KonstruksiTransactionController extends Controller
                 return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
             }
 
-            $result = $this->service->store($request->all(), $user, $mitraAlias, $tenant_ID, $penjaminanPKSData);
+            $result = $this->service->store($request, $user, $mitraAlias, $tenant_ID, $penjaminanPKSData);
 
             if (isset($result['error'])) {
+                return ApiResponse::error($result['message'], $result['code']);
+            }
+            if ($result['success'] == false) {
                 return ApiResponse::error($result['message'], $result['code']);
             }
 

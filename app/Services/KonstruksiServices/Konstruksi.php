@@ -37,9 +37,7 @@ class Konstruksi
 
         if ($rows->isNotEmpty()) {
             $key = base64_decode(config('services.secure.key'));
-            if ($rows) {
-                $this->decryptInstitution($rows, $key);
-            }
+            $rows = $this->decryptInstitution($rows, $key);
             $lampiran = $this->getLampiran($trx_no);
             $penjaminanDetail->setAttribute('lampiran', $lampiran);
         }
@@ -67,12 +65,15 @@ class Konstruksi
             'current_salary_amount',
             'other_income_amount'
         ];
-
-        foreach ($fields as $field) {
-            $data->$field = !empty($data->$field)
-                ? AesHelper::decrypt($data->$field, $key)
-                : null;
+        foreach ($data as $rows) {
+            foreach ($fields as $field) {
+                $rows->$field = !empty($rows->$field)
+                    ? AesHelper::decrypt($rows->$field, $key)
+                    : null;
+            }
         }
+
+        return $data;
     }
 
     private function getLampiran($trx_no)
