@@ -108,7 +108,7 @@ class KonstruksiTransactionController extends Controller
                 return ApiResponse::error($result['message'], $result['code']);
             }
 
-            return ApiResponse::success($result);
+            return ApiResponse::success();
         } catch (\Illuminate\Validation\ValidationException $ve) {
             return ApiResponse::error(
                 'Validation error',

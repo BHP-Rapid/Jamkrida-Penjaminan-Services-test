@@ -96,9 +96,7 @@ class KonstruksiRepository
 
     public function insertLampiranDetails(array $rows): void
     {
-        if (!empty($rows)) {
-            DB::table('penjaminan_lampiran_dtl')->insert($rows);
-        }
+        DB::table('penjaminan_lampiran_dtl')->insert($rows);
     }
 
     public function deleteLampiranDetails($trxNo)

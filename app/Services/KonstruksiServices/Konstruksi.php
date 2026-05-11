@@ -379,7 +379,9 @@ class Konstruksi
                 }
             }
 
-            $this->repository->insertLampiranDetails($savedAttachments);
+            foreach ($savedAttachments as $sa) {
+                $this->repository->insertLampiranDetails($sa);
+            }
 
             if ($request->data['trx_status'] != 'D') {
                 $this->repository->createPenjaminanFlow([
@@ -392,7 +394,10 @@ class Konstruksi
                 ]);
             }
         });
+
+        return ["success" => true];
     }
+
     public function update($request, $user, string $mitraAlias, string $tenant_ID, array $penjaminanPKSData, $trxNo)
     {
         $newStatus = $request->data['trx_status'];
