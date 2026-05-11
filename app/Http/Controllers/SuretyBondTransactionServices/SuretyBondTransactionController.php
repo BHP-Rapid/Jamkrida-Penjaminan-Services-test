@@ -123,7 +123,8 @@ class SuretyBondTransactionController extends Controller
                 'data.status.in' => 'status must be draft or submit',
             ]);
 
-            $result = $this->suretyBondService->handleStore($validated, $user);
+            // $result = $this->suretyBondService->handleStore($validated, $user);
+            $result = $this->suretyBondService->handleStore($validated, $user, $request->data['institution_data']);
 
             return ApiResponse::success($result, 'Data has been successfully created');
         } catch (ValidationException $e) {
