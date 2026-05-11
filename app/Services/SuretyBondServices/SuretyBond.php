@@ -151,13 +151,13 @@ class SuretyBond
             $this->repository->createDetail(
                 $this->buildSrtbPayload($penjaminanPayload, $fallback, $trxNo, $idInstitution)
             );
-            if ($hasLampiran) {
-                $attachments = $this->handleLampiran($trxNo, $penjaminanPayload);
+            // if ($hasLampiran) {
+            //     $attachments = $this->handleLampiran($trxNo, $penjaminanPayload['lampiran']);
 
-                if (!empty($attachments)) {
-                    $this->repository->insertLampiran($attachments);
-                }
-            }
+            //     if (!empty($attachments)) {
+            //         $this->repository->insertLampiran($attachments);
+            //     }
+            // }
             $this->repository->insertFlow([
                 'trx_no' => $trxNo,
                 'trx_status' => $trxInsertStatus,
