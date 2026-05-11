@@ -59,7 +59,7 @@ Route::prefix('/v2/penjaminan')->group(function () {
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
     ]);
-     Route::post('/upload-additional-document', [PenjaminanTransactionController::class, 'uploadAdditionalDoc'])->middleware([
+    Route::post('/upload-additional-document', [PenjaminanTransactionController::class, 'uploadAdditionalDoc'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
@@ -87,6 +87,19 @@ Route::prefix('/v2/payment-gateway')->group(function () {
 // PENJAMINAN MULTIGUNA
 Route::prefix('/v2/penjaminan/multiguna')->group(function () {
     Route::get('/detail/{trx_no}', [MultigunaServicesMultigunaController::class, 'show'])
+        ->middleware([
+            'auth.context',
+            'auth.role:admin,super_admin,admin_mitra,mitra',
+            'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+        ]);
+    Route::get('/detail-payment-multiguna-list', [MultigunaServicesMultigunaController::class, 'GetDetailListPaymentMultiguna'])
+        ->middleware([
+            'auth.context',
+            'auth.role:admin,super_admin,admin_mitra,mitra',
+            'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+        ]);
+
+    Route::get('/detail-payment-multiguna', [MultigunaServicesMultigunaController::class, 'GetDetailPaymentMultiguna'])
         ->middleware([
             'auth.context',
             'auth.role:admin,super_admin,admin_mitra,mitra',

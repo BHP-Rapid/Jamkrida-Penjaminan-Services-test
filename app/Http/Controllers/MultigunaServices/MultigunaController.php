@@ -245,7 +245,6 @@ class MultigunaController extends Controller
     public function GetDetailListPaymentMultiguna(Request $request)
     {
         try {
-
             $validated = $request->validate([
                 'no_surat_permohonan' => 'required|string|max:100',
                 'trx_no' => 'required|string|max:100',

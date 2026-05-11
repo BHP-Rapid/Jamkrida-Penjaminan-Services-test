@@ -29,11 +29,9 @@ class MultigunaRepository
 
     public function getMultigunaDebitur(int $multigunaId)
     {
-        return Institution::query()
-            ->from('institution as a')
-            ->join('multiguna_debitur as b', 'a.institution_id', '=', 'b.institution_id')
+        return Institution::join('multiguna_debitur as b', 'institution.institution_id', '=', 'b.institution_id')
             ->where('b.multiguna_trx_id', $multigunaId)
-            ->select('b.*', 'a.*')
+            ->select('b.*', 'institution.*')
             ->get();
     }
 
@@ -170,7 +168,7 @@ class MultigunaRepository
                 'mts.due_date',
                 'mts.status'
             ])
-            ->get();
+            ->first();
     }
 
     public function getDetailUnpaidPaymentMLT(string $trx_no)

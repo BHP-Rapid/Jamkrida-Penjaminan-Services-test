@@ -29,33 +29,26 @@ class MultigunaService
 
         $rows = $this->repository->getMultigunaDebitur($penjaminanDetail->id_multiguna);
         $lampiran = $this->repository->getMultigunaLampiran($trxNo);
+
         if ($rows->isNotEmpty()) {
             $key = base64_decode(config('services.secure.key'));
 
-            foreach ($rows as $row) {
-                if ($row->birth_date) {
-                    $row->birth_date = AesHelper::decrypt($row->birth_date, $key);
-                }
-                if ($row->nik) {
-                    $row->nik = AesHelper::decrypt($row->nik, $key);
-                }
-                if ($row->id_number) {
-                    $row->id_number = AesHelper::decrypt($row->id_number, $key);
-                }
-                if ($row->tax_id) {
-                    $row->tax_id = AesHelper::decrypt($row->tax_id, $key);
-                }
-                if ($row->email_1) {
-                    $row->email_1 = AesHelper::decrypt($row->email_1, $key);
-                }
-                if ($row->phone_1) {
-                    $row->phone_1 = AesHelper::decrypt($row->phone_1, $key);
-                }
-                if ($row->current_salary_amount) {
-                    $row->current_salary_amount = AesHelper::decrypt($row->current_salary_amount, $key);
-                }
-                $row->attachments = [];
-            }
+            $debiturRows = $rows->map(function ($row) use ($key) {
+                $item = $row->toArray();
+                $item['nik'] = $row->nik
+                    ? AesHelper::decrypt($row->nik, $key)
+                    : null;
+                $item['phone_1'] = $row->phone_1
+                    ? AesHelper::decrypt($row->phone_1, $key)
+                    : null;
+
+                $item['email_1'] = $row->email_1
+                    ? AesHelper::decrypt($row->email_1, $key)
+                    : null;
+                $item['attachments'] = [];
+
+                return $item;
+            })->values();
 
             // Attach lampiran to debitur
             foreach ($lampiran as $att) {
@@ -70,8 +63,8 @@ class MultigunaService
                     continue;
                 }
 
-                foreach ($rows as $row) {
-                    if (!empty($row->nik) && $row->nik === $fileNik) {
+                foreach ($debiturRows as $index => $row) {
+                    if (!empty($row['nik']) && $row['nik'] === $fileNik) {
                         $item = [
                             'id' => $att->id ?? null,
                             'file_path' => $att->file_info ?? null,
@@ -87,9 +80,9 @@ class MultigunaService
                                 now()->addMinutes(15)
                             ),
                         ];
-                        // $row->attachments[] = $item;
-                        $attachments[] = $item;
-                        $row->attachments = $attachments;
+                        $updatedRow = $debiturRows->get($index);
+                        $updatedRow['attachments'][] = $item;
+                        $debiturRows->put($index, $updatedRow);
                     }
                 }
             }
@@ -101,8 +94,8 @@ class MultigunaService
             $penjaminanDetail->flowMultiguna = $multigunaFlow;
         }
 
-        if ($rows->isNotEmpty()) {
-            $penjaminanDetail->debiturMultiguna = $rows;
+        if ($debiturRows->isNotEmpty()) {
+            $penjaminanDetail->debiturMultiguna = $debiturRows;
         }
 
         return $penjaminanDetail;
@@ -420,18 +413,15 @@ class MultigunaService
         if (!$dataHeader) {
             throw new NotFoundException('Data Payment tidak ditemukan');
         }
-
         $debiturData = $this->repository->getDetailListPaymentDebitur($dataHeader->id_multiguna);
-
         $debiturById = $debiturData->keyBy('id_trx_debitur');
         $debiturIds  = $debiturData->pluck('id_trx_debitur')->filter()->unique()->values();
         if ($debiturIds->isEmpty()) {
             throw new NotFoundException('Data debitur tidak ditemukan');
         }
-
+        $debiturIds = $debiturIds->all();
         $schedules = $this->repository->getSchedules($debiturIds);
         $unpaid    = $this->repository->getUnpaidSchedules($debiturIds);
-
         $result = $this->mapResult($schedules, $debiturById, $unpaid);
         return  $result;
     }
@@ -489,7 +479,7 @@ class MultigunaService
                             'nik' => $d->nik,
                             'invoice_number' => $sch->invoice_number,
                             'tanggal_realisasi' => $d->tanggal_realisasi,
-                            'debitur_name' => $d->nama_nasabah,
+                            'debitur_name' => $d->debitur_name,
                             'due_date' => $sch->due_date,
                             'status' => $sch->status,
                             'amount' => $sch?->amount,

@@ -22,7 +22,6 @@ class CreatioService
     protected function login()
     {
         $url = $this->baseUrl . '/ServiceModel/AuthService.svc/Login';
-        
         $response = Http::withHeaders(['Content-Type' => 'application/json'])
             ->post($url, [
                 'UserName' => $this->username,
@@ -91,7 +90,6 @@ class CreatioService
     public function request($method, $endpoint, $body = [], $query = [], $retry = 1, $binaryData = '', $binaryType = '')
     {
         $headers = $this->getAuthHeaders();
-        
         $url = $this->baseUrl . '/' . ltrim($endpoint, '/');
         
         $request = Http::withHeaders($headers);

@@ -45,4 +45,20 @@ return [
         'timeout' => env('AUTH_SERVICE_TIMEOUT', 10),
     ],
 
+
+    'mailgun' => [
+        'domain' => env('MAILGUN_DOMAIN'),
+        'secret' => env('MAILGUN_SECRET'),
+        'endpoint' => env('MAILGUN_ENDPOINT', 'api.mailgun.net'),
+        'scheme' => 'https',
+    ],
+    'core' => [
+        'access_key' => env('CORE_ACCESS_KEY'),
+    ],
+    'creatio' => [
+        'url' => env('CREATIO_URL'),
+        'username' => env('CREATIO_USERNAME'),
+        'password' => env('CREATIO_PASSWORD'),
+    ],
+
 ];

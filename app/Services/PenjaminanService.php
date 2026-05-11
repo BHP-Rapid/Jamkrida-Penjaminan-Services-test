@@ -3188,7 +3188,6 @@ class PenjaminanService
         $mitra = TenantMitra::where('mitra_id', $user->mitra_id)
             ->select('alias', 'is_syariah', 'is_conventional')
             ->first();
-
         if ($mitra == null) {
             return response()->json([
                 'success' => false,
@@ -3199,7 +3198,6 @@ class PenjaminanService
         $response = $pksService->request('get', '/0/rest/MasterData/GetPKS', [], [
             'MitraID' => $mitra
         ]);
-
         if ($response->status() !== 200) {
             throw new Exception("Failed to get data from Core Creatio API with status: " . $response->status());
         }
