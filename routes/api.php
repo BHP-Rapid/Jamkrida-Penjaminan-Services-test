@@ -41,8 +41,8 @@ Route::prefix('/v2/penjaminan')->group(function () {
     Route::get('/penjaminan-data', [PenjaminanTransactionController::class, 'index'])
         ->middleware([
             'auth.context',
-            'auth.role:admin,super_admin,admin_mitra,mitra',
-            'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+            'auth.role:admin,super_admin,admin_mitra,mitra,head_admin_mitra',
+            'auth.permission:mitra.penjaminan,read,create,update,delete,approve|head_admin_mitra=mitra.approve.penjaminan:view,approve',
         ]);
     Route::get('/detail-additional-document', [PenjaminanTransactionController::class, 'getAdditionalDocProduct'])->middleware([
         'auth.context',

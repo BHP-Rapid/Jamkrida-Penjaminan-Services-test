@@ -206,14 +206,24 @@ class MultigunaRepository
         return PenjaminanTransaction::query()
             ->from('transaction_penjaminan_header as tph')
             ->join('multiguna_transaction as mt', 'tph.trx_no', '=', 'mt.trx_no')
+            ->join('multiguna_debitur as md', 'mt.id_multiguna', '=', 'md.multiguna_trx_id')
+            ->join('multiguna_tenor_schedule as mts', 'md.id_trx_debitur', '=', 'mts.id_trx_debitur')
             ->where('tph.trx_no', $trx_no)
+            ->where('mts.status', 'Pending')
             ->where('tph.no_surat_permohonan', $no_surat_permohonan)
             ->where('tph.sp_split', $isSplit)
             ->select([
-                'tph.*',
                 'mt.id_multiguna',
+                'md.id_trx_debitur',
+                'md.plafond_pembiayaan',
+                'md.nik',
+                'md.debitur_name',
+                'mts.amount',
+                'mts.invoice_number',
+                'mts.due_date',
+                'mts.status'
             ])
-            ->first();
+            ->get();
     }
 
     public function getDetailListPaymentDebitur(int $id_multiguna)

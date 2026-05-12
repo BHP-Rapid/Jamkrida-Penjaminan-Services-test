@@ -442,7 +442,7 @@ class MultigunaService
         if (!$dataHeader) {
             throw new NotFoundException('Data Header tidak ditemukan');
         }
-        $dataUnpaid = $this->repository->getDetailUnpaidPaymentMLT($dataHeader->id_multiguna);
+        $dataUnpaid = $this->repository->getDetailUnpaidPaymentMLT($dataHeader[0]->id_multiguna);
         $result = [
             'dataHeader' =>
             [
