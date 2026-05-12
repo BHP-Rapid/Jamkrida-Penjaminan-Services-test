@@ -198,8 +198,9 @@ Route::prefix('/v2/penjaminan/custom-bond')->group(function () {
 Route::prefix('/v2/penjaminan/surety-bond')->group(function () {
     Route::get('/detail', [SuretyBondTransactionController::class, 'show'])->middleware([
         'auth.context',
-        'auth.role:admin,super_admin,admin_mitra,mitra',
-        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+        'auth.role:admin,super_admin,admin_mitra,mitra,head_admin_mitra',
+        // 'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+        'auth.permission:mitra=mitra.penjaminan:view,create,update,delete|head_admin_mitra=mitra.approve.penjaminan:view,approve',
     ]);
     Route::post('/create', [SuretyBondTransactionController::class, 'store'])->middleware([
         'auth.context',
@@ -218,8 +219,10 @@ Route::prefix('/v2/penjaminan/surety-bond')->group(function () {
     ]);
     Route::post('/approved-penjaminan', [SuretyBondTransactionController::class, 'approvePenjaminanSB'])->middleware([
         'auth.context',
-        'auth.role:admin,super_admin,admin_mitra,mitra',
-        'auth.permission:mitra.penjaminan.approval,read,create,update,delete,approve',
+        'auth.role:super_admin,head_admin_mitra',
+        'auth.permission:head_admin_mitra=mitra.approve.penjaminan:view,approve',
+        // 'auth.role:admin,super_admin,admin_mitra,mitra',
+        // 'auth.permission:mitra.penjaminan.approval,read,create,update,delete,approve',
     ]);
     Route::get('/detail-payment', [SuretyBondTransactionController::class, 'getDetailPaymentSrtb'])->middleware([
         'auth.context',
