@@ -49,8 +49,12 @@ class PenjaminanTransactionService
                         $query->where('mv1.label', 'like', "%{$value}%");
                         break;
 
-                    case 'trx_status':
-                        $query->where('tph.trx_status', 'like', "%{$value}%");
+                    case 'trx_status_label':
+                        if (is_array($value)) {
+                            $query->whereIn('mv2.label', $value);
+                        } else {
+                            $query->where('mv2.label', 'like', "%{$value}%");
+                        }
                         break;
 
                     case 'created_at':
@@ -285,27 +289,10 @@ class PenjaminanTransactionService
     }
 
 
-    public function getAdditionalDocProduct(Request $req)
+    public function getAdditionalDocProduct(array $payload)
     {
-        $validator = Validator::make(
-            $req->query(),
-            [
-                'trx_no'  => ['required', 'string'],
-                'product' => ['required', 'string', 'in:mlt,srtb,cstb,kmk,ku,kur,kpr,kkpbj'],
-            ],
-            [
-                'trx_no.required'  => 'trx_no is required',
-                'product.required' => 'product is required',
-                'product.in'       => 'product must be one of: mlt,srtb,cstb,kmk,ku,kur,kpr,kkpbj',
-            ]
-        );
-
-        // if ($validator->fails()) {
-        //     return ApiResponse::validation($validator->errors());
-        // }
-
-        $trxNo  = $req->query('trx_no');
-        $product = $req->query('product');
+        $trxNo  = $payload['trx_no'];
+        $product = $payload['product'];
 
         switch ($product) {
             case 'mlt':
@@ -334,11 +321,11 @@ class PenjaminanTransactionService
                 break;
 
             default:
-                return ApiResponse::error('Invalid product', 422);
+                throw new NotFoundException('No additional document found for the specified product.');
         }
 
         if (empty($result)) {
-            throw new \Exception('Data tidak ditemukan', 404);
+            throw new NotFoundException('Data tidak ditemukan.');
         }
 
         return $result;
@@ -381,7 +368,7 @@ class PenjaminanTransactionService
                 return ApiResponse::error('Invalid product', 422);
         }
         if (empty($result)) {
-            throw new \Exception('Data tidak ditemukan', 404);
+            throw new NotFoundException('Data tidak ditemukan.');
         }
         return $result;
     }

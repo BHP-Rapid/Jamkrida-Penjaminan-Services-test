@@ -30,7 +30,7 @@ auth verification 101:
             'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
         )
         opsi pertama adalah menu_code (lihat di table mitra_portal.master_menus_v2) => assign API hanya untuk 1 halaman saja 
-        -read
+        -view
         -create
         -update
         -delete
@@ -44,25 +44,25 @@ Route::prefix('/v2/penjaminan')->group(function () {
             'auth.role:admin,super_admin,admin_mitra,mitra,head_admin_mitra',
             'auth.permission:mitra=mitra.penjaminan:view,create,update,delete|head_admin_mitra=mitra.approve.penjaminan:view,approve',
         ]);
-    Route::get('/detail-additional-document', [PenjaminanTransactionController::class, 'getAdditionalDocProduct'])->middleware([
+    Route::get('/detail-additional-document', [PenjaminanTransactionController::class, 'getAdditionalDocument'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
-        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+        'auth.permission:mitra=mitra.penjaminan:view,update',
     ]);
     Route::get('/detail-certified-permohonan', [PenjaminanTransactionController::class, 'GetDetailCertificateByID'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
-        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+        'auth.permission:mitra=mitra.penjaminan:view,create,update,delete,approve',
     ]);
     Route::get('/get-pks-data', [PenjaminanTransactionController::class, 'getPenjaminanPks'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
-        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+        'auth.permission:mitra=mitra.penjaminan:view,create,update,delete,approve',
     ]);
     Route::post('/upload-additional-document', [PenjaminanTransactionController::class, 'uploadAdditionalDoc'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
-        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+        'auth.permission:mitra=mitra.penjaminan:view,create,update,delete,approve',
     ]);
 });
 

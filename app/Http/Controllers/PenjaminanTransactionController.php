@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\NotFoundException;
 use App\Helpers\ApiResponse;
 use App\Helpers\AuthUserHelper;
 use App\Services\PenjaminanService;
@@ -14,7 +15,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 class PenjaminanTransactionController extends Controller
 {
     //
-    public function __construct(protected PenjaminanTransactionService $penjaminanService , protected PenjaminanService $penjaminanDataService) {}
+    public function __construct(protected PenjaminanTransactionService $penjaminanService, protected PenjaminanService $penjaminanDataService) {}
 
     public function index(Request $request)
     {
@@ -69,10 +70,19 @@ class PenjaminanTransactionController extends Controller
         }
     }
 
-    public function getAdditionalDocument(Request $req): JsonResponse
+    public function getAdditionalDocument(Request $request)
     {
         try {
-            $result = $this->penjaminanService->getAdditionalDocProduct($req);
+            $validated = $request->validate([
+                'trx_no' => 'required|string|max:100',
+                'product' => 'required|string|in:mlt,srtb,cstb,kmk,ku,kur,kpr,kkpbj',
+            ], [
+                'trx_no.required' => 'trx_no is required',
+                'product.required' => 'product is required',
+                'product.in' => 'product must be one of: mlt,srtb,cstb,kmk,ku,kur,kpr,kkpbj',
+            ]);
+            $payload = $validated;
+            $result = $this->penjaminanService->getAdditionalDocProduct($payload);
             return ApiResponse::success($result);
         } catch (ValidationException $e) {
             return ApiResponse::error(
@@ -80,6 +90,8 @@ class PenjaminanTransactionController extends Controller
                 422,
                 $e->errors()
             );
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error($ex->getMessage(), 500);
         }
