@@ -42,7 +42,7 @@ Route::prefix('/v2/penjaminan')->group(function () {
         ->middleware([
             'auth.context',
             'auth.role:admin,super_admin,admin_mitra,mitra,head_admin_mitra',
-            'auth.permission:mitra.penjaminan,read,create,update,delete,approve|head_admin_mitra=mitra.approve.penjaminan:view,approve',
+            'auth.permission:mitra=mitra.penjaminan:view,create,update,delete|head_admin_mitra=mitra.approve.penjaminan:view,approve',
         ]);
     Route::get('/detail-additional-document', [PenjaminanTransactionController::class, 'getAdditionalDocProduct'])->middleware([
         'auth.context',
