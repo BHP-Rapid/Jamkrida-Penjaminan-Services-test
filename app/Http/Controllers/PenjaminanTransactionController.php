@@ -97,10 +97,19 @@ class PenjaminanTransactionController extends Controller
         }
     }
 
-    public function  GetDetailCertificateByID(Request $req)
+    public function  GetDetailCertificateByID(Request $request)
     {
         try {
-            $result = $this->penjaminanService->getDetailCertificateByID($req);
+            $validated = $request->validate([
+                'trx_no' => 'required|string|max:100',
+                'product' => 'required|string|in:mlt,srtb,cstb,kmk,ku,kur,kpr,kkpbj',
+            ], [
+                'trx_no.required' => 'trx_no is required',
+                'product.required' => 'product is required',
+                'product.in' => 'product must be one of: mlt,srtb,cstb,kmk,ku,kur,kpr,kkpbj',
+            ]);
+            $payload = $validated;
+            $result = $this->penjaminanService->getDetailCertificateByID($payload);
             return ApiResponse::success($result);
         } catch (ValidationException $e) {
             return ApiResponse::error(

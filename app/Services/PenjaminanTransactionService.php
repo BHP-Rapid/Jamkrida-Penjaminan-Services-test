@@ -331,38 +331,34 @@ class PenjaminanTransactionService
         return $result;
     }
 
-    public function getDetailCertificateByID(Request $req)
+    public function getDetailCertificateByID(array $payload)
     {
-        $validator = Validator::make($req->all(), [
-            'trx_no' => 'required',
-            'product' => 'required',
-        ]);
-        if ($validator->fails()) {
-            // return ApiResponse::validation($validator->errors());
-        }
-        $input = $validator->validated();
-        switch ($input['product']) {
+        $trxNo  = $payload['trx_no'];
+        $product = $payload['product'];
+        switch ($product) {
             case 'mlt':
-                $result = $this->repository->getDetailCertifiedByIDMLT($input['trx_no']);
+                $result = $this->repository->getDetailCertifiedByIDMLT($trxNo);
                 break;
             case 'srtb':
-                $result = $this->repository->getDetailCertifiedByIDSrtb($input['trx_no']);
+                $result = $this->repository->getDetailCertifiedByIDSrtb($trxNo);
+                break;
             case 'cstb':
-                $result = $this->repository->getDetailCertifiedByIDCstb($input['trx_no']);
+                $result = $this->repository->getDetailCertifiedByIDCstb($trxNo);
+                break;
             case 'kmk':
-                $result = $this->repository->getDetailCertifiedByIDKmk($input['trx_no']);
+                $result = $this->repository->getDetailCertifiedByIDKmk($trxNo);
                 break;
             case 'ku':
-                $result = $this->repository->getDetailCertifiedByIDKU($input['trx_no']);
+                $result = $this->repository->getDetailCertifiedByIDKU($trxNo);
                 break;
             case 'kur':
-                $result = $this->repository->getDetailCertifiedByIDKur($input['trx_no']);
+                $result = $this->repository->getDetailCertifiedByIDKur($trxNo);
                 break;
             case 'kkpbj':
-                $result = $this->repository->getDetailCertifiedByIDKkpbj($input['trx_no']);
+                $result = $this->repository->getDetailCertifiedByIDKkpbj($trxNo);
                 break;
             case 'kpr':
-                $result = $this->repository->getDetailCertifiedByIDKpr($input['trx_no']);
+                $result = $this->repository->getDetailCertifiedByIDKpr($trxNo);
                 break;
             default:
                 return ApiResponse::error('Invalid product', 422);
