@@ -68,11 +68,12 @@ class KreditUsaha
             'current_salary_amount',
             'other_income_amount'
         ];
-
-        foreach ($fields as $field) {
-            $data->$field = !empty($data->$field)
-                ? AesHelper::decrypt($data->$field, $key)
-                : null;
+        foreach ($data as $rows) {
+            foreach ($fields as $field) {
+                $data->$field = !empty($rows->$field)
+                    ? AesHelper::decrypt($rows->$field, $key)
+                    : null;
+            }
         }
     }
 
@@ -895,5 +896,11 @@ class KreditUsaha
         ]);
 
         DB::commit();
+
+        return [
+            'success' => true,
+            'message' => 'Bukti bayar manual successfully uploaded.',
+            'status' => 200,
+        ];
     }
 }
