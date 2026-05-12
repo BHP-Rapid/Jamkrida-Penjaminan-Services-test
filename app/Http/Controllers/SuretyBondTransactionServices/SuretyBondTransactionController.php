@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\SuretyBondTransactionServices;
 
+use App\Exceptions\NotFoundException;
 use App\Helpers\ApiResponse;
 use App\Helpers\AuthUserHelper;
 use App\Http\Controllers\Controller;
@@ -20,17 +21,23 @@ class SuretyBondTransactionController extends Controller
     public function show(Request $request)
     {
         try {
+            $user = AuthUserHelper::getUser($request);
             $validated = $request->validate([
                 'trx_no' => 'required|string|max:100',
-                'no_surat_permohonan' => 'required|string|max:100'
+                // 'no_surat_permohonan' => 'required|string|max:100'
             ], [
                 'trx_no.required' => 'trx_no is required',
-                'trx_no.string' => 'trx_no must be a string',
-                'no_surat_permohonan.required' => 'no_surat_permohonan is required',
-                'no_surat_permohonan.string' => 'no_surat_permohonan must be a string'
+                'trx_no.string' => 'trx_no must be a string'
+                // 'no_surat_permohonan.required' => 'no_surat_permohonan is required',
+                // 'no_surat_permohonan.string' => 'no_surat_permohonan must be a string'
             ]);
-            $data = $this->suretyBondService->handleShow($validated);
+            $data = $this->suretyBondService->handleShow($validated, $user);
             return ApiResponse::success($data, 'Data retrieved successfully');
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error(
+                $nfe->getMessage(),
+                $nfe->getStatus()
+            );
         } catch (ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',

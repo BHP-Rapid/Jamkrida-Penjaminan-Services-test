@@ -29,22 +29,23 @@ class SuretyBond
         protected SuretyBondRepository $repository
     ) {}
 
-    public function handleShow(array $request)
+    public function handleShow(array $request, object $user)
     {
-        $user = auth('sanctum')->user();
+        // $user = auth('sanctum')->user();
 
-        $mitraCode = TenantMitra::where('mitra_id', $user->mitra_id)
-            ->select('alias')->first();
+        $mitraCode = $this->getTenantDataOrFail($user->mitra_id);
+        // $mitraCode = TenantMitra::where('mitra_id', $user->mitra_id)
+        //     ->select('alias')->first();
 
-        if ($mitraCode == null) {
-            return [
-                'status' => 404,
-                'response' => [
-                    'success' => false,
-                    'message' => 'No mitra code found.'
-                ]
-            ];
-        }
+        // if ($mitraCode == null) {
+        //     return [
+        //         'status' => 404,
+        //         'response' => [
+        //             'success' => false,
+        //             'message' => 'No mitra code found.'
+        //         ]
+        //     ];
+        // }
 
         $trx_no = is_array($request)
             ? $request['trx_no']
