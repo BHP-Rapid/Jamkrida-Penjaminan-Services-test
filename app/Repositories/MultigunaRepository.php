@@ -201,7 +201,7 @@ class MultigunaRepository
             )->get();
     }
 
-    public function getDetailListHeader(string $trx_no, string $no_surat_permohonan, ?int $isSplit)
+    public function getDetailListHeader(string $no_surat_permohonan, string $trx_no, ?int $isSplit)
     {
         return PenjaminanTransaction::query()
             ->from('transaction_penjaminan_header as tph')
