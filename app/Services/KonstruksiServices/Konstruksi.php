@@ -37,9 +37,7 @@ class Konstruksi
 
         if ($rows->isNotEmpty()) {
             $key = base64_decode(config('services.secure.key'));
-            if ($rows) {
-                $this->decryptInstitution($rows, $key);
-            }
+            $rows = $this->decryptInstitution($rows, $key);
             $lampiran = $this->getLampiran($trx_no);
             $penjaminanDetail->setAttribute('lampiran', $lampiran);
         }
@@ -67,12 +65,15 @@ class Konstruksi
             'current_salary_amount',
             'other_income_amount'
         ];
-
-        foreach ($fields as $field) {
-            $data->$field = !empty($data->$field)
-                ? AesHelper::decrypt($data->$field, $key)
-                : null;
+        foreach ($data as $rows) {
+            foreach ($fields as $field) {
+                $rows->$field = !empty($rows->$field)
+                    ? AesHelper::decrypt($rows->$field, $key)
+                    : null;
+            }
         }
+
+        return $data;
     }
 
     private function getLampiran($trx_no)
@@ -378,7 +379,9 @@ class Konstruksi
                 }
             }
 
-            $this->repository->insertLampiranDetails($savedAttachments);
+            foreach ($savedAttachments as $sa) {
+                $this->repository->insertLampiranDetails($sa);
+            }
 
             if ($request->data['trx_status'] != 'D') {
                 $this->repository->createPenjaminanFlow([
@@ -391,7 +394,10 @@ class Konstruksi
                 ]);
             }
         });
+
+        return ["success" => true];
     }
+
     public function update($request, $user, string $mitraAlias, string $tenant_ID, array $penjaminanPKSData, $trxNo)
     {
         $newStatus = $request->data['trx_status'];

@@ -67,14 +67,14 @@ class SuretyBond
         return $penjaminanData;
     }
 
-    public function handleStore(array $payload, object $user)
+    public function handleStore(array $payload, object $user, array $institution_data)
     {
         $mitraData = $this->getTenantDataOrFail($user->mitra_id);
         $mitraAlias = $mitraData->alias;
         $penjaminanPayload = collect($payload['data'])->toArray();
-        if (array_key_exists('institution_data', $penjaminanPayload)) {
-            unset($penjaminanPayload['institution_data']);
-        }
+        // if (array_key_exists('institution_data', $penjaminanPayload)) {
+        //     unset($penjaminanPayload['institution_data']);
+        // }
         $isBastPenjaminan = array_key_exists('isBast', $penjaminanPayload)
             ? $penjaminanPayload['isBast']
             : false;
@@ -90,7 +90,8 @@ class SuretyBond
         }
 
         $institutionService = new InstitutionService();
-        $institutionPayload = $this->buildInstitutionPayload($payload);
+        // $institutionPayload = $this->buildInstitutionPayload($payload);
+        $institutionPayload = $this->buildInstitutionPayload($institution_data);
 
         $trxInsertStatus = $penjaminanPayload['status'] == 'submit' ? 'NA' : 'D';
 
@@ -150,13 +151,13 @@ class SuretyBond
             $this->repository->createDetail(
                 $this->buildSrtbPayload($penjaminanPayload, $fallback, $trxNo, $idInstitution)
             );
-            if ($hasLampiran) {
-                $attachments = $this->handleLampiran($trxNo, $penjaminanPayload);
+            // if ($hasLampiran) {
+            //     $attachments = $this->handleLampiran($trxNo, $penjaminanPayload['lampiran']);
 
-                if (!empty($attachments)) {
-                    $this->repository->insertLampiran($attachments);
-                }
-            }
+            //     if (!empty($attachments)) {
+            //         $this->repository->insertLampiran($attachments);
+            //     }
+            // }
             $this->repository->insertFlow([
                 'trx_no' => $trxNo,
                 'trx_status' => $trxInsertStatus,
@@ -718,7 +719,8 @@ class SuretyBond
 
     private function buildInstitutionPayload($request)
     {
-        $data = collect($request->data['institution_data'])->toArray();
+        // $data = collect($request->data['institution_data'])->toArray();
+        $data = collect($request)->toArray();
 
         $data['category'] = 'P';
         $data['id_issued_location'] = '-';
@@ -753,7 +755,8 @@ class SuretyBond
             'sektor' => $fallback('sektor'),
             'principal_name' => $fallback('namaPrincipal'),
             'obligee_name' => $fallback('namaObligee'),
-            'id_institution' => $idInstitution->id,
+            // 'id_institution' => $idInstitution->id,
+            'id_institution' => $idInstitution,
             'is_bast' => $fallback('isBast'),
             'no_surat_bast' => ($payload['isBast'] ?? false) ? $fallback('noSuratBast') : null,
             'bast_date' => ($payload['isBast'] ?? false) ? $fallback('tglSuratBast') : null,
