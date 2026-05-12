@@ -2,6 +2,7 @@
 
 namespace App\Services\SuretyBondServices;
 
+use App\Exceptions\NotFoundException;
 use App\Helpers\AesHelper;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
@@ -333,14 +334,16 @@ class SuretyBond
     }
 
 
-    public function handleApprovePenjaminanSB(Request $request)
+    // public function handleApprovePenjaminanSB(Request $request)
+    public function handleApprovePenjaminanSB(string $trx_no, object $user)
     {
-        $trx_no = $request->trxNo;
-        $user = auth('sanctum')->user();
+        // $trx_no = $request->trxNo;
+        // $user = auth('sanctum')->user();
 
         try {
             (new PenjaminanService())->approveSuretyBondPenjaminan(
                 $trx_no,
+                $user->mitra_id,
                 $user->user_id,
                 $user->name,
                 "Perorangan"

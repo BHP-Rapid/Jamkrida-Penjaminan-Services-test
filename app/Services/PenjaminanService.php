@@ -2836,7 +2836,7 @@ class PenjaminanService
         }
     }
 
-    public function approveSuretyBondPenjaminan(string $trx_no, string $user_id = null, string $user_name = null, string $sources = null)
+    public function approveSuretyBondPenjaminan(string $trx_no, string $mitra_id, string $user_id = null, string $user_name = null, string $sources = null)
     {
         try {
             ini_set('max_execution_time', 0);
@@ -2859,7 +2859,7 @@ class PenjaminanService
                 throw new Exception("Penjaminan {$trx_no} does not have institution data.");
             }
 
-            $mitra_id = auth('sanctum')->user()->mitra_id;
+            // $mitra_id = auth('sanctum')->user()->mitra_id;
 
             $mitra = TenantMitra::where('mitra_id', $mitra_id)
                 ->select('alias', 'is_syariah', 'is_conventional')
@@ -3046,13 +3046,16 @@ class PenjaminanService
                 'trx_status' => 'S',
                 'created_at' => now(),
                 'updated_at' => now(),
-                'created_by_id' => auth('sanctum')->user()->user_id,
-                'created_by_name' => auth('sanctum')->user()->name,
+                // 'created_by_id' => auth('sanctum')->user()->user_id,
+                // 'created_by_name' => auth('sanctum')->user()->name,
+                'created_by_id' => $user_id,
+                'created_by_name' => $user_name,
                 'status' => true
             ]);
 
             NotifMitra::create([
-                'mitra_user_id' => auth('sanctum')->user()->user_id,
+                // 'mitra_user_id' => auth('sanctum')->user()->user_id,
+                'mitra_user_id' => $user_id,
                 'title' => "Mitra Portal - Penjaminan Surety Bond Approval",
                 'message' => "Status Penjaminan dengan nomor " . $trx_no . " menjadi " . "Approved",
             ]);

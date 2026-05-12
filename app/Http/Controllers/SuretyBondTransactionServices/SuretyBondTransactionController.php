@@ -241,13 +241,19 @@ class SuretyBondTransactionController extends Controller
     public function approvePenjaminanSB(Request $request)
     {
         try {
+            $user = AuthUserHelper::getUser($request);
             $validated = $request->validate([
                 'trxNo' => 'required|string|max:100'
             ], [
                 'trxNo.required' => 'trxNo is required'
             ]);
-            $result = $this->suretyBondService->handleApprovePenjaminanSB($validated['trxNo']);
-            return ApiResponse::success($result);
+            $result = $this->suretyBondService->handleApprovePenjaminanSB($validated['trxNo'], $user);
+            return ApiResponse::success(null, $result);
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error(
+                $nfe->getMessage(),
+                $nfe->getStatus()
+            );
         } catch (ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',
