@@ -402,9 +402,10 @@ class Konstruksi
     {
         $newStatus = $request->data['trx_status'];
         $dataDebitur = $request->input('data.dataDebitur', []);
+
         if ($request->data['trx_status'] !== 'D' && !empty($dataDebitur)) {
             $selectedPks = $request->data['selectedPks'] ?? $request->data['pks'];
-            $result = ValidateDebitur::validateDebiturBatch($selectedPks, $penjaminanPKSData, $dataDebitur);
+            $result = ValidateDebitur::validateDebiturBatch(['selectedPks' => $selectedPks, 'penjaminanPKSData' => $penjaminanPKSData, 'dataDebitur' => $dataDebitur]);
             $dataDebitur = $result['dataDebitur'];
             if (!$result['success']) {
                 return $result;

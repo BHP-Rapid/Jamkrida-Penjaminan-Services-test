@@ -172,16 +172,13 @@ class KonstruksiTransactionController extends Controller
                 if (empty($penjaminanPKSData['Success']) || $penjaminanPKSData['Success'] !== true) {
                     return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
                 }
+            } else {
+                $penjaminanPKSData = [];
             }
 
-            $result = $this->service->update($request->all(), $user, $mitraAlias, $tenant_ID, $penjaminanPKSData, $trxNo);
+            $result = $this->service->update($request, $user, $mitraAlias, $tenant_ID, $penjaminanPKSData, $trxNo);
 
             return ApiResponse::success($result);
-            // return response()->json([
-            //     'success' => $result['success'] ?? false,
-            //     'message' => $result['message'] ?? 'Unknown response',
-            //     'list_debitur' => $result['list_debitur'] ?? null,
-            // ], $result['status'] ?? 200);
         } catch (Exception $ex) {
             return ApiResponse::error('Error While Updating KKPBJ: ' . $ex->getMessage(), 500);
         }

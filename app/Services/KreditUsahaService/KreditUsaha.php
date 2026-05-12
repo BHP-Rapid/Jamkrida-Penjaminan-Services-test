@@ -17,6 +17,11 @@ class KreditUsaha
 {
     public function __construct(protected KreditUsahaRepository $repository) {}
 
+    public function getTenantMitra(string $mitraId)
+    {
+        return $this->repository->getTenantMitra($mitraId);
+    }
+
     public function getDetail($id)
     {
         $trx_no = $id;
