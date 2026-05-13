@@ -644,19 +644,21 @@ class SuretyBond
             $fileUrl = null;
             $filePath = '';
 
-            if ($item->lampiran_id != null) {
-                $decodedInfo = json_validate($item->file_info)
-                    ? json_decode($item->file_info)
-                    : null;
+            if ($item->lampiran_id != null && $item->file_id != null) {
+                // $decodedInfo = json_validate($item->file_info)
+                //     ? json_decode($item->file_info)
+                //     : null;
 
-                $filePath = $decodedInfo != null && isset($decodedInfo->path)
-                    ? $decodedInfo->path
-                    : $item->file_info;
+                // $filePath = $decodedInfo != null && isset($decodedInfo->path)
+                //     ? $decodedInfo->path
+                //     : $item->file_info;
 
-                $fileUrl = Storage::disk('s3')->temporaryUrl(
-                    $filePath,
-                    now()->addMinutes(15)
-                );
+                // $fileUrl = Storage::disk('s3')->temporaryUrl(
+                //     $filePath,
+                //     now()->addMinutes(15)
+                // );
+                $urlResult = $this->fileInternalClient->getTemporaryUrl($item->file_id);
+                $fileUrl = $urlResult['url'];
             }
 
             return [
