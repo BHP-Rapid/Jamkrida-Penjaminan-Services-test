@@ -152,6 +152,7 @@ class KonstruksiRepository
                 'c.option2',
                 'lt.file_name',
                 'lt.file_info',
+                'lt.file_id',
                 'lt.is_additional',
                 'lt.status_doc',
                 'lt.mime_type'
