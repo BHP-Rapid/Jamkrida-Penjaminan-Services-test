@@ -224,11 +224,11 @@ Route::prefix('/v2/penjaminan/surety-bond')->group(function () {
         // 'auth.role:admin,super_admin,admin_mitra,mitra',
         // 'auth.permission:mitra.penjaminan.approval,read,create,update,delete,approve',
     ]);
-    Route::get('/detail-payment', [SuretyBondTransactionController::class, 'getDetailPaymentSrtb'])->middleware([
-        'auth.context',
-        'auth.role:admin,super_admin,admin_mitra,mitra',
-        'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
-    ]);
+    // Route::get('/detail-payment', [SuretyBondTransactionController::class, 'getDetailPaymentSrtb'])->middleware([
+    //     'auth.context',
+    //     'auth.role:admin,super_admin,admin_mitra,mitra',
+    //     'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
+    // ]);
     Route::post('/upload-bukti-bayar-manual', [SuretyBondTransactionController::class, 'uploadPembayaranManual'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
