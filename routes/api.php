@@ -64,6 +64,11 @@ Route::prefix('/v2/penjaminan')->group(function () {
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra=mitra.penjaminan:view,create,update,delete,approve',
     ]);
+    Route::get('/get-history-flow-status/{no_permohonan}', [PenjaminanTransactionController::class, 'GetHistoryFlowStatus'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra=mitra.penjaminan:view,create,update,delete,approve',
+    ]);
     Route::post('/upload-additional-document', [PenjaminanTransactionController::class, 'uploadAdditionalDoc'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',

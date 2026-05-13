@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanTransaction;
 use App\Models\TenantMitra;
 use Illuminate\Support\Facades\DB;
@@ -551,6 +552,19 @@ class PenjaminanTransactionRepository
             ->where('c.key', 'lampiran')
             ->whereNotNull('b.lampiran')
             ->orderBy('c.value', 'asc')
+            ->get();
+    }
+
+    public function getHistoryFlowStatus(string $noPermohonan)
+    {
+        return PenjaminanFlow::select('penjaminan_flow.*', 'mapping_value.label as label_status')
+            ->leftJoin('mapping_value', function ($join) {
+                $join->on('mapping_value.value', '=', 'penjaminan_flow.trx_status')
+                    ->where('mapping_value.key', '=', 'pnj_sts');
+            })
+            ->where('penjaminan_flow.trx_no', $noPermohonan)
+            // ->where('penjaminan_flow.status', true)
+            ->orderBy('penjaminan_flow.created_at', 'desc')
             ->get();
     }
 }

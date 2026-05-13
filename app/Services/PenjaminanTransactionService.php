@@ -413,6 +413,15 @@ class PenjaminanTransactionService
         return $apiResBody;
     }
 
+    public function getHistoryFlowStatus(string $noPermohonan)
+    {
+        $history = $this->repository->getHistoryFlowStatus($noPermohonan);
+        if ($history->isEmpty()) {
+            throw new NotFoundException('Data history flow status tidak ditemukan.', null, 404);
+        }
+        return $history;
+    }
+
 
     private function getTenantMitraDataOrFail(object $user)
     {

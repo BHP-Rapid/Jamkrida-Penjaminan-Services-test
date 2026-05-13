@@ -183,4 +183,33 @@ class PenjaminanTransactionController extends Controller
             return ApiResponse::error($ex->getMessage(), 500);
         }
     }
+
+    public function GetHistoryFlowStatus(string $noPermohonan)
+    {
+        try {
+            $validated = validator([
+                'noPermohonan' => $noPermohonan,
+            ], [
+                'noPermohonan' => 'required|string|max:100',
+            ], [
+                'noPermohonan.required' => 'noPermohonan is required',
+                'noPermohonan.string' => 'noPermohonan must be a string',
+                'noPermohonan.max' => 'noPermohonan may not be greater than 100 characters',
+            ])->validate();
+
+            $query = $this->penjaminanService->getHistoryFlowStatus($validated['noPermohonan']);
+            return ApiResponse::success($query);
+        } catch (ValidationException $e) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $e->errors()
+            );
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
+        } catch (Exception $ex) {
+            Log::error("", ['exception' => $ex]);
+            return ApiResponse::error($ex->getMessage(), 500);
+        }
+    }
 }
