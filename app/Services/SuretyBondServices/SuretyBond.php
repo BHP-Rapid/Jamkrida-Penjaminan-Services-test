@@ -132,27 +132,36 @@ class SuretyBond
                 ->where('institution_id', $institutionService->getCreatedInstitutionId())
                 ->value('id'); // 🔥 lebih simple dari select()->first()
 
-            $fallback = function ($key, $default = null) use ($penjaminanPayload) {
-                return $penjaminanPayload[$key] ?? $default;
-            };
+            // $fallback = function ($key, $default = null) use ($penjaminanPayload) {
+            //     return $penjaminanPayload[$key] ?? $default;
+            // };
 
             // Header
-            $this->repository->createHeader([
-                'trx_no' => $trxNo,
-                'no_surat_permohonan' => $fallback('noSuratPermohonan', 'DRAFT-' . $trxNo),
-                'sp_split' => $fallback('isSplit'),
-                'trx_status' => $trxInsertStatus,
-                'status_sync_creatio' => 0,
-                'tanggal_surat_permohonan' => $fallback('tglSuratPermohonan', $nowJakarta),
-                'created_by_name' => $user->name,
-                'created_at' => $nowJakarta,
-                'created_by_id' => $user->user_id,
-                'no_rek' => '123',
-                'mitra_id' => $mitraAlias,
-                'product' => 'srtb'
-            ]);
+            // $this->repository->createHeader([
+            //     'trx_no' => $trxNo,
+            //     'no_surat_permohonan' => $fallback('noSuratPermohonan', 'DRAFT-' . $trxNo),
+            //     'sp_split' => $fallback('isSplit'),
+            //     'trx_status' => $trxInsertStatus,
+            //     'status_sync_creatio' => 0,
+            //     'tanggal_surat_permohonan' => $fallback('tglSuratPermohonan', $nowJakarta),
+            //     'created_by_name' => $user->name,
+            //     'created_at' => $nowJakarta,
+            //     'created_by_id' => $user->user_id,
+            //     'no_rek' => '123',
+            //     'mitra_id' => $mitraAlias,
+            //     'product' => 'srtb'
+            // ]);
+            $this->repository->createHeader(
+                SrtbGeneratePayload::makeSrtbHeaderPayload(
+                    $trxNo,  
+                    $penjaminanPayload,
+                    $mitraAlias,
+                    $trxInsertStatus,
+                    $user
+            ));
             $this->repository->createDetail(
-                $this->buildSrtbPayload($penjaminanPayload, $fallback, $trxNo, $idInstitution)
+                SrtbGeneratePayload::makeSrtbTrxPayload($penjaminanPayload, 'create', $trxNo, $idInstitution)
+                // $this->buildSrtbPayload($penjaminanPayload, $fallback, $trxNo, $idInstitution)
             );
             if ($hasLampiran) {
                 $attachments = $this->handleLampiran($trxNo, $penjaminanPayload['lampiran'], $user->user_id);
@@ -259,7 +268,8 @@ class SuretyBond
 
     public function updateDraft(array $payload, string $trxNo, object $user)
     {
-        $payload = collect($payload)->toArray();
+        $payload = collect($payload['data'])->toArray();
+        // dd($payload);
         if (array_key_exists('institution_data', $payload)) {
             unset($payload['institution_data']);
         }
@@ -282,35 +292,36 @@ class SuretyBond
                 'no_surat_permohonan' => $payload['noSuratPermohonan'],
                 'tanggal_surat_permohonan' => $payload['tglSuratPermohonan'],
                 'sp_split' => $payload['isSplit'],
-                'trx_status' => 'NA',
+                // 'trx_status' => 'NA',
                 'updated_by_id' => $user->user_id,
                 'updated_by_name' => $user->name
             ]);
 
             // Update detail
-            $this->repository->updateDetail($trxNo, [
-                'jenis_bond' => $payload['jenisBond'],
-                'jenis_persyaratan' => $payload['jenisPernyataan'],
-                'skema_penalty' => $payload['skemaPenalty'],
-                'jenis_surat_perjanjian' => $payload['jenisSuratPerjanjian'],
-                'no_surat_perjanjian' => $payload['noSuratPerjanjian'],
-                'tgl_surat_perjanjian' => $payload['tglSuratPerjanjian'],
-                'sektor' => $payload['sektor'],
-                'principal_name' => $payload['namaPrincipal'],
-                'obligee_name' => $payload['namaObligee'],
-                'is_bast' => $payload['isBast'],
-                'no_surat_bast' => $payload['isBast'] ? $payload['noSuratBast'] : null,
-                'bast_date' => $payload['isBast'] ? $payload['tglSuratBast'] : null,
-                'project_name' => $payload['namaProyek'],
-                'project_amount' => $payload['nilaiProyek'],
-                'amount_bond' => $payload['nilaiBond'],
-                'bond_percentage' => $payload['nilaiBondPersentase'],
-                'start_period_date' => $payload['periodeAwalBerlaku'],
-                'end_period_date' => $payload['periodeAkhirBerlaku'],
-                'total_day' => $payload['jangkaWaktu'],
-                'province' => $payload['propinsi'],
-                'agunan_amount' => $payload['nilaiAgunan']
-            ]);
+            // $this->repository->updateDetail($trxNo, [
+            //     'jenis_bond' => $payload['jenisBond'],
+            //     'jenis_persyaratan' => $payload['jenisPernyataan'],
+            //     'skema_penalty' => $payload['skemaPenalty'],
+            //     'jenis_surat_perjanjian' => $payload['jenisSuratPerjanjian'],
+            //     'no_surat_perjanjian' => $payload['noSuratPerjanjian'],
+            //     'tgl_surat_perjanjian' => $payload['tglSuratPerjanjian'],
+            //     'sektor' => $payload['sektor'],
+            //     'principal_name' => $payload['namaPrincipal'],
+            //     'obligee_name' => $payload['namaObligee'],
+            //     'is_bast' => $payload['isBast'],
+            //     'no_surat_bast' => $payload['isBast'] ? $payload['noSuratBast'] : null,
+            //     'bast_date' => $payload['isBast'] ? $payload['tglSuratBast'] : null,
+            //     'project_name' => $payload['namaProyek'],
+            //     'project_amount' => $payload['nilaiProyek'],
+            //     'amount_bond' => $payload['nilaiBond'],
+            //     'bond_percentage' => $payload['nilaiBondPersentase'],
+            //     'start_period_date' => $payload['periodeAwalBerlaku'] ?? null,
+            //     'end_period_date' => $payload['periodeAkhirBerlaku'] ?? null,
+            //     'total_day' => $payload['jangkaWaktu'],
+            //     'province' => $payload['propinsi'],
+            //     'agunan_amount' => $payload['nilaiAgunan']
+            // ]);
+            $this->repository->updateDetail($trxNo, SrtbGeneratePayload::makeSrtbTrxPayload($payload));
 
             // Handle attachment
             if ($lampiranExist) {
@@ -322,13 +333,13 @@ class SuretyBond
             }
 
             // Flow
-            $this->repository->insertFlow([
-                'trx_no' => $trxNo,
-                'trx_status' => 'NA',
-                'created_at' => now('Asia/Jakarta'),
-                'created_by_id' => $user->user_id,
-                'created_by_name' => $user->name
-            ]);
+            // $this->repository->insertFlow([
+            //     'trx_no' => $trxNo,
+            //     'trx_status' => 'NA',
+            //     'created_at' => now('Asia/Jakarta'),
+            //     'created_by_id' => $user->user_id,
+            //     'created_by_name' => $user->name
+            // ]);
 
             return 'Penjaminan Surety Bond successfully submitted.';
         });

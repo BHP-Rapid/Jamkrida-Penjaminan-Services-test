@@ -146,6 +146,8 @@ class SuretyBondTransactionController extends Controller
         try {
             $user = AuthUserHelper::getUser($request);
             $validated = $request->validate([
+                'data.jenisBond' => 'required|string|max:8',
+                'data.jenisBondDescription' => 'required|string|max:255',
                 'data.noSuratPermohonan' => 'nullable|string|max:50',
                 'data.tglSuratPermohonan' => 'nullable|date_format:Y-m-d',
                 'data.isSplit' => 'nullable|boolean',
@@ -168,9 +170,9 @@ class SuretyBondTransactionController extends Controller
                 'data.jenisSuratPerjanjian' => 'nullable|string|max:64',
                 'data.noSuratPerjanjian' => 'nullable|string|max:64',
                 'data.tglSuratPerjanjian' => 'nullable|date_format:Y-m-d',
-                'data.lampiran' => 'nullable|array',
-                'data.lampiran.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
-                'data.lampiran.*.lampiran_id' => 'required|string',
+                'data.lampiranEdit' => 'nullable|array',
+                'data.lampiranEdit.*.file' => 'file|mimes:pdf,jpg,jpeg,png|max:2048',
+                'data.lampiranEdit.*.lampiran_id' => 'required|string',
                 'data.nilaiAgunan' => 'nullable|numeric|min:0',
             ]);
             $result = $this->suretyBondService->updateDraft($validated, $trxNo, $user);
