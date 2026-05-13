@@ -17,6 +17,11 @@ class KreditUsaha
 {
     public function __construct(protected KreditUsahaRepository $repository) {}
 
+    public function getTenantMitra(string $mitraId)
+    {
+        return $this->repository->getTenantMitra($mitraId);
+    }
+
     public function getDetail($id)
     {
         $trx_no = $id;
@@ -63,11 +68,12 @@ class KreditUsaha
             'current_salary_amount',
             'other_income_amount'
         ];
-
-        foreach ($fields as $field) {
-            $data->$field = !empty($data->$field)
-                ? AesHelper::decrypt($data->$field, $key)
-                : null;
+        foreach ($data as $rows) {
+            foreach ($fields as $field) {
+                $data->$field = !empty($rows->$field)
+                    ? AesHelper::decrypt($rows->$field, $key)
+                    : null;
+            }
         }
     }
 
@@ -890,5 +896,11 @@ class KreditUsaha
         ]);
 
         DB::commit();
+
+        return [
+            'success' => true,
+            'message' => 'Bukti bayar manual successfully uploaded.',
+            'status' => 200,
+        ];
     }
 }

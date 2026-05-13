@@ -2,6 +2,7 @@
 
 namespace App\Services\SuretyBondServices;
 
+use App\Exceptions\NotFoundException;
 use App\Helpers\AesHelper;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
@@ -29,22 +30,23 @@ class SuretyBond
         protected SuretyBondRepository $repository
     ) {}
 
-    public function handleShow(array $request)
+    public function handleShow(array $request, object $user)
     {
-        $user = auth('sanctum')->user();
+        // $user = auth('sanctum')->user();
 
-        $mitraCode = TenantMitra::where('mitra_id', $user->mitra_id)
-            ->select('alias')->first();
+        $mitraCode = $this->getTenantDataOrFail($user->mitra_id);
+        // $mitraCode = TenantMitra::where('mitra_id', $user->mitra_id)
+        //     ->select('alias')->first();
 
-        if ($mitraCode == null) {
-            return [
-                'status' => 404,
-                'response' => [
-                    'success' => false,
-                    'message' => 'No mitra code found.'
-                ]
-            ];
-        }
+        // if ($mitraCode == null) {
+        //     return [
+        //         'status' => 404,
+        //         'response' => [
+        //             'success' => false,
+        //             'message' => 'No mitra code found.'
+        //         ]
+        //     ];
+        // }
 
         $trx_no = is_array($request)
             ? $request['trx_no']
@@ -332,14 +334,16 @@ class SuretyBond
     }
 
 
-    public function handleApprovePenjaminanSB(Request $request)
+    // public function handleApprovePenjaminanSB(Request $request)
+    public function handleApprovePenjaminanSB(string $trx_no, object $user)
     {
-        $trx_no = $request->trxNo;
-        $user = auth('sanctum')->user();
+        // $trx_no = $request->trxNo;
+        // $user = auth('sanctum')->user();
 
         try {
             (new PenjaminanService())->approveSuretyBondPenjaminan(
                 $trx_no,
+                $user->mitra_id,
                 $user->user_id,
                 $user->name,
                 "Perorangan"

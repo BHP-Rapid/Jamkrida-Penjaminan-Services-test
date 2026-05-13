@@ -10,6 +10,7 @@ use App\Models\MultigunaDebitur;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
+use App\Models\TenantMitra;
 use App\Models\TrxDebiturDefaultBase;
 use App\Models\v2\KreditUsahaTransaction;
 use Carbon\Carbon;
@@ -17,6 +18,13 @@ use Illuminate\Support\Facades\DB;
 
 class KreditUsahaRepository
 {
+    public function getTenantMitra($mitra_id)
+    {
+        return TenantMitra::where('mitra_id', $mitra_id)
+            ->select('mitra_id', 'alias', 'tenant_id', 'is_syariah', 'is_conventional')
+            ->first();
+    }
+
     public function getPenjaminanTransaction($trx_no)
     {
         return PenjaminanTransaction::join('kredit_usaha_transaction as mt', 'transaction_penjaminan_header.trx_no', '=', 'mt.trx_no')
@@ -309,7 +317,8 @@ class KreditUsahaRepository
             ->update($payload);
     }
 
-    public function createPenjaminanLampiranDtl(array $payload){
+    public function createPenjaminanLampiranDtl(array $payload)
+    {
         PenjaminanLampiranDtl::create($payload);
     }
 }

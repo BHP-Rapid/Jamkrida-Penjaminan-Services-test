@@ -53,9 +53,10 @@ class KreditUsahaController extends Controller
             $user = AuthUserHelper::getUser($request);
             //auth('sanctum')->user();
             $tenant_ID = '';
-            $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
-                ->select('mitra_id', 'alias')
-                ->first();
+            $tenantMitraData = $this->service->getTenantMitra($user->mitra_id);
+            // TenantMitra::where('mitra_id', $user->mitra_id)
+            //     ->select('mitra_id', 'alias')
+            //     ->first();
             if ($tenantMitraData) {
                 $mitraAlias = $tenantMitraData->alias;
                 $tenant_ID = $tenantMitraData->tenant_id;
@@ -96,13 +97,17 @@ class KreditUsahaController extends Controller
                 return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
             }
 
-            $result = $this->service->store($request->all(), $user, $mitraAlias, $penjaminanPKSData, $tenant_ID);
+            $result = $this->service->store($request, $user, $mitraAlias, $penjaminanPKSData, $tenant_ID);
 
             if (isset($result['error'])) {
                 return ApiResponse::error($result['message'], $result['code']);
             }
 
-            return ApiResponse::success($result);
+            if ($result['success'] == false) {
+                return ApiResponse::error($result['message'], $result['code']);
+            }
+
+            return ApiResponse::success();
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::error(
                 'Validation error',
@@ -121,9 +126,7 @@ class KreditUsahaController extends Controller
     {
         $user = AuthUserHelper::getUser($request);
         //auth('sanctum')->user();
-        $tenantMitraData = TenantMitra::where('mitra_id', $user->mitra_id)
-            ->select('mitra_id', 'alias')
-            ->first();
+        $tenantMitraData = $this->service->getTenantMitra($user->mitra_id);
 
         if (!$tenantMitraData) {
             return ApiResponse::error('Tenant mitra data not found.', 404);
@@ -167,7 +170,7 @@ class KreditUsahaController extends Controller
                 return ApiResponse::error($penjaminanPKSData['Message'] ?? 'Failed to retrieve PKS data', 500);
             }
 
-            $result = $this->service->update($request->all(), $user, $mitraAlias, $penjaminanPKSData, $trxNo, $newStatus);
+            $result = $this->service->update($request, $user, $mitraAlias, $penjaminanPKSData, $trxNo, $newStatus);
 
             return ApiResponse::success($result);
         } catch (Exception $ex) {
@@ -260,12 +263,10 @@ class KreditUsahaController extends Controller
 
     public function getPenjaminanPKS($request)
     {
-        $mitra_id = AuthUserHelper::getUser($request);
+        $mitra_id = AuthUserHelper::getUser($request)->mitra_id;
         // auth('sanctum')->user()->mitra_id;
 
-        $mitra = TenantMitra::where('mitra_id', $mitra_id)
-            ->select('alias', 'is_syariah', 'is_conventional')
-            ->first();
+        $mitra = $this->service->getTenantMitra($mitra_id);
 
         if ($mitra == null) {
             return response()->json([
