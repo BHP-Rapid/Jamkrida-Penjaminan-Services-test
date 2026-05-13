@@ -474,7 +474,7 @@ class PenjaminanTransactionRepository
 
     public function getDetailCertifiedByIDKU(string $trxNo)
     {
-       return PenjaminanTransaction::join('multiguna_trx_kredit_mikro_kecil as mtkmk', 'transaction_penjaminan_header.trx_no', '=', 'mtkmk.trx_no')
+        return PenjaminanTransaction::join('multiguna_trx_kredit_mikro_kecil as mtkmk', 'transaction_penjaminan_header.trx_no', '=', 'mtkmk.trx_no')
             ->join('trx_debitur as td', 'mtkmk.id_multiguna_kredit_mikro_kecil', '=', 'td.kredit_mikro_trx_id')
             ->join('institution as i', 'i.institution_id', '=', 'td.institution_id')
             ->where('transaction_penjaminan_header.trx_no', $trxNo)
@@ -536,5 +536,21 @@ class PenjaminanTransactionRepository
                 'td.no_sp_core_debitur as sp_polis',
             ]);
         return $query->get();
+    }
+
+    public function getLampiranByProduct(string $module, string $product_id, string $mitraId)
+    {
+        return DB::table('setting_hdr as a')
+            ->join('setting_product_dtl as b', 'a.id', '=', 'b.hdr_id')
+            ->join('mapping_value as c', 'b.lampiran', '=', 'c.value')
+            ->select(DB::raw('UPPER(c.value) as value'), 'c.label', 'a.mitra_id', 'a.module', 'c.option2')
+            ->where('a.module', $module)
+            ->where('b.product_id', $product_id)
+            ->where('a.mitra_id', $mitraId)
+            ->where('b.is_mandatory', 1)
+            ->where('c.key', 'lampiran')
+            ->whereNotNull('b.lampiran')
+            ->orderBy('c.value', 'asc')
+            ->get();
     }
 }

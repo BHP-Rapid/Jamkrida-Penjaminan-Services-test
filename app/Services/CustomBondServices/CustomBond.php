@@ -557,7 +557,7 @@ class CustomBond
         }
     }
 
-    public function processSubmitDraft(array $payload, $trxNo)
+    public function processSubmitDraft(array $payload, string $trxNo, object $user)
     {
         $user = auth('sanctum')->user();
 
@@ -589,9 +589,10 @@ class CustomBond
                 empty($penjaminanPayload['noSuratBast']) ||
                 empty($penjaminanPayload['tglSuratBast'])
             ) {
-                throw new HttpException(
-                    422,
-                    'No Surat BAST and Tanggal BAST are required when isBast = true'
+                throw new NotFoundException(
+                    'No Surat BAST and Tanggal BAST are required when isBast = true',
+                    null,
+                    422
                 );
             }
         }
@@ -800,6 +801,27 @@ class CustomBond
         foreach ($savedAttachments as $item) {
             PenjaminanLampiranDtl::create($item);
         }
+    }
+
+    public function getDataMitraBalance(object $user)
+    {
+        $mitraData = $this->getTenantDataOrFail($user->mitra_id);
+        $pksService = new CreatioService();
+        $response = $pksService->request('get', '/0/rest/MitraWebService/GetData?mitraId',  ['mitraId' => $mitraData->mitra_id], [
+            // 'MitraID' => $mitra->mitra_id
+            'MitraID' => $mitraData->alias
+        ]);
+        if ($response->status() !== 200) {
+            throw new Exception("Failed to get data from Core Creatio API with status: " . $response->status());
+        }
+        $apiResBody = json_decode($response->body(), true);
+
+        if ($apiResBody['Success'] !== true) {
+            throw new Exception("Failed to get data from Core Creatio API with message: " . $apiResBody['Message']);
+        }
+
+
+        return $apiResBody ? $apiResBody['Data'] : null;
     }
 
     private function getTenantDataOrFail(string $mitra_id)

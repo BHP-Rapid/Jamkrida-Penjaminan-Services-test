@@ -59,6 +59,11 @@ Route::prefix('/v2/penjaminan')->group(function () {
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra=mitra.penjaminan:view,create,update,delete,approve',
     ]);
+    Route::get('/penjaminanProduct', [PenjaminanTransactionController::class, 'getLampiranByProduct'])->middleware([
+        'auth.context',
+        'auth.role:admin,super_admin,admin_mitra,mitra',
+        'auth.permission:mitra=mitra.penjaminan:view,create,update,delete,approve',
+    ]);
     Route::post('/upload-additional-document', [PenjaminanTransactionController::class, 'uploadAdditionalDoc'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
@@ -157,12 +162,12 @@ Route::prefix('/v2/penjaminan/ajp')->group(function () {
 });
 
 Route::prefix('/v2/penjaminan/custom-bond')->group(function () {
-    Route::get('/penjaminan-custom-bond-byid', [CustomBondTransactionController::class, 'show'])->middleware([
+    Route::get('/detail-by-id', [CustomBondTransactionController::class, 'show'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',
     ]);
-    Route::post('/create', [CustomBondTransactionController::class, 'store'])->middleware([
+    Route::get('/mitra-balance', [CustomBondTransactionController::class, 'MitraBalance'])->middleware([
         'auth.context',
         'auth.role:admin,super_admin,admin_mitra,mitra',
         'auth.permission:mitra.penjaminan,read,create,update,delete,approve',

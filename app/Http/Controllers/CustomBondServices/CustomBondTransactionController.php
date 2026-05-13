@@ -296,6 +296,7 @@ class CustomBondTransactionController extends Controller
     public function submitDraft(Request $request, string $trxNo)
     {
         try {
+            $user = AuthUserHelper::getUser($request);
             $validated = $request->validate(
                 [
                     'data.noSuratPermohonan' => 'required|string|max:50',
@@ -326,8 +327,7 @@ class CustomBondTransactionController extends Controller
             );
             $validated = $validated;
             $payload = $validated['data'];
-            // dd($payload);
-            $result = $this->customBondService->processSubmitDraft($payload, $trxNo);
+            $result = $this->customBondService->processSubmitDraft($payload, $trxNo, $user);
             if ($result) {
                 return ApiResponse::success('Penjaminan Custom Bond successfully submitted.');
             }
@@ -369,6 +369,21 @@ class CustomBondTransactionController extends Controller
                 'no_surat_permohonan' => $request->query('no_surat_permohonan')
             ]);
 
+            return ApiResponse::error(
+                $e->getMessage(),
+                $e->getCode() ?: 500
+            );
+        }
+    }
+
+    public function MitraBalance(Request $request)
+    {
+        $user = AuthUserHelper::getUser($request);
+        try {
+            $balance = $this->customBondService->getDataMitraBalance($user);
+            return ApiResponse::success($balance, 'Success get mitra balance');
+        } catch (Exception $e) {
+            Log::error("", ['exception' => $e]);
             return ApiResponse::error(
                 $e->getMessage(),
                 $e->getCode() ?: 500

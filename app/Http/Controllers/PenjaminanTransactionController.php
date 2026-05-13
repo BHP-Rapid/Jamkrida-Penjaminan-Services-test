@@ -5,17 +5,16 @@ namespace App\Http\Controllers;
 use App\Exceptions\NotFoundException;
 use App\Helpers\ApiResponse;
 use App\Helpers\AuthUserHelper;
-use App\Services\PenjaminanService;
 use App\Services\PenjaminanTransactionService;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpFoundation\JsonResponse;
 
 class PenjaminanTransactionController extends Controller
 {
     //
-    public function __construct(protected PenjaminanTransactionService $penjaminanService, protected PenjaminanService $penjaminanDataService) {}
+    public function __construct(protected PenjaminanTransactionService $penjaminanService) {}
 
     public function index(Request $request)
     {
@@ -41,6 +40,7 @@ class PenjaminanTransactionController extends Controller
         } catch (NotFoundException $nfe) {
             return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
+            Log::error("", ['exception' => $ex]);
             return ApiResponse::error($ex->getMessage(), 500);
         }
     }
@@ -70,6 +70,7 @@ class PenjaminanTransactionController extends Controller
         } catch (NotFoundException $nfe) {
             return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
+            Log::error("", ['exception' => $ex]);
             return ApiResponse::error($ex->getMessage(), 500);
         }
     }
@@ -97,6 +98,7 @@ class PenjaminanTransactionController extends Controller
         } catch (NotFoundException $nfe) {
             return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
+            Log::error("", ['exception' => $ex]);
             return ApiResponse::error($ex->getMessage(), 500);
         }
     }
@@ -124,6 +126,7 @@ class PenjaminanTransactionController extends Controller
         } catch (NotFoundException $nfe) {
             return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
+            Log::error("", ['exception' => $ex]);
             return ApiResponse::error($ex->getMessage(), 500);
         }
     }
@@ -132,7 +135,7 @@ class PenjaminanTransactionController extends Controller
     {
         try {
             $user = AuthUserHelper::getUser($request);
-            $result = $this->penjaminanDataService->getPenjaminanPks($user);
+            $result = $this->penjaminanService->getPenjaminanPks($user);
             return ApiResponse::success($result);
         } catch (ValidationException $e) {
             return ApiResponse::error(
@@ -143,6 +146,40 @@ class PenjaminanTransactionController extends Controller
         } catch (NotFoundException $nfe) {
             return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
+            Log::error("", ['exception' => $ex]);
+            return ApiResponse::error($ex->getMessage(), 500);
+        }
+    }
+
+    public function getLampiranByProduct(Request $request)
+    {
+        try {
+            $user = AuthUserHelper::getUser($request);
+            $validated = $request->validate([
+                'mitra_id' => 'nullable|string',
+                'module' => 'required|string|in:PENJAMINAN_SETTINGS,CLAIM_SETTINGS',
+                'product_id' => 'required|string|in:mlt,srtb,cstb,kmk,ku,kur,kpr,kkpbj',
+            ], [
+                // 'mitra_id.required' => 'mitra_id is required',
+                // 'mitra_id.in' => 'mitra_id must be one of: mlt,srtb,cstb,kmk,ku,kur,kpr,kkpbj',
+                'module.required' => 'module is required',
+                'module.in' => 'module must be one of: PENJAMINAN_SETTINGS,CLAIM_SETTINGS',
+                'product_id.required' => 'product_id is required',
+                'product_id.in' => 'product_id must be one of: mlt,srtb,cstb,kmk,ku,kur,kpr,kkpbj',
+            ]);
+            $payload = $validated;
+            $result = $this->penjaminanService->getLampiranByProduct($payload, $user);
+            return ApiResponse::success($result);
+        } catch (ValidationException $e) {
+            return ApiResponse::error(
+                'Validation error',
+                422,
+                $e->errors()
+            );
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
+        } catch (Exception $ex) {
+            Log::error("", ['exception' => $ex]);
             return ApiResponse::error($ex->getMessage(), 500);
         }
     }

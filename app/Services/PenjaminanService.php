@@ -3186,44 +3186,4 @@ class PenjaminanService
         }
     }
 
-    public function getPenjaminanPks(object $user)
-    {
-        $mitra = TenantMitra::where('mitra_id', $user->mitra_id)
-            ->select('alias', 'is_syariah', 'is_conventional')
-            ->first();
-        if ($mitra == null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Mitra not found.'
-            ], 404);
-        }
-        $pksService = new CreatioService();
-        $response = $pksService->request('get', '/0/rest/MasterData/GetPKS', [], [
-            'MitraID' => $mitra
-        ]);
-        if ($response->status() !== 200) {
-            throw new Exception("Failed to get data from Core Creatio API with status: " . $response->status());
-        }
-
-        $apiResBody = json_decode($response->body(), true);
-
-        if (($apiResBody['Success'] ?? false) !== true) {
-            throw new Exception("Failed to get data from Core Creatio API with message: " . ($apiResBody['Message'] ?? 'Unknown error'));
-        }
-
-        if (!isset($apiResBody['Data']) || !is_array($apiResBody['Data'])) {
-            $apiResBody['Data'] = [];
-        }
-
-        if ((bool) $mitra->is_syariah === true) {
-            $apiResBody['Data'] = array_values(array_filter($apiResBody['Data'], function ($item) {
-                return isset($item['JenisTransaksi']) && $item['JenisTransaksi'] === 'Syariah';
-            }));
-        } else if ((bool) $mitra->is_conventional === true) {
-            $apiResBody['Data'] = array_values(array_filter($apiResBody['Data'], function ($item) {
-                return isset($item['JenisTransaksi']) && $item['JenisTransaksi'] === 'Non-Syariah';
-            }));
-        }
-        return $apiResBody;
-    }
 }

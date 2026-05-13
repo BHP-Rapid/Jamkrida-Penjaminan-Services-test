@@ -367,6 +367,53 @@ class PenjaminanTransactionService
         return $result;
     }
 
+
+    public function getLampiranByProduct(array $payload, object $user)
+    {
+        $mitra = $this->getTenantMitraDataOrFail($user);
+        $product_id = $payload['product_id'] ?? null;
+        $module = $payload['module'] ?? null;
+        $docList = $this->repository->getLampiranByProduct($module, $product_id, $mitra->alias);
+        if ($docList->isEmpty()) {
+            throw new NotFoundException('Data Document tidak ditemukan.', null, 404);
+        }
+        return $docList;
+    }
+
+    public function getPenjaminanPks(object $user)
+    {
+        $mitra = $this->getTenantMitraDataOrFail($user);
+        $pksService = new CreatioService();
+        $response = $pksService->request('get', '/0/rest/MasterData/GetPKS', [], [
+            'MitraID' => $mitra->alias
+        ]);
+        if ($response->status() !== 200) {
+            throw new Exception("Failed to get data from Core Creatio API with status: " . $response->status());
+        }
+
+        $apiResBody = json_decode($response->body(), true);
+
+        if (($apiResBody['Success'] ?? false) !== true) {
+            throw new Exception("Failed to get data from Core Creatio API with message: " . ($apiResBody['Message'] ?? 'Unknown error'));
+        }
+
+        if (!isset($apiResBody['Data']) || !is_array($apiResBody['Data'])) {
+            $apiResBody['Data'] = [];
+        }
+
+        if ((bool) $mitra->is_syariah === true) {
+            $apiResBody['Data'] = array_values(array_filter($apiResBody['Data'], function ($item) {
+                return isset($item['JenisTransaksi']) && $item['JenisTransaksi'] === 'Syariah';
+            }));
+        } else if ((bool) $mitra->is_conventional === true) {
+            $apiResBody['Data'] = array_values(array_filter($apiResBody['Data'], function ($item) {
+                return isset($item['JenisTransaksi']) && $item['JenisTransaksi'] === 'Non-Syariah';
+            }));
+        }
+        return $apiResBody;
+    }
+
+
     private function getTenantMitraDataOrFail(object $user)
     {
         $tenantData = $this->repository->getTenantMitraData($user->mitra_id);
