@@ -423,9 +423,9 @@ class SuretyBond
         ];
     }
 
-    public function handleUploadPembayaranManual(array $payload)
+    public function handleUploadPembayaranManual(array $payload, object $user)
     {
-        $user = auth('sanctum')->user();
+        // $user = auth('sanctum')->user();
         $nowJakarta = Carbon::now('Asia/Jakarta');
         $parsedItem = $payload['selected_items'];
         $selectedInvoiceNumbers = array_column($parsedItem, 'invoice_number');
@@ -629,20 +629,20 @@ class SuretyBond
                 'file_info' => $path
             ]);
 
-            PenjaminanTransaction::where('trx_no', $payload['trx_no'])
-                ->update([
-                    'trx_status' => 'PD',
-                    'updated_at' => $nowJakarta
-                ]);
+            // PenjaminanTransaction::where('trx_no', $payload['trx_no'])
+            //     ->update([
+            //         'trx_status' => 'PD',
+            //         'updated_at' => $nowJakarta
+            //     ]);
 
-            PenjaminanFlow::insert([
-                'trx_no' => $payload['trx_no'],
-                'trx_status' => 'PD',
-                'created_at' => $nowJakarta,
-                'updated_at' => $nowJakarta,
-                'created_by_id' => $user->user_id,
-                'created_by_name' => $user->name
-            ]);
+            // PenjaminanFlow::insert([
+            //     'trx_no' => $payload['trx_no'],
+            //     'trx_status' => 'PD',
+            //     'created_at' => now(),
+            //     'updated_at' => now(),
+            //     'created_by_id' => $user->user_id,
+            //     'created_by_name' => $user->name
+            // ]);
 
             return 'Bukti bayar manual uploaded successfully.';
         });

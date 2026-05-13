@@ -298,6 +298,7 @@ class SuretyBondTransactionController extends Controller
     public function uploadPembayaranManual(Request $request)
     {
         try {
+            $user = AuthUserHelper::getUser($request);
             $validated = $request->validate([
                 'trx_no' => 'required|string|max:100',
                 'amount' => 'required|numeric|min:0',
@@ -312,7 +313,7 @@ class SuretyBondTransactionController extends Controller
             $payload = $validated;
             $payload['selected_items'] = json_decode($payload['selected_items'], true);
             $payload['file'] = $request->file('file');
-            $message = $this->suretyBondService->handleUploadPembayaranManual($payload);
+            $message = $this->suretyBondService->handleUploadPembayaranManual($payload, $user);
            return ApiResponse::success($message);
         } catch (ValidationException $e) {
             return ApiResponse::error(
