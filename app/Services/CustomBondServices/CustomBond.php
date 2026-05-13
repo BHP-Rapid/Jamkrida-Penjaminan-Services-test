@@ -10,7 +10,6 @@ use App\Models\CustomBondTransaction;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Models\PenjaminanTransaction;
-use App\Models\TenantMitra;
 use App\Models\TrxCstbInvoiceHeader;
 use App\Models\TrxCstbPaymentGateway;
 use App\Repositories\CustomBondRepository;
@@ -31,12 +30,13 @@ class CustomBond
         protected CustomBondRepository $repository,
         protected FileInternalClient $fileInternalClient
     ) {}
+
     public function getDetail(string $trx_no, string $no_surat_permohonan)
     {
         $key = base64_decode(config('services.secure.key'));
         $result = $this->repository->getDetail($trx_no, $no_surat_permohonan);
         if (!$result) {
-            return null;
+            throw new NotFoundException('Custom Bond transaction not found.', null, 422);
         }
         $data = $result['data'];
         $institution = $result['institution'];
@@ -146,9 +146,13 @@ class CustomBond
             throw new Exception('Error inserting institution (' . $e->getMessage() . ')');
         }
 
-        DB::beginTransaction();
-
-        try {
+        return DB::transaction(function () use (
+            $user,
+            $trxInsertStatus,
+            $institutionService,
+            $penjaminanPayload,
+            $mitraAlias
+        ) {
             $this->handleTransaction(
                 $user,
                 $trxInsertStatus,
@@ -156,14 +160,8 @@ class CustomBond
                 $penjaminanPayload,
                 $mitraAlias
             );
-
-            DB::commit();
-
             return ApiResponse::success(null, 'Store Custom Bond has success');
-        } catch (Exception $e) {
-            DB::rollBack();
-            throw $e;
-        }
+        });
     }
 
     private function handleTransaction($user, $trxInsertStatus, $institutionService, $penjaminanPayload, $mitraAlias)
@@ -301,10 +299,7 @@ class CustomBond
         $isBastPenjaminan = $penjaminanPayload['isBast'] ?? false;
         if ($isBastPenjaminan) {
             if (empty($penjaminanPayload['noSuratBast']) || empty($penjaminanPayload['tglSuratBast'])) {
-                throw new HttpException(
-                    422,
-                    'No Surat BAST and Tanggal BAST are required when isBast = true'
-                );
+                throw new NotFoundException('No Surat BAST and Tanggal BAST are required when isBast = true', null, 422);
             }
         }
         $lampiranExist = !empty($penjaminanPayload['attachments'] ?? []);
@@ -314,92 +309,100 @@ class CustomBond
                 $penjaminanPayload['attachments']
             );
             if (count(array_unique($lampiranIdMap)) !== count($lampiranIdMap)) {
-                throw new HttpException(422, 'Duplicate lampiran id.');
+                throw new NotFoundException('Duplicate lampiran id.', null, 422);
             }
         }
-        DB::beginTransaction();
-        $data = $this->repository->getDraftData($trxNo);
-
-        $penjaminanTrxHeaderData = $data['header'];
-        $customBondData = $data['bond'];
-        if (!$penjaminanTrxHeaderData || !$customBondData) {
-            throw new HttpException(400, 'Penjaminan data is not found.');
-        }
-
-        if ($penjaminanTrxHeaderData->trx_status !== 'D') {
-            throw new HttpException(422, 'Data is not draft.');
-        }
-
         $fallback = function (string $key, $default = null) use ($penjaminanPayload) {
             return array_key_exists($key, $penjaminanPayload)
                 ? $penjaminanPayload[$key]
                 : $default;
         };
 
-        $nowJakarta = Carbon::now('Asia/Jakarta');
-        PenjaminanTransaction::where('trx_no', $trxNo)->update([
-            'no_surat_permohonan' => $fallback('noSuratPermohonan'),
-            'tanggal_surat_permohonan' => $fallback('tglSuratPermohonan'),
-            'is_split' => $fallback('isSplit'),
-            'updated_by_id' => $user->user_id,
-            'updated_by_name' => $user->name,
-            'updated_at' => $nowJakarta
-        ]);
-        CustomBondTransaction::where('trx_no', $trxNo)->update([
-            'trx_no' => $trxNo,
-            'jenis_bond' => 'cstb',
-            'jenis_bond_description' => 'Custom Bond',
+        return DB::transaction(function () use (
+            $trxNo,
+            $user,
+            $fallback,
+            $penjaminanPayload,
+            $isBastPenjaminan,
+            $lampiranExist
+        ) {
+            $data = $this->repository->getDraftData($trxNo);
 
-            'jenis_persyaratan' => $fallback('jenisPernyataan'),
-            'skema_penalty' => $fallback('skemaPenalty'),
-            'sektor' => $fallback('sektor'),
+            $penjaminanTrxHeaderData = $data['header'];
+            $customBondData = $data['bond'];
+            if (!$penjaminanTrxHeaderData || !$customBondData) {
+                throw new NotFoundException('Penjaminan data is not found.', null, 404);
+            }
 
-            'document_name' => $fallback('documentName'),
-            'document_number' => $fallback('documentNumber'),
-            'document_date' => !empty($penjaminanPayload['documentDate'])
-                ? Carbon::parse($penjaminanPayload['documentDate'])->format('Y-m-d')
-                : null,
+            if ($penjaminanTrxHeaderData->trx_status !== 'D') {
+                throw new NotFoundException('Data is not draft.', null, 422);
+            }
 
-            'is_bast' => $isBastPenjaminan,
-            'no_surat_bast' => $isBastPenjaminan ? $fallback('noSuratBast') : null,
-            'bast_date' => $isBastPenjaminan && !empty($penjaminanPayload['tglSuratBast'])
-                ? Carbon::parse($penjaminanPayload['tglSuratBast'])->format('Y-m-d')
-                : null,
+            $nowJakarta = Carbon::now('Asia/Jakarta');
+            $this->repository->updatePenjaminanTransaction($trxNo, [
+                'no_surat_permohonan' => $fallback('noSuratPermohonan'),
+                'tanggal_surat_permohonan' => $fallback('tglSuratPermohonan'),
+                'is_split' => $fallback('isSplit'),
+                'updated_by_id' => $user->user_id,
+                'updated_by_name' => $user->name,
+                'updated_at' => $nowJakarta
+            ]);
+            $this->repository->updateCustomBondTransaction($trxNo, [
+                'trx_no' => $trxNo,
+                'jenis_bond' => 'cstb',
+                'jenis_bond_description' => 'Custom Bond',
 
-            'project_name' => $fallback('namaProyek'),
-            'project_amount' => $fallback('nilaiProyek'),
-            'amount_bond' => $fallback('nilaiBond'),
+                'jenis_persyaratan' => $fallback('jenisPernyataan'),
+                'skema_penalty' => $fallback('skemaPenalty'),
+                'sektor' => $fallback('sektor'),
 
-            'no_surat_perjanjian' => $fallback('noSuratPerjanjian'),
-            'bond_percentage' => $fallback('nilaiBondPersentase'),
+                'document_name' => $fallback('documentName'),
+                'document_number' => $fallback('documentNumber'),
+                'document_date' => !empty($penjaminanPayload['documentDate'])
+                    ? Carbon::parse($penjaminanPayload['documentDate'])->format('Y-m-d')
+                    : null,
 
-            'start_period_date' => !empty($penjaminanPayload['periodeAwalBerlaku'])
-                ? Carbon::parse($penjaminanPayload['periodeAwalBerlaku'])->format('Y-m-d')
-                : null,
+                'is_bast' => $isBastPenjaminan,
+                'no_surat_bast' => $isBastPenjaminan ? $fallback('noSuratBast') : null,
+                'bast_date' => $isBastPenjaminan && !empty($penjaminanPayload['tglSuratBast'])
+                    ? Carbon::parse($penjaminanPayload['tglSuratBast'])->format('Y-m-d')
+                    : null,
 
-            'tgl_surat_perjanjian' => !empty($penjaminanPayload['tglSuratPerjanjian'])
-                ? Carbon::parse($penjaminanPayload['tglSuratPerjanjian'])->format('Y-m-d')
-                : null,
+                'project_name' => $fallback('namaProyek'),
+                'project_amount' => $fallback('nilaiProyek'),
+                'amount_bond' => $fallback('nilaiBond'),
 
-            'end_period_date' => !empty($penjaminanPayload['periodeAkhirBerlaku'])
-                ? Carbon::parse($penjaminanPayload['periodeAkhirBerlaku'])->format('Y-m-d')
-                : null,
+                'no_surat_perjanjian' => $fallback('noSuratPerjanjian'),
+                'bond_percentage' => $fallback('nilaiBondPersentase'),
 
-            'total_day' => $fallback('jangkaWaktu'),
-            'province' => $fallback('propinsi'),
-            'tarif_percentage' => $fallback('tarif'),
-            'ijp_amount' => $fallback('ijpAmount'),
-            'administrative_amount' => $fallback('administrativeAmount'),
-            'stamp_amount' => $fallback('stampAmount'),
+                'start_period_date' => !empty($penjaminanPayload['periodeAwalBerlaku'])
+                    ? Carbon::parse($penjaminanPayload['periodeAwalBerlaku'])->format('Y-m-d')
+                    : null,
 
-            'updated_at' => $nowJakarta,
-        ]);
-        $this->handleAttachments($penjaminanPayload, $trxNo, $lampiranExist);
-        DB::commit();
-        return [
-            'success' => true,
-            'message' => 'Penjaminan Surety Bond successfully updated.'
-        ];
+                'tgl_surat_perjanjian' => !empty($penjaminanPayload['tglSuratPerjanjian'])
+                    ? Carbon::parse($penjaminanPayload['tglSuratPerjanjian'])->format('Y-m-d')
+                    : null,
+
+                'end_period_date' => !empty($penjaminanPayload['periodeAkhirBerlaku'])
+                    ? Carbon::parse($penjaminanPayload['periodeAkhirBerlaku'])->format('Y-m-d')
+                    : null,
+
+                'total_day' => $fallback('jangkaWaktu'),
+                'province' => $fallback('propinsi'),
+                'tarif_percentage' => $fallback('tarif'),
+                'ijp_amount' => $fallback('ijpAmount'),
+                'administrative_amount' => $fallback('administrativeAmount'),
+                'stamp_amount' => $fallback('stampAmount'),
+
+                'updated_at' => $nowJakarta,
+            ]);
+            $this->handleAttachments($penjaminanPayload, $trxNo, $lampiranExist);
+
+            return [
+                'success' => true,
+                'message' => 'Penjaminan Surety Bond successfully updated.'
+            ];
+        });
     }
 
 
@@ -430,38 +433,17 @@ class CustomBond
         DB::beginTransaction();
 
         try {
-            $cstbHeader = PenjaminanTransaction::where('trx_no', $request->trx_no)
-                ->where('trx_status', 'WFP')
-                ->select('no_surat_permohonan')
-                ->first();
-
-            $tenorData = CustomBondTenorSchedule::query()
-                ->from('custom_bond_transaction as cbt')
-                ->join('custombond_tenor_schedule as cbs', 'cbt.id_bond', 'cbs.id_bond')
-                ->select([
-                    'cbs.cstb_schedule_id',
-                    'cbt.id_bond',
-                    'cbt.trx_no',
-                    'cbs.tenor_sequence',
-                    'cbs.due_date',
-                    'cbs.invoice_number',
-                    'cbs.amount',
-                    'cbs.status'
-                ])
-                ->where('cbs.status', 'Pending')
-                ->whereIn('cbs.invoice_number', $arrinvoiceNumberValidation)
-                ->where('cbt.trx_no', $request->trx_no)
-                ->orderBy('cbs.cstb_schedule_id')
-                ->get();
-
+            $cstbHeader = $this->repository->getPaymentHeader($request->trx_no);
+            $tenorData = $this->repository->getPendingTenorData(
+                $request->trx_no,
+                $arrinvoiceNumberValidation
+            );
             if ($tenorData->count() < 1 || !$cstbHeader) {
-                throw new \Exception('Penjaminan Custom Bond not found or no payment data.', 404);
+                throw new NotFoundException('Penjaminan Custom Bond not found or no payment data.', null, 404);
             }
-
             $amountSum = $tenorData->sum('amount');
-
             if ($amountSum != $request->amount) {
-                throw new \Exception('Incorrect amount.', 400);
+                throw new NotFoundException('Incorrect amount.', null, 404);
             }
 
             $noSuratPermohonan = $cstbHeader->no_surat_permohonan;
@@ -726,9 +708,9 @@ class CustomBond
                     'updated_at' => null
                 ]);
             } else if ($penjaminanTrxHeaderData && $customBondData) {
-                throw new HttpException(422, 'Data is not draft.');
+                throw new NotFoundException('Data is not draft.', null, 422);
             } else {
-                throw new HttpException(400, 'Penjaminan custom bond data is not found.');
+                throw new NotFoundException('Penjaminan custom bond data is not found.', null, 404);
             }
         });
         return true;
@@ -742,31 +724,7 @@ class CustomBond
         $key = $payload['key'];
         $no_surat_permohonan = $payload['no_surat_permohonan'];
         $resultPending = [];
-        $dataPending = PenjaminanTransaction::query()
-            ->from('transaction_penjaminan_header as tph')
-            ->join('custom_bond_transaction as cbt', 'tph.trx_no', '=', 'cbt.trx_no')
-            ->join('institution as inst', 'cbt.id_institution', '=', 'inst.id')
-            ->join('custombond_tenor_schedule as cts', 'cbt.id_bond', '=', 'cts.id_bond')
-            ->where('tph.trx_no', $trx_no)
-            ->where('cts.status', 'Pending')
-            ->where('tph.no_surat_permohonan', $no_surat_permohonan)
-            ->when(!is_null($isSplit), function ($q) use ($isSplit) {
-                $q->where('tph.sp_split', $isSplit);
-            })
-            ->select([
-                'cts.cstb_schedule_id',
-                'cts.id_bond',
-                'inst.id_number',
-                'inst.id_type',
-                'inst.full_name',
-                'cts.amount',
-                'cts.invoice_number',
-                'cts.due_date',
-                'cts.status',
-                'cts.tenor_sequence'
-            ])
-            ->first();
-
+        $dataPending = $this->repository->getDetailPaymentCstbPending($trx_no, $no_surat_permohonan, $isSplit);
         if ($dataPending) {
             $resultPending[] = [
                 'schedule_id'    => $dataPending->cstb_schedule_id,
@@ -780,28 +738,7 @@ class CustomBond
                 'tenor_sequence' => $isSplit ? $dataPending->tenor_sequence : 0,
             ];
         }
-
-        $dataUnpaid = PenjaminanTransaction::query()
-            ->from('transaction_penjaminan_header as tph')
-            ->join('custom_bond_transaction as cbt', 'tph.trx_no', '=', 'cbt.trx_no')
-            ->join('institution as inst', 'cbt.id_institution', '=', 'inst.id')
-            ->join('custombond_tenor_schedule as cts', 'cts.id_bond', '=', 'cbt.id_bond')
-            ->join('trx_cstb_invoice_header as tcih', 'tcih.cstb_schedule_id', '=', 'cts.cstb_schedule_id')
-            ->join('trx_cstb_payment_gateway as tcpg', 'tcpg.cstb_invoice_id', '=', 'tcih.cstb_invoice_id')
-            ->where('tph.trx_no', $trx_no)
-            ->where('tcih.status', 'Unpaid')
-            ->where('tph.no_surat_permohonan', $no_surat_permohonan)
-            ->when(!is_null($isSplit), function ($q) use ($isSplit) {
-                $q->where('tph.sp_split', $isSplit);
-            })
-            ->select([
-                'tcpg.order_id',
-                'tcpg.cstb_payment_id as payment_id',
-                'tph.trx_no',
-                'tcpg.payment_amount_ijp as total_amount',
-                'tcpg.order_payment_token'
-            ])
-            ->get();
+        $dataUnpaid = $this->repository->getDetailPaymentCstbUnpaid($trx_no, $no_surat_permohonan, $isSplit);
         return [
             'dataHeader' => [
                 'data_pending' => $resultPending,
@@ -869,7 +806,7 @@ class CustomBond
     {
         $tenantData = $this->repository->getTenantMitraData($mitra_id);
         if (!$tenantData) {
-            throw new NotFoundException('Tenant mitra data is not found.');
+            throw new NotFoundException('Tenant mitra data is not found.', null, 404);
         }
         return $tenantData;
     }

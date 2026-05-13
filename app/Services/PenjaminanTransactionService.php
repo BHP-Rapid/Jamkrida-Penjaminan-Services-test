@@ -6,9 +6,7 @@ use App\Exceptions\NotFoundException;
 use App\Helpers\ApiResponse;
 use App\Helpers\ZipHelper;
 use App\Repositories\PenjaminanTransactionRepository;
-use Illuminate\Support\Facades\Validator;
 use Exception;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -108,7 +106,7 @@ class PenjaminanTransactionService
                 //     'status' => 'error',
                 //     'message' => 'Penjaminan No tidak terdaftar'
                 // ], 404);
-                throw new NotFoundHttpException('Penjaminan No tidak terdaftar');
+                throw new NotFoundException('Penjaminan No tidak terdaftar', null, 404);
             }
             if ($product === 'mlt') {
                 $getDataPenjaminanFlow = $this->repository->getMultigunaPenjaminanFlow($penjaminanNo, $noSpDetail);
@@ -321,11 +319,11 @@ class PenjaminanTransactionService
                 break;
 
             default:
-                throw new NotFoundException('No additional document found for the specified product.');
+                throw new NotFoundException('No additional document found for the specified product.', null, 404);
         }
 
         if (empty($result)) {
-            throw new NotFoundException('Data tidak ditemukan.');
+            throw new NotFoundException('Data tidak ditemukan.', null, 404);
         }
 
         return $result;
@@ -364,7 +362,7 @@ class PenjaminanTransactionService
                 return ApiResponse::error('Invalid product', 422);
         }
         if (empty($result)) {
-            throw new NotFoundException('Data tidak ditemukan.');
+            throw new NotFoundException('Data tidak ditemukan.', null, 404);
         }
         return $result;
     }
@@ -373,7 +371,7 @@ class PenjaminanTransactionService
     {
         $tenantData = $this->repository->getTenantMitraData($user->mitra_id);
         if (!$tenantData) {
-            throw new NotFoundException('Tenant mitra data is not found.');
+            throw new NotFoundException('Tenant mitra data is not found.', null, 404);
         }
         return $tenantData;
     }

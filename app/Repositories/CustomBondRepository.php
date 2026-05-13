@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\CustomBondTenorSchedule;
 use App\Models\CustomBondTransaction;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
@@ -135,7 +136,7 @@ class CustomBondRepository
             ->first();
     }
 
-    public function getDraftData($trxNo)
+    public function getDraftData(string $trxNo)
     {
         $header = PenjaminanTransaction::where('trx_no', $trxNo)
             ->select('trx_no', 'trx_status')
@@ -150,10 +151,104 @@ class CustomBondRepository
             'bond' => $bond
         ];
     }
-    public function getTenantMitraData($mitra_id)
+
+    public function updatePenjaminanTransaction(string $trxNo, array $data)
+    {
+        return PenjaminanTransaction::where('trx_no', $trxNo)->update($data);
+    }
+
+    public function updateCustomBondTransaction(string $trxNo, array $data)
+    {
+        return CustomBondTransaction::where('trx_no', $trxNo)->update($data);
+    }
+
+    public function getTenantMitraData(string $mitra_id)
     {
         return TenantMitra::where('mitra_id', $mitra_id)
             ->select('mitra_id', 'alias', 'tenant_id')
             ->first();
+    }
+
+    public function getPaymentHeader(string $trxNo)
+    {
+        return PenjaminanTransaction::where('trx_no', $trxNo)
+            ->where('trx_status', 'WFP')
+            ->select('no_surat_permohonan')
+            ->first();
+    }
+
+    public function getPendingTenorData(string $trxNo, array $invoiceNumbers)
+    {
+        return CustomBondTenorSchedule::query()
+            ->from('custom_bond_transaction as cbt')
+            ->join('custombond_tenor_schedule as cbs', 'cbt.id_bond', 'cbs.id_bond')
+            ->select([
+                'cbs.cstb_schedule_id',
+                'cbt.id_bond',
+                'cbt.trx_no',
+                'cbs.tenor_sequence',
+                'cbs.due_date',
+                'cbs.invoice_number',
+                'cbs.amount',
+                'cbs.status'
+            ])
+            ->where('cbs.status', 'Pending')
+            ->whereIn('cbs.invoice_number', $invoiceNumbers)
+            ->where('cbt.trx_no', $trxNo)
+            ->orderBy('cbs.cstb_schedule_id')
+            ->get();
+    }
+
+    public function getDetailPaymentCstbPending(string $trx_no, string $no_surat_permohonan, int $isSplit)
+    {
+        return PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('custom_bond_transaction as cbt', 'tph.trx_no', '=', 'cbt.trx_no')
+            ->join('institution as inst', 'cbt.id_institution', '=', 'inst.id')
+            ->join('custombond_tenor_schedule as cts', 'cbt.id_bond', '=', 'cts.id_bond')
+            ->where('tph.trx_no', $trx_no)
+            ->where('cts.status', 'Pending')
+            ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+            ->when(!is_null($isSplit), function ($q) use ($isSplit) {
+                $q->where('tph.sp_split', $isSplit);
+            })
+            ->select([
+                'cts.cstb_schedule_id',
+                'cts.id_bond',
+                'inst.id_number',
+                'inst.id_type',
+                'inst.full_name',
+                'cts.amount',
+                'cts.invoice_number',
+                'cts.due_date',
+                'cts.status',
+                'cts.tenor_sequence'
+            ])
+            ->first();
+    }
+
+    public function getDetailPaymentCstbUnpaid(string $trx_no, string $no_surat_permohonan, int  $isSplit)
+    {
+       return PenjaminanTransaction::query()
+            ->from('transaction_penjaminan_header as tph')
+            ->join('custom_bond_transaction as cbt', 'tph.trx_no', '=', 'cbt.trx_no')
+            ->join('institution as inst', 'cbt.id_institution', '=', 'inst.id')
+            ->join('custombond_tenor_schedule as cts', 'cts.id_bond', '=', 'cbt.id_bond')
+            ->join('trx_cstb_invoice_header as tcih', 'tcih.cstb_schedule_id', '=', 'cts.cstb_schedule_id')
+            ->join('trx_cstb_payment_gateway as tcpg', 'tcpg.cstb_invoice_id', '=', 'tcih.cstb_invoice_id')
+            ->where('tph.trx_no', $trx_no)
+            ->where('tcih.status', 'Unpaid')
+            ->where('tph.no_surat_permohonan', $no_surat_permohonan)
+            ->when(!is_null($isSplit), function ($q) use ($isSplit) {
+                $q->where('tph.sp_split', $isSplit);
+            })
+            ->select([
+                'tcpg.order_id',
+                'tcpg.cstb_payment_id as payment_id',
+                'tph.trx_no',
+                'tcpg.payment_amount_ijp as total_amount',
+                'tcpg.order_payment_token'
+            ])
+            ->get();
     }
 }
