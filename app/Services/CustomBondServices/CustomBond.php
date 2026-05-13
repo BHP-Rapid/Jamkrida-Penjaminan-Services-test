@@ -15,6 +15,7 @@ use App\Models\TrxCstbInvoiceHeader;
 use App\Models\TrxCstbPaymentGateway;
 use App\Repositories\CustomBondRepository;
 use App\Services\CreatioService;
+use App\Services\FileInternalClient;
 use App\Services\InstitutionService;
 use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
@@ -27,7 +28,8 @@ class CustomBond
 {
 
     public function __construct(
-        protected CustomBondRepository $repository
+        protected CustomBondRepository $repository,
+        protected FileInternalClient $fileInternalClient
     ) {}
     public function getDetail(string $trx_no, string $no_surat_permohonan)
     {

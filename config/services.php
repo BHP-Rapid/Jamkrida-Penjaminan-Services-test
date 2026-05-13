@@ -61,4 +61,7 @@ return [
         'password' => env('CREATIO_PASSWORD'),
     ],
 
+    'file_internal' => [
+        'url' => env('FILE_SERVICE_URL', 'http://localhost:8000'),
+    ],
 ];

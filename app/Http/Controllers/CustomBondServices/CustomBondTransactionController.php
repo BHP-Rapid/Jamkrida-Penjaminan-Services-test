@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\CustomBondServices;
 
+use App\Exceptions\NotFoundException;
 use App\Helpers\ApiResponse;
 use App\Helpers\AuthUserHelper;
 use App\Http\Controllers\Controller;
@@ -33,6 +34,8 @@ class CustomBondTransactionController extends Controller
             return ApiResponse::success($data, 'Data retrieved successfully');
         } catch (ValidationException $ex) {
             return ApiResponse::error('Validation error', 422, $ex->errors());
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error('Error While Get Data Custom Bond:  ' . $ex->getMessage(), 500);
         }
@@ -158,6 +161,8 @@ class CustomBondTransactionController extends Controller
             return ApiResponse::success($result);
         } catch (ValidationException $ex) {
             return ApiResponse::error('Validation error', 422, $ex->errors());
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),
@@ -170,7 +175,8 @@ class CustomBondTransactionController extends Controller
     {
         $user = AuthUserHelper::getUser($request);
         try {
-            $validated = $request->validate([
+            $validated = $request->validate(
+                [
                     'data.trx_status' => 'required|string|in:D,NA',
                     'data.noSuratPermohonan' => 'required|string|max:50',
                     'data.tglSuratPermohonan' => 'required|date_format:Y-m-d',
@@ -214,6 +220,8 @@ class CustomBondTransactionController extends Controller
                 'message' => 'Validation error',
                 'errors' => $ex->errors()
             ], 422);
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
@@ -275,6 +283,8 @@ class CustomBondTransactionController extends Controller
                 422,
                 $e->errors()
             );
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),
@@ -323,6 +333,8 @@ class CustomBondTransactionController extends Controller
             }
         } catch (ValidationException $ex) {
             return ApiResponse::error('Validation error', 422, $ex->errors());
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error(
                 $ex->getMessage(),
@@ -348,6 +360,8 @@ class CustomBondTransactionController extends Controller
             return ApiResponse::success($result, 'Success get detail payment');
         } catch (ValidationException $ex) {
             return ApiResponse::error('Validation error', 422, $ex->errors());
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $e) {
             Log::error("Error fetching payment details", [
                 'exception' => $e,

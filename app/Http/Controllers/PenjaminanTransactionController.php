@@ -38,6 +38,8 @@ class PenjaminanTransactionController extends Controller
                 422,
                 $e->errors()
             );
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error($ex->getMessage(), 500);
         }
@@ -65,6 +67,8 @@ class PenjaminanTransactionController extends Controller
                 422,
                 $e->errors()
             );
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error($ex->getMessage(), 500);
         }
@@ -117,6 +121,8 @@ class PenjaminanTransactionController extends Controller
                 422,
                 $e->errors()
             );
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error($ex->getMessage(), 500);
         }
@@ -134,6 +140,8 @@ class PenjaminanTransactionController extends Controller
                 422,
                 $e->errors()
             );
+        } catch (NotFoundException $nfe) {
+            return ApiResponse::error($nfe->getMessage(), $nfe->getStatus(), $nfe->getMessageData());
         } catch (Exception $ex) {
             return ApiResponse::error($ex->getMessage(), 500);
         }

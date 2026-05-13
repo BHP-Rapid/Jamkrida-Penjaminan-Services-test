@@ -6,6 +6,7 @@ use App\Exceptions\NotFoundException;
 use App\Helpers\AesHelper;
 use App\Helpers\ValidateDebitur;
 use App\Repositories\MultigunaRepository;
+use App\Services\FileInternalClient;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\UploadedFile;
@@ -15,7 +16,7 @@ use Illuminate\Support\Str;
 
 class MultigunaService
 {
-    public function __construct(protected MultigunaRepository $repository) {}
+    public function __construct(protected MultigunaRepository $repository, protected FileInternalClient $fileInternalClient) {}
 
     public function getMultigunaDetailWithAttachments(array $payload)
     {
