@@ -15,6 +15,7 @@ class PenjaminanLampiranDtl extends Model
 
     protected $fillable = [
         'trx_no', 
+        'file_id',
         'lampiran_id',
         'file_name',
         'file_info', 

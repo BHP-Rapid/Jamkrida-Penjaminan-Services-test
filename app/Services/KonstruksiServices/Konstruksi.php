@@ -7,6 +7,7 @@ use App\Helpers\AesHelper;
 use App\Models\PenjaminanFlow;
 use App\Models\PenjaminanLampiranDtl;
 use App\Repositories\KonstruksiRepository;
+use App\Services\FileInternalClient;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -14,7 +15,7 @@ use Illuminate\Support\Str;
 
 class Konstruksi
 {
-    public function __construct(protected KonstruksiRepository $repository) {}
+    public function __construct(protected KonstruksiRepository $repository, protected FileInternalClient $fileInternalClient) {}
 
     public function getTenantMitra(string $mitraId)
     {
@@ -98,6 +99,7 @@ class Konstruksi
             'penjaminan_lampiran_dtl.lampiran_id',
             'penjaminan_lampiran_dtl.file_name',
             'penjaminan_lampiran_dtl.file_info',
+            'penjaminan_lampiran_dtl.file_id',
             'penjaminan_lampiran_dtl.is_additional',
             'penjaminan_lampiran_dtl.status_doc',
             'penjaminan_lampiran_dtl.mime_type',
@@ -105,24 +107,37 @@ class Konstruksi
         );
 
         $lampiranData = $this->repository->lampiranData($lampiranLatest);
-
+        dd($lampiranData);
         return $lampiranData->map(function ($att) {
 
             $file = $att->file_info ? json_decode($att->file_info) : null;
             $filePath = $file ? $file->path : null;
+            $urlResult = $this->fileInternalClient->getTemporaryUrl($att->file_id);
+            $fileUrl = $urlResult['url'];
 
+            // return [
+            //     'file_name' => $att->file_name ?? basename($filePath ?? ''),
+            //     'file_path' => $filePath,
+            //     'key_lampiran' => $att->value,
+            //     'label_lampiran' => $att->label,
+            //     'mime_type' => $att->mime_type,
+            //     'option_type' => $att->option2,
+            //     'is_additional' => (int) ($att->is_additional ?? 0),
+            //     'status_doc' => $att->status_doc ?? 'N',
+            //     'presigned_url' => $filePath
+            //         ? Storage::disk('s3')->temporaryUrl($filePath, now()->addMinutes(15))
+            //         : null,
+            // ];
             return [
-                'file_name' => $att->file_name ?? basename($filePath ?? ''),
-                'file_path' => $filePath,
-                'key_lampiran' => $att->value,
+                'key_lampiran'   => $att->value,
                 'label_lampiran' => $att->label,
-                'mime_type' => $att->mime_type,
-                'option_type' => $att->option2,
-                'is_additional' => (int) ($att->is_additional ?? 0),
-                'status_doc' => $att->status_doc ?? 'N',
-                'presigned_url' => $filePath
-                    ? Storage::disk('s3')->temporaryUrl($filePath, now()->addMinutes(15))
-                    : null,
+                'option_type'    => $att->option2,
+                'file_name'      => $att->file_name,
+                'file_path'      => $filePath,
+                'is_additional'  => $att->is_additional,
+                'status_doc'     => $att->status_doc,
+                'mime_type'      => $att->mime_type,
+                'presigned_url'  => $fileUrl
             ];
         })->values()->toArray();
     }
@@ -332,10 +347,17 @@ class Konstruksi
                                 $ext = $file->getClientOriginalExtension();
                                 $unique = uniqid();
                                 $fn = "{$nik}-{$innerKey}-kkpbj";
-                                $path = $file->storeAs(
-                                    'uploads/penjaminan/kkpbj',
-                                    $fn . "." . $ext,
-                                    's3'
+                                // $path = $file->storeAs(
+                                //     'uploads/penjaminan/kkpbj',
+                                //     $fn . "." . $ext,
+                                //     's3'
+                                // );
+                                $path = $this->fileInternalClient->upload(
+                                    $file,
+                                    'penjaminan',
+                                    'kkpbj',
+                                    $user->user_id,
+                                    "$fn.$ext"
                                 );
 
                                 $savedAttachments[] = [

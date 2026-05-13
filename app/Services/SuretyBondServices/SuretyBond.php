@@ -20,6 +20,7 @@ use App\Services\CreatioService;
 use App\Services\PenjaminanService;
 use Illuminate\Http\Request;
 use App\Repositories\SuretyBondRepository;
+use App\Services\FileInternalClient;
 use App\Services\InstitutionService;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -27,7 +28,7 @@ class SuretyBond
 {
 
     public function __construct(
-        protected SuretyBondRepository $repository
+        protected SuretyBondRepository $repository, protected FileInternalClient $fileInternalClient
     ) {}
 
     public function handleShow(array $request, object $user)
@@ -153,13 +154,13 @@ class SuretyBond
             $this->repository->createDetail(
                 $this->buildSrtbPayload($penjaminanPayload, $fallback, $trxNo, $idInstitution)
             );
-            // if ($hasLampiran) {
-            //     $attachments = $this->handleLampiran($trxNo, $penjaminanPayload['lampiran']);
+            if ($hasLampiran) {
+                $attachments = $this->handleLampiran($trxNo, $penjaminanPayload['lampiran'], $user->user_id);
 
-            //     if (!empty($attachments)) {
-            //         $this->repository->insertLampiran($attachments);
-            //     }
-            // }
+                if (!empty($attachments)) {
+                    $this->repository->insertLampiran($attachments);
+                }
+            }
             $this->repository->insertFlow([
                 'trx_no' => $trxNo,
                 'trx_status' => $trxInsertStatus,
@@ -236,7 +237,7 @@ class SuretyBond
 
             // Handle attachment
             if ($lampiranExist) {
-                $attachments = $this->handleLampiran($trxNo, $payload['lampiranEdit']);
+                $attachments = $this->handleLampiran($trxNo, $payload['lampiranEdit'], $user->user_id);
 
                 if (!empty($attachments)) {
                     $this->repository->insertLampiran($attachments);
@@ -313,7 +314,7 @@ class SuretyBond
 
             // Handle attachment
             if ($lampiranExist) {
-                $attachments = $this->handleLampiran($trxNo, $payload['lampiranEdit']);
+                $attachments = $this->handleLampiran($trxNo, $payload['lampiranEdit'], $user->user_id);
 
                 if (!empty($attachments)) {
                     $this->repository->insertLampiran($attachments);
@@ -643,19 +644,21 @@ class SuretyBond
             $fileUrl = null;
             $filePath = '';
 
-            if ($item->lampiran_id != null) {
-                $decodedInfo = json_validate($item->file_info)
-                    ? json_decode($item->file_info)
-                    : null;
+            if ($item->lampiran_id != null && $item->file_id != null) {
+                // $decodedInfo = json_validate($item->file_info)
+                //     ? json_decode($item->file_info)
+                //     : null;
 
-                $filePath = $decodedInfo != null && isset($decodedInfo->path)
-                    ? $decodedInfo->path
-                    : $item->file_info;
+                // $filePath = $decodedInfo != null && isset($decodedInfo->path)
+                //     ? $decodedInfo->path
+                //     : $item->file_info;
 
-                $fileUrl = Storage::disk('s3')->temporaryUrl(
-                    $filePath,
-                    now()->addMinutes(15)
-                );
+                // $fileUrl = Storage::disk('s3')->temporaryUrl(
+                //     $filePath,
+                //     now()->addMinutes(15)
+                // );
+                $urlResult = $this->fileInternalClient->getTemporaryUrl($item->file_id);
+                $fileUrl = $urlResult['url'];
             }
 
             return [
@@ -672,7 +675,7 @@ class SuretyBond
         })->toArray();
     }
 
-    private function handleLampiran(string $trxNo, array $lampiranEdit)
+    private function handleLampiran(string $trxNo, array $lampiranEdit, string $user_id = '')
     {
         $existing = $this->repository->getLatestLampiranVersion($trxNo);
 
@@ -684,11 +687,18 @@ class SuretyBond
             $ext = $file->getClientOriginalExtension();
             $fn = "{$trxNo}-{$item['lampiran_id']}-srtb-" . uniqid();
 
-            $path = $file->storeAs(
-                'uploads/penjaminan/surety-bond',
-                "$fn.$ext",
-                's3'
-            );
+            // $path = $file->storeAs(
+            //     'uploads/penjaminan/surety-bond',
+            //     "$fn.$ext",
+            //     's3'
+            // );
+            $path = $this->fileInternalClient->upload(
+                    $file,
+                    'penjaminan',
+                    'surety-bond',
+                    $user_id,
+                    "$fn.$ext"
+                );
 
             $currentVersion = $existing[$item['lampiran_id']] ?? 0;
 
@@ -699,7 +709,11 @@ class SuretyBond
                 'status_doc' => 'N',
                 'version' => $currentVersion + 1,
                 'mime_type' => $file->getMimeType(),
-                'file_info' => $path
+                // 'file_info' => $path
+                'file_info' => json_encode([
+                    'path' => null
+                ]),
+                'file_id' => $path['response']['id'] ?? null
             ];
         }
 
