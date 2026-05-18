@@ -2920,7 +2920,7 @@ class PenjaminanService
                 throw new Exception("Failed to Data Surety Bond to Core Creatio API with message: " . $bodyResponse['Message']);
             }
 
-            $lampiran = PenjaminanLampiranDtl::select('trx_no', 'lampiran_id', 'file_name', 'file_info', 'version', 'mime_type')
+            $lampiran = PenjaminanLampiranDtl::select('trx_no', 'file_id', 'lampiran_id', 'file_name', 'file_info', 'version', 'mime_type')
                 ->where('trx_no', $penjaminan->trx_no)
                 ->whereRaw("
                         NOT EXISTS (
@@ -2939,6 +2939,7 @@ class PenjaminanService
                 ->select('value', 'option3')
                 ->get();
 
+            $fileInternalService = new FileInternalClient();
             $listPerorangan = ['ktp', 'npywp'];
             $listSyaratUmum = ['app', 'npwp', 'ppp', 'siujk'];
             $listSyaratKhusus = ['nib', 'rdpj'];
@@ -2947,10 +2948,15 @@ class PenjaminanService
                     'endpoint' => 'PenjaminanService@approvePenjaminanMultigunaNew',
                     'time' => now()->toDateTimeString(),
                 ]);
-                $binFileNameParse = explode('/', $bin->file_info);
-                $debiturFileName = $binFileNameParse[count($binFileNameParse) - 1];
-                $binS3Content = Storage::disk('s3')->get($bin->file_info);
-                $binS3Base64 = base64_encode($binS3Content);
+                // $binFileNameParse = explode('/', $bin->file_info);
+                // $debiturFileName = $binFileNameParse[count($binFileNameParse) - 1];
+                // $binS3Content = Storage::disk('s3')->get($bin->file_info);
+                $urlResult = $fileInternalService->getTemporaryUrl($bin->file_id);
+                $debiturFileName = $urlResult['response']['original_name'];
+                $fileUrl = $urlResult['url'];
+                $urlContent = file_get_contents($fileUrl);
+                // $binS3Base64 = base64_encode($binS3Content);
+                $binS3Base64 = base64_encode($urlContent);
                 $jenisByLampiranId = $lampiranJenisMapping
                     ->firstWhere('value', strtolower($bin->lampiran_id));
                 $namaJenis = $jenisByLampiranId ? $jenisByLampiranId->option3 : "";
