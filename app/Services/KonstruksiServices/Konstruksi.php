@@ -34,13 +34,23 @@ class Konstruksi
 
         $rows = $this->repository->getInst($penjaminanDetail->id_multiguna_konstruksi);
 
-        $lampiran = $this->repository->getLampiranDtl($trx_no);
+        $lampiranDtl = $this->repository->getLampiranDtl($trx_no);
 
         if ($rows->isNotEmpty()) {
             $key = base64_decode(config('services.secure.key'));
             $rows = $this->decryptInstitution($rows, $key);
             $lampiran = $this->getLampiran($trx_no);
-            $penjaminanDetail->setAttribute('lampiran', $lampiran);
+            //$penjaminanDetail->setAttribute('lampiran', $lampiran);
+            foreach ($lampiran as $att) {
+                $filename = $att["file_name"];
+                $parts = explode('-', $filename);
+                $fileNik = $parts[0] ?? null;
+                foreach ($rows as $row) {
+                    if ($row->id_number === $fileNik) {
+                        $row->attachments[] = $att;
+                    }
+                }
+            }
         }
         // flow multiguna
         $MultigunaFlow = $this->repository->getFlow($trx_no);
@@ -107,13 +117,16 @@ class Konstruksi
         );
 
         $lampiranData = $this->repository->lampiranData($lampiranLatest);
-        dd($lampiranData);
+
         return $lampiranData->map(function ($att) {
 
             $file = $att->file_info ? json_decode($att->file_info) : null;
             $filePath = $file ? $file->path : null;
-            $urlResult = $this->fileInternalClient->getTemporaryUrl($att->file_id);
-            $fileUrl = $urlResult['url'];
+            $urlResult = [];
+            if ($att->file_id != null) {
+                $urlResult = $this->fileInternalClient->getTemporaryUrl($att->file_id);
+            }
+            $fileUrl = $urlResult['url'] ? $urlResult['url'] : Storage::disk('s3')->temporaryUrl($filePath, now()->addMinutes(15));
 
             // return [
             //     'file_name' => $att->file_name ?? basename($filePath ?? ''),
@@ -364,13 +377,25 @@ class Konstruksi
                                     'trx_no' => $trxNo,
                                     'lampiran_id' => $innerKey,
                                     'file_name' => $fn,
-                                    // 'file_info' => $file->getClientOriginalName(),
                                     'status_doc' => 'N',
                                     'version' => 1,
                                     'mime_type' => $file->getMimeType(),
-                                    'file_info' => $path,
-                                    'created_at' => $nowJakarta
+                                    'file_info' => json_encode([
+                                        'path' => null
+                                    ]),
+                                    'file_id' => $path['response']['id'] ?? null
                                 ];
+                                //  [
+                                //     'trx_no' => $trxNo,
+                                //     'lampiran_id' => $innerKey,
+                                //     'file_name' => $fn,
+                                //     // 'file_info' => $file->getClientOriginalName(),
+                                //     'status_doc' => 'N',
+                                //     'version' => 1,
+                                //     'mime_type' => $file->getMimeType(),
+                                //     'file_info' => $path,
+                                //     'created_at' => $nowJakarta
+                                // ];
                             }
                         }
                     } else {
@@ -379,23 +404,44 @@ class Konstruksi
                             $ext = $file->getClientOriginalExtension();
                             $unique = uniqid();
                             $fn = "{$trxNo}-ktp-kkpbj-{$idx}-{$fileKey}";
-                            $path = $file->storeAs(
-                                'uploads/penjaminan/kkpbj',
-                                $fn . "." . $ext,
-                                's3'
+                            // $path = $file->storeAs(
+                            //     'uploads/penjaminan/kkpbj',
+                            //     $fn . "." . $ext,
+                            //     's3'
+                            // );
+
+                            $path = $this->fileInternalClient->upload(
+                                $file,
+                                'penjaminan',
+                                'kkpbj',
+                                $user->user_id,
+                                "$fn.$ext"
                             );
 
                             $savedAttachments[] = [
                                 'trx_no' => $trxNo,
                                 // 'lampiran_id' => $innerKey,
                                 'file_name' => $fn,
-                                // 'file_info' => $file->getClientOriginalName(),
                                 'status_doc' => 'N',
                                 'version' => 1,
                                 'mime_type' => $file->getMimeType(),
-                                'file_info' => $path,
-                                'created_at' => $nowJakarta
+                                // 'file_info' => $path
+                                'file_info' => json_encode([
+                                    'path' => null
+                                ]),
+                                'file_id' => $path['response']['id'] ?? null
                             ];
+                            // [
+                            //     'trx_no' => $trxNo,
+                            //     // 'lampiran_id' => $innerKey,
+                            //     'file_name' => $fn,
+                            //     // 'file_info' => $file->getClientOriginalName(),
+                            //     'status_doc' => 'N',
+                            //     'version' => 1,
+                            //     'mime_type' => $file->getMimeType(),
+                            //     'file_info' => $path,
+                            //     'created_at' => $nowJakarta
+                            // ];
                         }
                     }
                 }
