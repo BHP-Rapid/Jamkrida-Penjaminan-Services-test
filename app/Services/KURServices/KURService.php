@@ -99,7 +99,7 @@ class KURService
                         'mitra_id' => $mitraAlias,
                         'tenant_id' => $tenantId,
                         'id_issued_location' => '-',
-                        'id_issued_location' => '-',
+                        // 'id_issued_location' => '-',
                         'id_add_issued_location' => '-',
                         'id_add_type' => "-",
                         'created_by' => $user->user_id,
