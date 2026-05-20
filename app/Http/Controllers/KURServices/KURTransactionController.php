@@ -4,6 +4,7 @@ namespace App\Http\Controllers\KURServices;
 
 use App\Exceptions\NotFoundException;
 use App\Helpers\ApiResponse;
+use App\Helpers\AuthUserHelper;
 use App\Http\Controllers\Controller;
 use App\Services\KURServices\KURService;
 use Exception;
@@ -23,7 +24,8 @@ class KURTransactionController extends Controller
     public function store(Request $request)
     {
         try {
-            $user = auth('sanctum')->user();
+            // $user = auth('sanctum')->user();
+            $user = AuthUserHelper::getUser($request);
             // $userArray = [
             //     'mitra_id' => '145c9591-c7cf-45fe-a8c1-9f620f992d5d',
             //     'user_id' => 'MDR2025001',
