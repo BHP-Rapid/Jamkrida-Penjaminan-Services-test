@@ -126,14 +126,16 @@ class KURValidate
             $debitur['jenis_penjaminan'] = ($debitur['plafond_kredit'] > $maxAmount) ? 'CBC' : 'CAC';
             $debitur['status_debitur'] = ($debitur['plafond_kredit'] > $maxAmount) ? 'Submitted' : 'Approved';
             $plafondPembiayaan = self::toNumber($debitur['plafond_kredit'] ?? 0);
-            $plafondMax = self::toNumber($debitur['plafond_max_pembiayaan'] ?? 0);
+            // $plafondMax = self::toNumber($debitur['plafond_max_pembiayaan'] ?? 0);
+            $plafondMax = self::toNumber($maks ?? 0);
             if ($plafondPembiayaan > $plafondMax) {
                 $invalid[] = [
                     'debitur_name' => $debiturName,
                     'nik' => $nik,
                     // 'plafond_pembiayaan_rp' => $debitur['plafond_pembiayaan_rp'],
                     'plafond_kredit' => $debitur['plafond_kredit'],
-                    'plafond_max_pembiayaan' => $debitur['plafond_max_pembiayaan'],
+                    // 'plafond_max_pembiayaan' => $debitur['plafond_max_pembiayaan'],
+                    'plafond_max_pembiayaan' => $maks,
                     'nilai_penjaminan' => $nilaiKafalah,
                     'jenis_penjaminan' => $debitur['jenis_penjaminan'],
                     'status_debitur' => $debitur['status_debitur'],
