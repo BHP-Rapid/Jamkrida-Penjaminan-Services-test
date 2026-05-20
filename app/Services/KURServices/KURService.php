@@ -13,6 +13,7 @@ use App\Models\PenjaminanTransaction;
 use App\Models\TrxDebiturDefaultBase;
 use App\Repositories\KURRepository;
 use App\Services\CreatioService;
+use App\Services\FileInternalClient;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
@@ -25,7 +26,8 @@ use Illuminate\Validation\ValidationException;
 class KURService
 {
     public function __construct(
-        protected KURRepository $repository
+        protected KURRepository $repository,
+        protected FileInternalClient $fileInternalClient
     ) {
 
     }
@@ -210,10 +212,17 @@ class KURService
                                 $ext = $file->getClientOriginalExtension();
                                 $unique = uniqid();
                                 $fn = "{$nik}-{$innerKey}-kur-{$unique}";
-                                $path = $file->storeAs(
-                                    $kurAttachmentFolder,
-                                    $fn . "." . $ext,
-                                    's3'
+                                // $path = $file->storeAs(
+                                //     $kurAttachmentFolder,
+                                //     $fn . "." . $ext,
+                                //     's3'
+                                // );
+                                $path = $this->fileInternalClient->upload(
+                                    $file,
+                                    'penjaminan',
+                                    'kredit-usaha-rakyat',
+                                    $user->user_id,
+                                    "$fn.$ext"
                                 );
 
                                 $savedAttachments[] = [
@@ -224,7 +233,11 @@ class KURService
                                     'status_doc' => 'N',
                                     'version' => 1,
                                     'mime_type' => $file->getMimeType(),
-                                    'file_info' => $path,
+                                    // 'file_info' => $path,
+                                    'file_info' => json_encode(([
+                                        'path' => null
+                                    ])),
+                                    'file_id' => $path['response']['id'] ?? null,
                                     'created_at' => $nowJakarta
                                 ];
                             }
@@ -235,10 +248,17 @@ class KURService
                             $ext = $file->getClientOriginalExtension();
                             $unique = uniqid();
                             $fn = "{$trxNo}-ktp-kur-{$idx}-{$fileKey}";
-                            $path = $file->storeAs(
-                                $kurAttachmentFolder,
-                                $fn . "." . $ext,
-                                's3'
+                            // $path = $file->storeAs(
+                            //     $kurAttachmentFolder,
+                            //     $fn . "." . $ext,
+                            //     's3'
+                            // );
+                            $path = $this->fileInternalClient->upload(
+                                $file,
+                                'penjaminan',
+                                'kredit-usaha-rakyat',
+                                $user->user_id,
+                                "$fn.$ext"
                             );
 
                             $savedAttachments[] = [
@@ -249,7 +269,11 @@ class KURService
                                 'status_doc' => 'N',
                                 'version' => 1,
                                 'mime_type' => $file->getMimeType(),
-                                'file_info' => $path,
+                                // 'file_info' => $path,
+                                'file_info' => json_encode(([
+                                    'path' => null
+                                ])),
+                                'file_id' => $path['response']['id'] ?? null,
                                 'created_at' => $nowJakarta
                             ];
                         }
@@ -454,10 +478,17 @@ class KURService
                                     $ext = $file->getClientOriginalExtension();
                                     $unique = uniqid();
                                     $fn = "{$nik}-{$innerKey}-kur-{$unique}";
-                                    $path = $file->storeAs(
-                                        $kurAttachmentFolder,
-                                        $fn . "." . $ext,
-                                        's3'
+                                    // $path = $file->storeAs(
+                                    //     $kurAttachmentFolder,
+                                    //     $fn . "." . $ext,
+                                    //     's3'
+                                    // );
+                                    $path = $this->fileInternalClient->upload(
+                                        $file,
+                                        'penjaminan',
+                                        'kredit-usaha-rakyat',
+                                        $user->user_id,
+                                        "$fn.$ext"
                                     );
 
                                     $savedAttachments[] = [
@@ -467,7 +498,11 @@ class KURService
                                         'status_doc' => 'N',
                                         'version' => 1,
                                         'mime_type' => $file->getMimeType(),
-                                        'file_info' => $path,
+                                        // 'file_info' => $path,
+                                        'file_info' => json_encode(([
+                                            'path' => null
+                                        ])),
+                                        'file_id' => $path['response']['id'] ?? null,
                                         'created_at' => $nowJakarta
                                     ];
                                 }
@@ -477,10 +512,17 @@ class KURService
                             if ($file instanceof \Illuminate\Http\UploadedFile) {
                                 $ext = $file->getClientOriginalExtension();
                                 $fn = "{$trx_no}-ktp-kur-{$idx}-{$fileKey}";
-                                $path = $file->storeAs(
-                                    $kurAttachmentFolder,
-                                    $fn . "." . $ext,
-                                    's3'
+                                // $path = $file->storeAs(
+                                //     $kurAttachmentFolder,
+                                //     $fn . "." . $ext,
+                                //     's3'
+                                // );
+                                $path = $this->fileInternalClient->upload(
+                                    $file,
+                                    'penjaminan',
+                                    'kredit-usaha-rakyat',
+                                    $user->user_id,
+                                    "$fn.$ext"
                                 );
 
                                 $savedAttachments[] = [
@@ -490,7 +532,11 @@ class KURService
                                     'status_doc' => 'N',
                                     'version' => 1,
                                     'mime_type' => $file->getMimeType(),
-                                    'file_info' => $path,
+                                    // 'file_info' => $path,
+                                    'file_info' => json_encode(([
+                                        'path' => null
+                                    ])),
+                                    'file_id' => $path['response']['id'] ?? null,
                                     'created_at' => $nowJakarta
                                 ];
                             }
