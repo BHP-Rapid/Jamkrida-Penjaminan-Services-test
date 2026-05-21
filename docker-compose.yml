@@ -5,13 +5,61 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: jjkt-penjaminan
+    container_name: jjkt-penjaminan-horizon
     restart: unless-stopped
     ports:
       - "9105:80"
+    volumes:
+      - app-storage:/var/www/storage
+    environment:
+      QUEUE_CONNECTION: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_QUEUE: default
+      HORIZON_BULK_MULTIGUNA_WORKERS: 2
+    depends_on:
+      - redis
+    networks:
+      - laravel
+
+  horizon:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: jjkt-penjaminan-horizon
+    restart: unless-stopped
+    user: "www-data"
+    command: ["php", "artisan", "horizon"]
+    volumes:
+      - app-storage:/var/www/storage
+    environment:
+      QUEUE_CONNECTION: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_QUEUE: default
+      HORIZON_BULK_MULTIGUNA_WORKERS: 2
+    depends_on:
+      - app
+      - redis
+    networks:
+      - laravel
+
+  redis:
+    image: redis:7-alpine
+    container_name: jjkt-penjaminan-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
     networks:
       - laravel
 
 networks:
   laravel:
     driver: bridge
+
+volumes:
+  app-storage:
+  redis-data:
