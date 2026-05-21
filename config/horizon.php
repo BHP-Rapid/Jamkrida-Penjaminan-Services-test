@@ -45,6 +45,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Horizon Proxy Path
+    |--------------------------------------------------------------------------
+    |
+    | Use this when Horizon is served behind a reverse proxy sub-path, e.g.
+    | /penjaminan-test/horizon while Laravel receives /horizon internally.
+    |
+    */
+
+    'proxy_path' => env('HORIZON_PROXY_PATH', ''),
+
+    /*
+    |--------------------------------------------------------------------------
     | Horizon Redis Connection
     |--------------------------------------------------------------------------
     |
