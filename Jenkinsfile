@@ -22,8 +22,8 @@ pipeline {
             steps {
                 sh '''
                 ${DOCKER_CMD} run --rm \
-                -v $PWD:/usr/src \
-                -w /usr/src \
+                -v $PWD:/workspace \
+                -w /workspace \
                 php:8.4-cli \
                 sh -c "
                     apt update &&
@@ -34,7 +34,7 @@ pipeline {
                     docker-php-ext-enable xdebug &&
                     curl -sS https://getcomposer.org/installer | php &&
                     mv composer.phar /usr/local/bin/composer &&
-                    git config --global --add safe.directory /usr/src &&
+                    git config --global --add safe.directory /workspace &&
                     composer install &&
                     XDEBUG_MODE=coverage php artisan test --coverage-clover=coverage.xml
                 "
@@ -50,7 +50,8 @@ pipeline {
 
                     ${DOCKER_CMD} run --rm \
                         --network host \
-                        -v $PWD:/usr/src \
+                        -v $PWD:/workspace \
+                        -w /workspace \
                         sonarsource/sonar-scanner-cli \
                         -Dsonar.projectKey=$PROJECT_KEY \
                         -Dsonar.sources=app \
