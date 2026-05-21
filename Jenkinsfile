@@ -7,6 +7,7 @@ pipeline {
     
     environment {
         DOCKER_CMD  = "sudo docker"
+        APP_PORT    = "9116"
     }
 
     stages {
