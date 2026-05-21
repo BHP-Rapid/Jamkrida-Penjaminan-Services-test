@@ -22,19 +22,19 @@ pipeline {
             steps {
                 sh '''
                 ${DOCKER_CMD} run --rm \
-                -v $PWD:/app \
-                -w /app \
+                -v $PWD:/usr/src \
+                -w /usr/src \
                 php:8.4-cli \
                 sh -c "
                     apt update &&
                     apt install -y git unzip libzip-dev curl libpng-dev libjpeg-dev libfreetype6-dev &&
                     docker-php-ext-configure gd --with-freetype --with-jpeg &&
-                    docker-php-ext-install gd zip pcntl &&
+                    docker-php-ext-install gd zip pcntl posix &&
                     pecl install xdebug &&
                     docker-php-ext-enable xdebug &&
                     curl -sS https://getcomposer.org/installer | php &&
                     mv composer.phar /usr/local/bin/composer &&
-                    git config --global --add safe.directory /app &&
+                    git config --global --add safe.directory /usr/src &&
                     composer install &&
                     XDEBUG_MODE=coverage php artisan test --coverage-clover=coverage.xml
                 "
