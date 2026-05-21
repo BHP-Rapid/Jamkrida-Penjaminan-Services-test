@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Support\SpreadsheetRowRangeReadFilter;
 use Generator;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
@@ -11,6 +12,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use RuntimeException;
 use SplFileObject;
 
@@ -105,6 +107,22 @@ class DispatchMultigunaBulkDummyChunksJob implements ShouldQueue
      */
     private function rowCursor(string $path): Generator
     {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        if (in_array($extension, ['xlsx', 'xls'], true)) {
+            yield from $this->spreadsheetRowCursor($path);
+
+            return;
+        }
+
+        yield from $this->csvRowCursor($path);
+    }
+
+    /**
+     * Cursor CSV supaya file besar tidak dibaca sekaligus ke memory.
+     */
+    private function csvRowCursor(string $path): Generator
+    {
         $file = new SplFileObject($path, 'rb');
         $delimiter = null;
         $headers = null;
@@ -140,6 +158,66 @@ class DispatchMultigunaBulkDummyChunksJob implements ShouldQueue
                 'line' => $lineNumber,
                 'data' => $this->combineRow($headers, $row),
             ];
+        }
+    }
+
+    /**
+     * Cursor XLS/XLSX per range baris supaya spreadsheet besar tetap diproses bertahap.
+     */
+    private function spreadsheetRowCursor(string $path): Generator
+    {
+        $reader = IOFactory::createReaderForFile($path);
+        $reader->setReadDataOnly(true);
+
+        $worksheetInfo = $reader->listWorksheetInfo($path)[0] ?? null;
+
+        if ($worksheetInfo === null) {
+            return;
+        }
+
+        $totalRows = (int) ($worksheetInfo['totalRows'] ?? 0);
+        $lastColumn = (string) ($worksheetInfo['lastColumnLetter'] ?? 'A');
+
+        if ($totalRows < 1) {
+            return;
+        }
+
+        $reader->setReadFilter(new SpreadsheetRowRangeReadFilter(1, 1));
+        $spreadsheet = $reader->load($path);
+        $worksheet = $spreadsheet->getActiveSheet();
+        $headerRow = $worksheet->rangeToArray("A1:{$lastColumn}1", null, true, false)[0] ?? [];
+        $headers = $this->normalizeHeaders($headerRow);
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+
+        if ($headers === []) {
+            return;
+        }
+
+        for ($startRow = 2; $startRow <= $totalRows; $startRow += self::CHUNK_SIZE) {
+            $endRow = min($startRow + self::CHUNK_SIZE - 1, $totalRows);
+
+            $reader = IOFactory::createReaderForFile($path);
+            $reader->setReadDataOnly(true);
+            $reader->setReadFilter(new SpreadsheetRowRangeReadFilter($startRow, $endRow));
+
+            $spreadsheet = $reader->load($path);
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->rangeToArray("A{$startRow}:{$lastColumn}{$endRow}", null, true, false);
+
+            foreach ($rows as $offset => $row) {
+                if ($this->isEmptyCsvRow($row)) {
+                    continue;
+                }
+
+                yield [
+                    'line' => $startRow + $offset,
+                    'data' => $this->combineRow($headers, $row),
+                ];
+            }
+
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
         }
     }
 

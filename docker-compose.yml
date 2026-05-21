@@ -11,6 +11,8 @@ services:
       - "${APP_PORT:-9116}:80"
     volumes:
       - app-storage:/var/www/storage
+    env_file:
+      - .env
     environment:
       QUEUE_CONNECTION: redis
       REDIS_CLIENT: phpredis
@@ -33,6 +35,8 @@ services:
     command: ["php", "artisan", "horizon"]
     volumes:
       - app-storage:/var/www/storage
+    env_file:
+      - .env
     environment:
       QUEUE_CONNECTION: redis
       REDIS_CLIENT: phpredis
