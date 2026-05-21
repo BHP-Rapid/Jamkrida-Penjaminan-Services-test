@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: jjkt-penjaminan-horizon
+    container_name: jjkt-penjaminan-test
     restart: unless-stopped
     ports:
       - "9105:80"
@@ -27,7 +27,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: jjkt-penjaminan-horizon
+    container_name: jjkt-penjaminan-horizon-test
     restart: unless-stopped
     user: "www-data"
     command: ["php", "artisan", "horizon"]
@@ -48,7 +48,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: jjkt-penjaminan-redis
+    container_name: jjkt-penjaminan-redis-test
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
