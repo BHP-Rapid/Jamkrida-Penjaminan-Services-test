@@ -7,6 +7,7 @@ use App\Http\Controllers\KonstruksiServices\KonstruksiTransactionController;
 use App\Http\Controllers\KreditMikroKecilServices\KreditMikroKecilController;
 use App\Http\Controllers\KreditUsahaServices\KreditUsahaController;
 use App\Http\Controllers\KURServices\KURTransactionController;
+use App\Http\Controllers\MultigunaServices\MultigunaBulkDummyController;
 use App\Http\Controllers\MultigunaServices\MultigunaController as MultigunaServicesMultigunaController;
 use App\Http\Controllers\PaymentGatewayController;
 use Illuminate\Support\Facades\Route;
@@ -96,6 +97,8 @@ Route::prefix('/v2/payment-gateway')->group(function () {
 
 // PENJAMINAN MULTIGUNA
 Route::prefix('/v2/penjaminan/multiguna')->group(function () {
+    Route::post('/bulk-dummy', [MultigunaBulkDummyController::class, 'store']);
+
     Route::get('/detail/{trx_no}', [MultigunaServicesMultigunaController::class, 'show'])
         ->middleware([
             'auth.context',
