@@ -1,0 +1,118 @@
+<?php
+
+namespace Tests\Unit;
+
+use App\Jobs\DispatchMultigunaBulkDummyChunksJob;
+use App\Jobs\ProcessMultigunaBulkDummyChunkJob;
+use Illuminate\Support\Facades\Log;
+use Mockery;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use ReflectionMethod;
+use Tests\TestCase;
+
+class MultigunaBulkDummyJobsTest extends TestCase
+{
+    public function test_process_chunk_builds_dummy_summary_without_database_write(): void
+    {
+        Log::shouldReceive('info')
+            ->once()
+            ->with('Dummy bulk multiguna chunk processed', Mockery::on(function (array $context) {
+                return $context['bulk_id'] === 'bulk-1'
+                    && $context['chunk'] === 1
+                    && $context['processed'] === 2
+                    && $context['invalid'] === 1
+                    && $context['total_plafond'] === 10000000.0
+                    && $context['database_write'] === false;
+            }));
+
+        $job = new ProcessMultigunaBulkDummyChunkJob('bulk-1', 1, [
+            [
+                'line' => 2,
+                'data' => [
+                    'No surat permohonan' => 'KMK202604220',
+                    'Jenis product' => 'Multiguna',
+                    'bank' => 'mandiri',
+                    'Nama Makful Anhu' => 'Ahmad Fauzi',
+                    'NIK' => '4332181960013389',
+                    'Plafond Pembiayaan' => '10000000',
+                    'Pembayaran Split Per Debitur' => 'Ya',
+                    'Tanggal Realisasi (yyyy-mm-dd)' => '22/04/2026',
+                ],
+            ],
+            [
+                'line' => 3,
+                'data' => [
+                    'No surat permohonan' => '',
+                    'Nama Makful Anhu' => '',
+                    'NIK' => '',
+                    'Plafond Pembiayaan' => '0',
+                ],
+            ],
+        ]);
+
+        $job->handle();
+
+        $this->assertTrue(true);
+    }
+
+    public function test_dispatch_job_reads_csv_rows_with_detected_delimiter(): void
+    {
+        $path = $this->temporaryFile('bulk.csv');
+        file_put_contents(
+            $path,
+            "No surat permohonan;Nama Makful Anhu;NIK;Plafond Pembiayaan\n".
+            "KMK202604220;Ahmad Fauzi;4332181960013389;41867825\n".
+            "KMK202604221;Maya Indah;8637940265423511;49416129\n",
+        );
+
+        $rows = $this->readRows($path);
+
+        $this->assertCount(2, $rows);
+        $this->assertSame(2, $rows[0]['line']);
+        $this->assertSame('Ahmad Fauzi', $rows[0]['data']['Nama Makful Anhu']);
+        $this->assertSame('49416129', $rows[1]['data']['Plafond Pembiayaan']);
+    }
+
+    public function test_dispatch_job_reads_xlsx_rows_in_ranges(): void
+    {
+        $path = $this->temporaryFile('bulk.xlsx');
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->fromArray([
+            ['No surat permohonan', 'Nama Makful Anhu', 'NIK', 'Plafond Pembiayaan'],
+            ['KMK202604220', 'Ahmad Fauzi', '4332181960013389', '41867825'],
+            ['KMK202604221', 'Maya Indah', '8637940265423511', '49416129'],
+        ]);
+
+        (new Xlsx($spreadsheet))->save($path);
+        $spreadsheet->disconnectWorksheets();
+
+        $rows = $this->readRows($path);
+
+        $this->assertCount(2, $rows);
+        $this->assertSame(2, $rows[0]['line']);
+        $this->assertSame('Maya Indah', $rows[1]['data']['Nama Makful Anhu']);
+    }
+
+    private function readRows(string $path): array
+    {
+        $job = new DispatchMultigunaBulkDummyChunksJob('bulk-1', basename($path));
+        $method = new ReflectionMethod($job, 'rowCursor');
+        $method->setAccessible(true);
+
+        return iterator_to_array($method->invoke($job, $path));
+    }
+
+    private function temporaryFile(string $name): string
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'multiguna-bulk-tests';
+
+        if (! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+
+        return $directory.DIRECTORY_SEPARATOR.$name;
+    }
+}
