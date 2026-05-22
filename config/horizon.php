@@ -95,7 +95,7 @@ return [
     |
     */
 
-    'middleware' => ['web', \App\Http\Middleware\HorizonBasicAuthMiddleware::class],
+    'middleware' => ['web', \App\Http\Middleware\HorizonSessionAuthMiddleware::class],
 
     /*
     |--------------------------------------------------------------------------
@@ -273,8 +273,7 @@ return [
     | Horizon Dashboard Authentication
     |--------------------------------------------------------------------------
     |
-    | These credentials are used by HorizonBasicAuthMiddleware to protect
-    | the Horizon dashboard with HTTP Basic Auth.
+    | These credentials are used by the Horizon session login page.
     |
     */
 
