@@ -95,7 +95,7 @@ return [
     |
     */
 
-    'middleware' => ['web', \App\Http\Middleware\HorizonBasicAuthMiddleware::class],
+    'middleware' => ['web', \App\Http\Middleware\HorizonSessionAuthMiddleware::class],
 
     /*
     |--------------------------------------------------------------------------
@@ -125,12 +125,12 @@ return [
     */
 
     'trim' => [
-        'recent' => 60,
-        'pending' => 60,
-        'completed' => 10,
-        'recent_failed' => 10080,
-        'failed' => 10080,
-        'monitored' => 10080,
+        'recent' => (int) env('HORIZON_TRIM_RECENT', 60),
+        'pending' => (int) env('HORIZON_TRIM_PENDING', 60),
+        'completed' => (int) env('HORIZON_TRIM_COMPLETED', 1440),
+        'recent_failed' => (int) env('HORIZON_TRIM_RECENT_FAILED', 10080),
+        'failed' => (int) env('HORIZON_TRIM_FAILED', 10080),
+        'monitored' => (int) env('HORIZON_TRIM_MONITORED', 10080),
     ],
 
     /*
@@ -273,8 +273,7 @@ return [
     | Horizon Dashboard Authentication
     |--------------------------------------------------------------------------
     |
-    | These credentials are used by HorizonBasicAuthMiddleware to protect
-    | the Horizon dashboard with HTTP Basic Auth.
+    | These credentials are used by the Horizon session login page.
     |
     */
 
