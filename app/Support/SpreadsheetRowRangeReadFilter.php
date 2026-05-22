@@ -11,7 +11,7 @@ class SpreadsheetRowRangeReadFilter implements IReadFilter
         private readonly int $endRow,
     ) {}
 
-    public function readCell(string $columnAddress, int $row, string $worksheetName = ''): bool
+    public function readCell($columnAddress, $row, $worksheetName = ''): bool
     {
         return $row >= $this->startRow && $row <= $this->endRow;
     }
