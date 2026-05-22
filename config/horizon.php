@@ -95,7 +95,7 @@ return [
     |
     */
 
-    'middleware' => ['web'],
+    'middleware' => ['web', \App\Http\Middleware\HorizonBasicAuthMiddleware::class],
 
     /*
     |--------------------------------------------------------------------------
@@ -127,7 +127,7 @@ return [
     'trim' => [
         'recent' => 60,
         'pending' => 60,
-        'completed' => 60,
+        'completed' => 10,
         'recent_failed' => 10080,
         'failed' => 10080,
         'monitored' => 10080,
@@ -266,5 +266,20 @@ return [
         'composer.lock',
         'composer.json',
         '.env',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Horizon Dashboard Authentication
+    |--------------------------------------------------------------------------
+    |
+    | These credentials are used by HorizonBasicAuthMiddleware to protect
+    | the Horizon dashboard with HTTP Basic Auth.
+    |
+    */
+
+    'auth' => [
+        'user' => env('HORIZON_AUTH_USER'),
+        'password' => env('HORIZON_AUTH_PASSWORD'),
     ],
 ];
