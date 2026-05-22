@@ -16,18 +16,10 @@ class MultigunaBulkDummyJobsTest extends TestCase
 {
     public function test_process_chunk_builds_dummy_summary_without_database_write(): void
     {
-        Log::shouldReceive('info')
-            ->once()
-            ->with('Dummy bulk multiguna chunk processed', Mockery::on(function (array $context) {
-                return $context['bulk_id'] === 'bulk-1'
-                    && $context['chunk'] === 1
-                    && $context['processed'] === 2
-                    && $context['invalid'] === 1
-                    && $context['total_plafond'] === 10000000.0
-                    && $context['database_write'] === false;
-            }));
+        Storage::fake('local');
 
-        $job = new ProcessMultigunaBulkDummyChunkJob('bulk-1', 1, [
+        $chunkPath = 'bulk-dummy/multiguna/chunks/bulk-1/chunk-00001.json';
+        Storage::disk('local')->put($chunkPath, json_encode([
             [
                 'line' => 2,
                 'data' => [
@@ -50,11 +42,40 @@ class MultigunaBulkDummyJobsTest extends TestCase
                     'Plafond Pembiayaan' => '0',
                 ],
             ],
-        ]);
+        ], JSON_THROW_ON_ERROR));
+
+        Log::shouldReceive('info')
+            ->once()
+            ->with('Dummy bulk multiguna chunk processed', Mockery::on(function (array $context) {
+                return $context['bulk_id'] === 'bulk-1'
+                    && $context['chunk'] === 1
+                    && $context['processed'] === 2
+                    && $context['invalid'] === 1
+                    && $context['total_plafond'] === 10000000.0
+                    && $context['database_write'] === false;
+            }));
+
+        $job = new ProcessMultigunaBulkDummyChunkJob('bulk-1', 1, $chunkPath, 'local');
 
         $job->handle();
 
-        $this->assertTrue(true);
+        Storage::disk('local')->assertMissing($chunkPath);
+    }
+
+    public function test_process_chunk_job_payload_keeps_rows_out_of_horizon_metadata(): void
+    {
+        $job = new ProcessMultigunaBulkDummyChunkJob(
+            'bulk-1',
+            1,
+            'bulk-dummy/multiguna/chunks/bulk-1/chunk-00001.json',
+            'local',
+        );
+
+        $serialized = serialize($job);
+
+        $this->assertStringContainsString('chunk-00001.json', $serialized);
+        $this->assertStringNotContainsString('Ahmad Fauzi', $serialized);
+        $this->assertLessThan(2000, strlen($serialized));
     }
 
     public function test_dispatch_job_reads_csv_rows_with_detected_delimiter(): void
@@ -96,14 +117,19 @@ class MultigunaBulkDummyJobsTest extends TestCase
             'bulk.csv',
         ))->handle();
 
-        $this->assertTrue(true);
+        $chunkPath = 'bulk-dummy/multiguna/chunks/bulk-1/chunk-00001.json';
+        Storage::disk('local')->assertExists($chunkPath);
+
+        $rows = json_decode(Storage::disk('local')->get($chunkPath), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame('Ahmad Fauzi', $rows[0]['data']['Nama Makful Anhu']);
     }
 
     public function test_dispatch_job_reads_xlsx_rows_in_ranges(): void
     {
         $path = $this->temporaryFile('bulk.xlsx');
 
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->fromArray([
             ['No surat permohonan', 'Nama Makful Anhu', 'NIK', 'Plafond Pembiayaan'],

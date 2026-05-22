@@ -10,18 +10,22 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 
 class ProcessMultigunaBulkDummyChunkJob implements ShouldQueue
 {
     use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $timeout = 300;
+
     public int $tries = 1;
 
     public function __construct(
         public readonly string $bulkId,
         public readonly int $chunkNumber,
-        public readonly array $rows,
+        public readonly string $chunkPath,
+        public readonly string $disk = 'local',
     ) {
         $this->onQueue('bulk-multiguna');
     }
@@ -38,8 +42,9 @@ class ProcessMultigunaBulkDummyChunkJob implements ShouldQueue
         $totalPlafond = 0.0;
         $samples = [];
         $lastChecksum = null;
+        $rows = $this->readChunkRows();
 
-        foreach ($this->rows as $row) {
+        foreach ($rows as $row) {
             $dummyPayload = $this->buildDummyPayload($row);
 
             if (! $this->isValidDummyPayload($dummyPayload)) {
@@ -72,6 +77,25 @@ class ProcessMultigunaBulkDummyChunkJob implements ShouldQueue
             'duration_seconds' => round(microtime(true) - $startedAt, 3),
             'database_write' => false,
         ]);
+
+        Storage::disk($this->disk)->delete($this->chunkPath);
+    }
+
+    private function readChunkRows(): array
+    {
+        $disk = Storage::disk($this->disk);
+
+        if (! $disk->exists($this->chunkPath)) {
+            throw new RuntimeException("Bulk dummy chunk file not found: {$this->chunkPath}");
+        }
+
+        $rows = json_decode($disk->get($this->chunkPath), true, flags: JSON_THROW_ON_ERROR);
+
+        if (! is_array($rows)) {
+            throw new RuntimeException("Bulk dummy chunk file is invalid: {$this->chunkPath}");
+        }
+
+        return $rows;
     }
 
     private function buildDummyPayload(array $row): array
@@ -140,7 +164,7 @@ class ProcessMultigunaBulkDummyChunkJob implements ShouldQueue
         }
 
         foreach (['Y-m-d', 'd/m/Y', 'd-m-Y', 'm/d/Y'] as $format) {
-            $date = DateTimeImmutable::createFromFormat('!' . $format, $value);
+            $date = DateTimeImmutable::createFromFormat('!'.$format, $value);
 
             if ($date instanceof DateTimeImmutable && $date->format($format) === $value) {
                 return $date->format('Y-m-d');

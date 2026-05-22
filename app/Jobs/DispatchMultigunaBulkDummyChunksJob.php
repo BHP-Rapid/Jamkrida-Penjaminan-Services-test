@@ -21,9 +21,11 @@ class DispatchMultigunaBulkDummyChunksJob implements ShouldQueue
     use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     private const CHUNK_SIZE = 500;
+
     private const BATCH_ADD_SIZE = 20;
 
     public int $timeout = 0;
+
     public int $tries = 1;
 
     public function __construct(
@@ -71,11 +73,7 @@ class DispatchMultigunaBulkDummyChunksJob implements ShouldQueue
             $totalRows++;
 
             if (count($chunk) >= self::CHUNK_SIZE) {
-                $pendingJobs[] = new ProcessMultigunaBulkDummyChunkJob(
-                    $this->bulkId,
-                    $chunkNumber,
-                    $chunk,
-                );
+                $pendingJobs[] = $this->makeChunkJob($chunkNumber, $chunk);
 
                 $chunk = [];
                 $chunkNumber++;
@@ -84,11 +82,7 @@ class DispatchMultigunaBulkDummyChunksJob implements ShouldQueue
         }
 
         if ($chunk !== []) {
-            $pendingJobs[] = new ProcessMultigunaBulkDummyChunkJob(
-                $this->bulkId,
-                $chunkNumber,
-                $chunk,
-            );
+            $pendingJobs[] = $this->makeChunkJob($chunkNumber, $chunk);
         }
 
         $this->flushPendingJobs($pendingJobs, $totalChunkJobs, true);
@@ -236,6 +230,27 @@ class DispatchMultigunaBulkDummyChunksJob implements ShouldQueue
         $pendingJobs = [];
     }
 
+    private function makeChunkJob(int $chunkNumber, array $rows): ProcessMultigunaBulkDummyChunkJob
+    {
+        $chunkPath = sprintf(
+            'bulk-dummy/multiguna/chunks/%s/chunk-%05d.json',
+            $this->bulkId,
+            $chunkNumber,
+        );
+
+        Storage::disk($this->disk)->put(
+            $chunkPath,
+            json_encode($rows, JSON_THROW_ON_ERROR),
+        );
+
+        return new ProcessMultigunaBulkDummyChunkJob(
+            $this->bulkId,
+            $chunkNumber,
+            $chunkPath,
+            $this->disk,
+        );
+    }
+
     private function detectDelimiter(string $line): string
     {
         $delimiters = [';' => 0, ',' => 0, "\t" => 0, '|' => 0];
@@ -256,11 +271,11 @@ class DispatchMultigunaBulkDummyChunksJob implements ShouldQueue
 
         foreach ($headers as $index => $header) {
             $name = trim($this->removeUtf8Bom((string) $header));
-            $name = $name !== '' ? $name : 'column_' . ($index + 1);
+            $name = $name !== '' ? $name : 'column_'.($index + 1);
 
             if (isset($seen[$name])) {
                 $seen[$name]++;
-                $name .= '_' . $seen[$name];
+                $name .= '_'.$seen[$name];
             } else {
                 $seen[$name] = 1;
             }
@@ -284,7 +299,7 @@ class DispatchMultigunaBulkDummyChunksJob implements ShouldQueue
 
         if (count($row) > count($headers)) {
             foreach (array_slice($row, count($headers)) as $index => $value) {
-                $data['extra_column_' . ($index + 1)] = trim((string) $value);
+                $data['extra_column_'.($index + 1)] = trim((string) $value);
             }
         }
 
