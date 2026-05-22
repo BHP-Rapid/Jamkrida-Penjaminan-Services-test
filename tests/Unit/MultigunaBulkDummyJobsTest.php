@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Jobs\DispatchMultigunaBulkDummyChunksJob;
 use App\Jobs\ProcessMultigunaBulkDummyChunkJob;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Mockery;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -72,6 +73,30 @@ class MultigunaBulkDummyJobsTest extends TestCase
         $this->assertSame(2, $rows[0]['line']);
         $this->assertSame('Ahmad Fauzi', $rows[0]['data']['Nama Makful Anhu']);
         $this->assertSame('49416129', $rows[1]['data']['Plafond Pembiayaan']);
+    }
+
+    public function test_dispatch_job_streams_file_from_storage(): void
+    {
+        Storage::fake('local');
+
+        Storage::disk('local')->put(
+            'bulk.csv',
+            "No surat permohonan;Nama Makful Anhu;NIK;Plafond Pembiayaan\n".
+            "KMK202604220;Ahmad Fauzi;4332181960013389;41867825\n",
+        );
+
+        Log::shouldReceive('info')
+            ->twice()
+            ->withAnyArgs();
+
+        (new DispatchMultigunaBulkDummyChunksJob(
+            'bulk-1',
+            'bulk.csv',
+            'local',
+            'bulk.csv',
+        ))->handle();
+
+        $this->assertTrue(true);
     }
 
     public function test_dispatch_job_reads_xlsx_rows_in_ranges(): void
