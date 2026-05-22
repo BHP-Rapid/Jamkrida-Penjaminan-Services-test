@@ -55,7 +55,6 @@ pipeline {
                         -w /workspace \
                         sonarsource/sonar-scanner-cli \
                         -Dsonar.projectKey=$PROJECT_KEY \
-                        -Dsonar.sources=app \
                         -Dsonar.host.url=http://127.0.0.1:9200/sonarcube \
                         -Dsonar.login=$SONAR_TOKEN \
                         -Dsonar.php.coverage.reportPaths=coverage.xml \
