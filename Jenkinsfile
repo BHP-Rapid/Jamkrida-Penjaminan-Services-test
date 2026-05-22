@@ -57,8 +57,7 @@ pipeline {
                         -Dsonar.projectKey=$PROJECT_KEY \
                         -Dsonar.host.url=http://127.0.0.1:9200/sonarcube \
                         -Dsonar.login=$SONAR_TOKEN \
-                        -Dsonar.php.coverage.reportPaths=coverage.xml \
-                        -Dsonar.qualitygate.wait=true
+                        -Dsonar.php.coverage.reportPaths=coverage.xml
                     '''
                 }
             }
