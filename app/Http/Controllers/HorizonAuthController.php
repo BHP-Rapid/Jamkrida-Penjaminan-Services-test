@@ -12,11 +12,12 @@ class HorizonAuthController extends Controller
     public function showLogin(Request $request): View|RedirectResponse
     {
         if ((bool) $request->session()->get(HorizonSessionAuthMiddleware::SESSION_KEY, false)) {
-            return redirect()->intended($this->horizonUrl());
+            return redirect()->intended(HorizonSessionAuthMiddleware::proxyUrl());
         }
 
         return view('horizon.login', [
-            'horizonPath' => trim((string) config('horizon.path', 'horizon'), '/'),
+            'horizonPath' => $this->displayPath(),
+            'loginAction' => HorizonSessionAuthMiddleware::proxyUrl('login'),
         ]);
     }
 
@@ -42,7 +43,7 @@ class HorizonAuthController extends Controller
             $request->session()->put(HorizonSessionAuthMiddleware::SESSION_KEY, true);
             $request->session()->put('horizon_user', $credentials['username']);
 
-            return redirect()->intended($this->horizonUrl());
+            return redirect()->intended(HorizonSessionAuthMiddleware::proxyUrl());
         }
 
         return back()
@@ -58,13 +59,14 @@ class HorizonAuthController extends Controller
         ]);
         $request->session()->regenerateToken();
 
-        return redirect()->route('horizon.login');
+        return redirect(HorizonSessionAuthMiddleware::proxyUrl('login'));
     }
 
-    private function horizonUrl(): string
+    private function displayPath(): string
     {
+        $proxyPath = trim((string) config('horizon.proxy_path', ''), '/');
         $horizonPath = trim((string) config('horizon.path', 'horizon'), '/');
 
-        return url($horizonPath !== '' ? $horizonPath : '/');
+        return $proxyPath !== '' ? $proxyPath.'/'.$horizonPath : $horizonPath;
     }
 }
