@@ -86,7 +86,16 @@ class ProcessMultigunaBulkDummyChunkJob implements ShouldQueue
         $disk = Storage::disk($this->disk);
 
         if (! $disk->exists($this->chunkPath)) {
-            throw new RuntimeException("Bulk dummy chunk file not found: {$this->chunkPath}");
+            // The chunk file is deleted after successful processing.
+            // If we get here, this is likely a retry of an already-completed
+            // chunk — log a warning and return empty so the job exits cleanly.
+            Log::warning('Bulk dummy chunk file already processed or missing — skipping retry.', [
+                'bulk_id' => $this->bulkId,
+                'chunk'   => $this->chunkNumber,
+                'path'    => $this->chunkPath,
+            ]);
+
+            return [];
         }
 
         $rows = json_decode($disk->get($this->chunkPath), true, flags: JSON_THROW_ON_ERROR);

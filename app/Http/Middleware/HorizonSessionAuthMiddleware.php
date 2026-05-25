@@ -20,25 +20,27 @@ class HorizonSessionAuthMiddleware
             abort(401, 'Unauthenticated.');
         }
 
-        return redirect()->guest(self::proxyUrl('login'));
+        return redirect()->guest(self::horizonUrl('login'));
     }
 
     /**
-     * Build a browser-facing URL for a Horizon sub-path, prepending the
-     * reverse-proxy prefix when configured.
+     * Build a browser-facing URL for a Horizon sub-path.
+     *
+     * Uses url() which already includes the APP_URL base (with any proxy
+     * prefix like /penjaminan-test). No need to manually prepend proxy_path
+     * since APP_URL already accounts for it.
      */
-    public static function proxyUrl(string $subPath = ''): string
+    public static function horizonUrl(string $subPath = ''): string
     {
-        $proxyPath = trim((string) config('horizon.proxy_path', ''), '/');
         $horizonPath = trim((string) config('horizon.path', 'horizon'), '/');
 
-        $base = $proxyPath !== '' ? $proxyPath.'/'.$horizonPath : $horizonPath;
+        $path = $horizonPath;
 
         if ($subPath !== '') {
-            $base .= '/'.ltrim($subPath, '/');
+            $path .= '/'.ltrim($subPath, '/');
         }
 
-        return url($base);
+        return url($path);
     }
 
     private function isHorizonApiRequest(Request $request): bool

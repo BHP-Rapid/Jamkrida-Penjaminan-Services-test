@@ -147,6 +147,74 @@ class MultigunaBulkDummyJobsTest extends TestCase
         $this->assertSame('Maya Indah', $rows[1]['data']['Nama Makful Anhu']);
     }
 
+    public function test_dispatch_job_skips_when_batch_already_has_chunks(): void
+    {
+        Storage::fake('local');
+
+        Storage::disk('local')->put(
+            'bulk.csv',
+            "No surat permohonan;Nama Makful Anhu;NIK;Plafond Pembiayaan\n".
+            "KMK202604220;Ahmad Fauzi;4332181960013389;41867825\n",
+        );
+
+        // Simulate a batch that already has chunk jobs (totalJobs > 1).
+        $fakeBatch = new \Illuminate\Bus\Batch(
+            app(\Illuminate\Contracts\Queue\Factory::class),
+            app(\Illuminate\Bus\BatchRepository::class),
+            'fake-batch-id',
+            'Dummy Bulk Test',
+            2,      // totalJobs — more than 1 means chunks exist
+            0,      // pendingJobs
+            0,      // failedJobs
+            [],     // failedJobIds
+            [],     // options
+            \Carbon\CarbonImmutable::now(),
+            null,
+            null,
+        );
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->with(Mockery::pattern('/chunks already dispatched/'), Mockery::type('array'));
+
+        $job = new DispatchMultigunaBulkDummyChunksJob('bulk-1', 'bulk.csv', 'local', 'bulk.csv');
+        $job->withBatchId('fake-batch-id');
+
+        // Replace the batch lookup so it returns our fake batch.
+        $this->instance(\Illuminate\Bus\BatchRepository::class, Mockery::mock(\Illuminate\Bus\BatchRepository::class, function ($mock) use ($fakeBatch) {
+            $mock->shouldReceive('find')->with('fake-batch-id')->andReturn($fakeBatch);
+        }));
+
+        $job->handle();
+
+        // No chunk files should have been created.
+        Storage::disk('local')->assertMissing('bulk-dummy/multiguna/chunks/bulk-1/chunk-00001.json');
+    }
+
+    public function test_process_chunk_skips_when_file_already_deleted(): void
+    {
+        Storage::fake('local');
+
+        // Chunk file does NOT exist — simulates retry after successful processing.
+        $chunkPath = 'bulk-dummy/multiguna/chunks/bulk-1/chunk-00001.json';
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->with(Mockery::pattern('/already processed or missing/'), Mockery::on(function (array $ctx) {
+                return $ctx['bulk_id'] === 'bulk-1' && $ctx['chunk'] === 1;
+            }));
+
+        // Should also log the "chunk processed" info with 0 rows.
+        Log::shouldReceive('info')
+            ->once()
+            ->with('Dummy bulk multiguna chunk processed', Mockery::on(function (array $ctx) {
+                return $ctx['processed'] === 0;
+            }));
+
+        $job = new ProcessMultigunaBulkDummyChunkJob('bulk-1', 1, $chunkPath, 'local');
+        $job->handle();
+    }
+
     private function readRows(string $path): array
     {
         $job = new DispatchMultigunaBulkDummyChunksJob('bulk-1', basename($path));

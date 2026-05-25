@@ -20,7 +20,7 @@ class HorizonSessionAuthTest extends TestCase
     {
         $response = $this->get('/horizon');
 
-        $response->assertRedirect(HorizonSessionAuthMiddleware::proxyUrl('login'));
+        $response->assertRedirect(HorizonSessionAuthMiddleware::horizonUrl('login'));
     }
 
     public function test_horizon_login_page_is_rendered(): void
@@ -40,7 +40,7 @@ class HorizonSessionAuthTest extends TestCase
             'password' => 'secret',
         ]);
 
-        $response->assertRedirect(HorizonSessionAuthMiddleware::proxyUrl());
+        $response->assertRedirect(HorizonSessionAuthMiddleware::horizonUrl());
         $this->assertTrue(session()->get(HorizonSessionAuthMiddleware::SESSION_KEY));
     }
 
@@ -62,22 +62,42 @@ class HorizonSessionAuthTest extends TestCase
             ->withSession([HorizonSessionAuthMiddleware::SESSION_KEY => true])
             ->post('/horizon/logout');
 
-        $response->assertRedirect(HorizonSessionAuthMiddleware::proxyUrl('login'));
+        $response->assertRedirect(HorizonSessionAuthMiddleware::horizonUrl('login'));
         $this->assertFalse((bool) session()->get(HorizonSessionAuthMiddleware::SESSION_KEY));
     }
 
-    public function test_proxy_path_is_prepended_to_urls(): void
+    public function test_horizon_dashboard_shows_logout_button(): void
     {
-        config()->set('horizon.proxy_path', 'penjaminan-test');
+        $response = $this
+            ->withSession([
+                HorizonSessionAuthMiddleware::SESSION_KEY => true,
+                'horizon_user' => 'admin',
+            ])
+            ->get('/horizon');
+
+        $response
+            ->assertOk()
+            ->assertSee('Keluar')
+            ->assertSee('Logout from Horizon')
+            ->assertSee(HorizonSessionAuthMiddleware::horizonUrl('logout'), false);
+    }
+
+    public function test_horizon_url_uses_app_url_base(): void
+    {
+        // url() uses APP_URL, so if APP_URL includes a sub-path the
+        // generated Horizon URLs will automatically include it.
+        $base = 'https://example.com/penjaminan-test';
+        config()->set('app.url', $base);
+        \Illuminate\Support\Facades\URL::forceRootUrl($base);
 
         $this->assertStringEndsWith(
             '/penjaminan-test/horizon/login',
-            HorizonSessionAuthMiddleware::proxyUrl('login')
+            HorizonSessionAuthMiddleware::horizonUrl('login')
         );
 
         $this->assertStringEndsWith(
             '/penjaminan-test/horizon',
-            HorizonSessionAuthMiddleware::proxyUrl()
+            HorizonSessionAuthMiddleware::horizonUrl()
         );
     }
 }
