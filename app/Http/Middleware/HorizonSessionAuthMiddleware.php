@@ -46,6 +46,41 @@ class HorizonSessionAuthMiddleware
         return url($path);
     }
 
+    public static function intendedHorizonUrl(?string $intendedUrl): string
+    {
+        if (! $intendedUrl) {
+            return self::horizonUrl();
+        }
+
+        $intendedPath = parse_url($intendedUrl, PHP_URL_PATH);
+
+        if (! is_string($intendedPath)) {
+            return self::horizonUrl();
+        }
+
+        $path = trim($intendedPath, '/');
+        $proxyPath = trim((string) config('horizon.proxy_path', ''), '/');
+        $horizonPath = trim((string) config('horizon.path', 'horizon'), '/');
+
+        if ($proxyPath !== '' && ($path === $proxyPath || str_starts_with($path, $proxyPath.'/'))) {
+            $path = trim(substr($path, strlen($proxyPath)), '/');
+        }
+
+        if ($horizonPath === '') {
+            return self::horizonUrl($path);
+        }
+
+        if ($path === $horizonPath) {
+            return self::horizonUrl();
+        }
+
+        if (str_starts_with($path, $horizonPath.'/')) {
+            return self::horizonUrl(substr($path, strlen($horizonPath) + 1));
+        }
+
+        return self::horizonUrl();
+    }
+
     private function isHorizonApiRequest(Request $request): bool
     {
         $horizonPath = trim((string) config('horizon.path', 'horizon'), '/');

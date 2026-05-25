@@ -12,7 +12,9 @@ class HorizonAuthController extends Controller
     public function showLogin(Request $request): View|RedirectResponse
     {
         if ((bool) $request->session()->get(HorizonSessionAuthMiddleware::SESSION_KEY, false)) {
-            return redirect()->intended(HorizonSessionAuthMiddleware::horizonUrl());
+            return redirect(HorizonSessionAuthMiddleware::intendedHorizonUrl(
+                $request->session()->pull('url.intended')
+            ));
         }
 
         return view('horizon.login', [
@@ -39,11 +41,15 @@ class HorizonAuthController extends Controller
             hash_equals((string) $expectedUser, $credentials['username'])
             && hash_equals((string) $expectedPassword, $credentials['password'])
         ) {
+            $redirectTo = HorizonSessionAuthMiddleware::intendedHorizonUrl(
+                $request->session()->pull('url.intended')
+            );
+
             $request->session()->regenerate();
             $request->session()->put(HorizonSessionAuthMiddleware::SESSION_KEY, true);
             $request->session()->put('horizon_user', $credentials['username']);
 
-            return redirect()->intended(HorizonSessionAuthMiddleware::horizonUrl());
+            return redirect($redirectTo);
         }
 
         return back()
