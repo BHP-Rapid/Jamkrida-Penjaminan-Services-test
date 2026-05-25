@@ -11,9 +11,13 @@ class HorizonSessionAuthTest extends TestCase
     {
         parent::setUp();
 
+        \Illuminate\Support\Facades\URL::forceRootUrl(null);
+        \Illuminate\Support\Facades\URL::forceScheme(null);
+
         config()->set('app.key', 'base64:D5UqmVP9NabskJ3akhdX/UsCm29b2mgKrjUtS87tQi4=');
         config()->set('horizon.auth.user', 'admin');
         config()->set('horizon.auth.password', 'secret');
+        config()->set('horizon.proxy_path', '');
     }
 
     public function test_horizon_redirects_guest_to_login_page(): void
@@ -84,11 +88,10 @@ class HorizonSessionAuthTest extends TestCase
 
     public function test_horizon_url_uses_app_url_base(): void
     {
-        // url() uses APP_URL, so if APP_URL includes a sub-path the
-        // generated Horizon URLs will automatically include it.
         $base = 'https://example.com/penjaminan-test';
         config()->set('app.url', $base);
         \Illuminate\Support\Facades\URL::forceRootUrl($base);
+        \Illuminate\Support\Facades\URL::forceScheme('https');
 
         $this->assertStringEndsWith(
             '/penjaminan-test/horizon/login',
@@ -98,6 +101,34 @@ class HorizonSessionAuthTest extends TestCase
         $this->assertStringEndsWith(
             '/penjaminan-test/horizon',
             HorizonSessionAuthMiddleware::horizonUrl()
+        );
+    }
+
+    public function test_horizon_url_uses_proxy_path_when_app_url_has_no_prefix(): void
+    {
+        $base = 'https://example.com';
+        config()->set('app.url', $base);
+        config()->set('horizon.proxy_path', '/penjaminan-test');
+        \Illuminate\Support\Facades\URL::forceRootUrl($base);
+        \Illuminate\Support\Facades\URL::forceScheme('https');
+
+        $this->assertSame(
+            'https://example.com/penjaminan-test/horizon/logout',
+            HorizonSessionAuthMiddleware::horizonUrl('logout')
+        );
+    }
+
+    public function test_horizon_url_does_not_duplicate_proxy_path(): void
+    {
+        $base = 'https://example.com/penjaminan-test';
+        config()->set('app.url', $base);
+        config()->set('horizon.proxy_path', '/penjaminan-test');
+        \Illuminate\Support\Facades\URL::forceRootUrl($base);
+        \Illuminate\Support\Facades\URL::forceScheme('https');
+
+        $this->assertSame(
+            'https://example.com/penjaminan-test/horizon/login',
+            HorizonSessionAuthMiddleware::horizonUrl('login')
         );
     }
 }

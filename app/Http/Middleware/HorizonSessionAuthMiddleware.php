@@ -26,19 +26,22 @@ class HorizonSessionAuthMiddleware
     /**
      * Build a browser-facing URL for a Horizon sub-path.
      *
-     * Uses url() which already includes the APP_URL base (with any proxy
-     * prefix like /penjaminan-test). No need to manually prepend proxy_path
-     * since APP_URL already accounts for it.
+     * Includes horizon.proxy_path when Horizon is exposed below a reverse
+     * proxy prefix such as /penjaminan-test.
      */
     public static function horizonUrl(string $subPath = ''): string
     {
         $horizonPath = trim((string) config('horizon.path', 'horizon'), '/');
+        $proxyPath = trim((string) config('horizon.proxy_path', ''), '/');
+        $basePath = trim((string) parse_url(url('/'), PHP_URL_PATH), '/');
 
-        $path = $horizonPath;
-
-        if ($subPath !== '') {
-            $path .= '/'.ltrim($subPath, '/');
+        if ($proxyPath !== '' && ($basePath === $proxyPath || str_ends_with($basePath, '/'.$proxyPath))) {
+            $proxyPath = '';
         }
+
+        $path = collect([$proxyPath, $horizonPath, ltrim($subPath, '/')])
+            ->filter(fn (string $segment): bool => $segment !== '')
+            ->implode('/');
 
         return url($path);
     }
