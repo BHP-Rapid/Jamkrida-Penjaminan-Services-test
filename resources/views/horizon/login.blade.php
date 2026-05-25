@@ -13,9 +13,11 @@
             --line: #d9e2ec;
             --surface: #ffffff;
             --soft: #f8fafc;
-            --horizon: #ff2d20;
-            --horizon-dark: #b91c1c;
-            --teal: #0f766e;
+            --horizon: #7c3aed;
+            --horizon-dark: #5b21b6;
+            --horizon-soft: #c4b5fd;
+            --horizon-pale: #f5f3ff;
+            --teal: #7e22ce;
         }
 
         * {
@@ -31,7 +33,7 @@
             background:
                 linear-gradient(90deg, rgba(15, 23, 42, 0.05) 1px, transparent 1px),
                 linear-gradient(180deg, rgba(15, 23, 42, 0.05) 1px, transparent 1px),
-                linear-gradient(135deg, #f8fafc 0%, #eef2f7 48%, #ffe8e2 100%);
+                linear-gradient(135deg, #f8fafc 0%, #f1f5f9 46%, var(--horizon-pale) 100%);
             background-size: 32px 32px, 32px 32px, cover;
             color: var(--ink);
         }
@@ -56,7 +58,7 @@
             gap: 36px;
             padding: 40px;
             background:
-                linear-gradient(135deg, rgba(255, 45, 32, 0.86), rgba(15, 23, 42, 0.94) 54%, rgba(15, 118, 110, 0.88)),
+                linear-gradient(135deg, rgba(91, 33, 182, 0.94), rgba(124, 58, 237, 0.88) 48%, rgba(196, 181, 253, 0.9)),
                 repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 16px);
             color: #ffffff;
         }
@@ -246,7 +248,7 @@
             min-height: 48px;
             border: 1px solid transparent;
             border-radius: 6px;
-            background: var(--horizon);
+            background: linear-gradient(135deg, var(--horizon-dark), var(--horizon) 54%, var(--horizon-soft));
             color: #ffffff;
             padding: 13px 18px;
             font-weight: 800;
@@ -255,14 +257,14 @@
         }
 
         button:hover {
-            background: var(--horizon-dark);
-            box-shadow: 0 12px 24px rgba(185, 28, 28, 0.18);
+            background: linear-gradient(135deg, #4c1d95, var(--horizon-dark) 54%, var(--horizon));
+            box-shadow: 0 12px 24px rgba(91, 33, 182, 0.22);
             transform: translateY(-1px);
         }
 
         button:focus-visible {
             outline: none;
-            box-shadow: 0 0 0 4px rgba(255, 45, 32, 0.2);
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.2);
         }
 
         button svg {

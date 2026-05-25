@@ -48,6 +48,43 @@ class HorizonSessionAuthTest extends TestCase
         $this->assertTrue(session()->get(HorizonSessionAuthMiddleware::SESSION_KEY));
     }
 
+    public function test_horizon_login_normalizes_internal_intended_url_to_public_proxy_path(): void
+    {
+        $base = 'https://example.com';
+        config()->set('app.url', $base);
+        config()->set('horizon.proxy_path', '/penjaminan-test');
+        \Illuminate\Support\Facades\URL::forceRootUrl($base);
+        \Illuminate\Support\Facades\URL::forceScheme('https');
+
+        $response = $this
+            ->withSession(['url.intended' => 'https://example.com/horizon/jobs/pending'])
+            ->post('/horizon/login', [
+                'username' => 'admin',
+                'password' => 'secret',
+            ]);
+
+        $response->assertRedirect('https://example.com/penjaminan-test/horizon/jobs/pending');
+        $this->assertTrue(session()->get(HorizonSessionAuthMiddleware::SESSION_KEY));
+    }
+
+    public function test_authenticated_horizon_login_page_normalizes_internal_intended_url(): void
+    {
+        $base = 'https://example.com';
+        config()->set('app.url', $base);
+        config()->set('horizon.proxy_path', '/penjaminan-test');
+        \Illuminate\Support\Facades\URL::forceRootUrl($base);
+        \Illuminate\Support\Facades\URL::forceScheme('https');
+
+        $response = $this
+            ->withSession([
+                HorizonSessionAuthMiddleware::SESSION_KEY => true,
+                'url.intended' => 'https://example.com/horizon/jobs/pending',
+            ])
+            ->get('/horizon/login');
+
+        $response->assertRedirect('https://example.com/penjaminan-test/horizon/jobs/pending');
+    }
+
     public function test_horizon_login_rejects_invalid_credentials(): void
     {
         $response = $this->from('/horizon/login')->post('/horizon/login', [
