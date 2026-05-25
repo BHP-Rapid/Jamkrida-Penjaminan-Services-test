@@ -118,7 +118,7 @@
             <p>Masuk untuk membuka dashboard queue.</p>
         </header>
 
-        <form method="POST" action="{{ route('horizon.login.store') }}">
+        <form method="POST" action="{{ $loginAction }}">
             @csrf
 
             @if ($errors->any())

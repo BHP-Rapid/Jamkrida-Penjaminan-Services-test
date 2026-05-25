@@ -20,7 +20,25 @@ class HorizonSessionAuthMiddleware
             abort(401, 'Unauthenticated.');
         }
 
-        return redirect()->guest(route('horizon.login'));
+        return redirect()->guest(self::proxyUrl('login'));
+    }
+
+    /**
+     * Build a browser-facing URL for a Horizon sub-path, prepending the
+     * reverse-proxy prefix when configured.
+     */
+    public static function proxyUrl(string $subPath = ''): string
+    {
+        $proxyPath = trim((string) config('horizon.proxy_path', ''), '/');
+        $horizonPath = trim((string) config('horizon.path', 'horizon'), '/');
+
+        $base = $proxyPath !== '' ? $proxyPath.'/'.$horizonPath : $horizonPath;
+
+        if ($subPath !== '') {
+            $base .= '/'.ltrim($subPath, '/');
+        }
+
+        return url($base);
     }
 
     private function isHorizonApiRequest(Request $request): bool

@@ -20,7 +20,7 @@ class HorizonSessionAuthTest extends TestCase
     {
         $response = $this->get('/horizon');
 
-        $response->assertRedirect(route('horizon.login'));
+        $response->assertRedirect(HorizonSessionAuthMiddleware::proxyUrl('login'));
     }
 
     public function test_horizon_login_page_is_rendered(): void
@@ -40,7 +40,7 @@ class HorizonSessionAuthTest extends TestCase
             'password' => 'secret',
         ]);
 
-        $response->assertRedirect(url('/horizon'));
+        $response->assertRedirect(HorizonSessionAuthMiddleware::proxyUrl());
         $this->assertTrue(session()->get(HorizonSessionAuthMiddleware::SESSION_KEY));
     }
 
@@ -62,7 +62,22 @@ class HorizonSessionAuthTest extends TestCase
             ->withSession([HorizonSessionAuthMiddleware::SESSION_KEY => true])
             ->post('/horizon/logout');
 
-        $response->assertRedirect(route('horizon.login'));
+        $response->assertRedirect(HorizonSessionAuthMiddleware::proxyUrl('login'));
         $this->assertFalse((bool) session()->get(HorizonSessionAuthMiddleware::SESSION_KEY));
+    }
+
+    public function test_proxy_path_is_prepended_to_urls(): void
+    {
+        config()->set('horizon.proxy_path', 'penjaminan-test');
+
+        $this->assertStringEndsWith(
+            '/penjaminan-test/horizon/login',
+            HorizonSessionAuthMiddleware::proxyUrl('login')
+        );
+
+        $this->assertStringEndsWith(
+            '/penjaminan-test/horizon',
+            HorizonSessionAuthMiddleware::proxyUrl()
+        );
     }
 }
