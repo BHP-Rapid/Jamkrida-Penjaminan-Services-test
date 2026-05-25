@@ -43,6 +43,21 @@ class DispatchMultigunaBulkDummyChunksJob implements ShouldQueue
             return;
         }
 
+        // Idempotency guard: the batch starts with this single dispatcher
+        // job (totalJobs == 1).  Once chunk jobs are added, totalJobs > 1.
+        // If Horizon retries this job after chunks were already dispatched,
+        // we must refuse to re-dispatch to avoid duplicate work.
+        $batch = $this->batch();
+        if ($batch && $batch->totalJobs > 1) {
+            Log::warning('Bulk dummy dispatch skipped — chunks already dispatched for this batch. Retry individual failed chunk jobs instead, or create a new batch.', [
+                'bulk_id'    => $this->bulkId,
+                'batch_id'   => $batch->id,
+                'total_jobs' => $batch->totalJobs,
+            ]);
+
+            return;
+        }
+
         $startedAt = microtime(true);
         $absolutePath = Storage::disk($this->disk)->path($this->filePath);
 

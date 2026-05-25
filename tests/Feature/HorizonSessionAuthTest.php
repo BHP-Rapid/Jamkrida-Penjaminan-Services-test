@@ -66,6 +66,22 @@ class HorizonSessionAuthTest extends TestCase
         $this->assertFalse((bool) session()->get(HorizonSessionAuthMiddleware::SESSION_KEY));
     }
 
+    public function test_horizon_dashboard_shows_logout_button(): void
+    {
+        $response = $this
+            ->withSession([
+                HorizonSessionAuthMiddleware::SESSION_KEY => true,
+                'horizon_user' => 'admin',
+            ])
+            ->get('/horizon');
+
+        $response
+            ->assertOk()
+            ->assertSee('Keluar')
+            ->assertSee('Logout from Horizon')
+            ->assertSee(HorizonSessionAuthMiddleware::horizonUrl('logout'), false);
+    }
+
     public function test_horizon_url_uses_app_url_base(): void
     {
         // url() uses APP_URL, so if APP_URL includes a sub-path the
