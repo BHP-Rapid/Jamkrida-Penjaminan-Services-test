@@ -44,7 +44,7 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-enable redis xdebug \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install \
-        pdo_mysql mbstring exif pcntl posix bcmath gd zip intl
+        pdo_mysql mbstring exif pcntl posix sockets bcmath gd zip intl
 
 RUN echo "max_file_uploads=50" > /usr/local/etc/php/conf.d/uploads.ini \
     && echo "upload_max_filesize=100M" >> /usr/local/etc/php/conf.d/uploads.ini \

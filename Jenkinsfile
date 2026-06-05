@@ -30,7 +30,7 @@ pipeline {
                     apt update &&
                     apt install -y git unzip libzip-dev curl libpng-dev libjpeg-dev libfreetype6-dev &&
                     docker-php-ext-configure gd --with-freetype --with-jpeg &&
-                    docker-php-ext-install gd zip pcntl posix &&
+                    docker-php-ext-install gd zip pcntl posix sockets &&
                     pecl install xdebug &&
                     docker-php-ext-enable xdebug &&
                     curl -sS https://getcomposer.org/installer | php &&
