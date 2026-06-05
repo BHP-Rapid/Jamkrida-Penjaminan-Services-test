@@ -28,6 +28,8 @@ class DispatchPenjaminanMultigunaBulkChunksJob implements ShouldQueue
 
     public string $userToken = '';
 
+    public string $authMitraId = '';
+
     public function __construct(
         public readonly string $bulkNo,
         public readonly string $userName,
@@ -35,8 +37,10 @@ class DispatchPenjaminanMultigunaBulkChunksJob implements ShouldQueue
         public readonly string $mitraId,
         public readonly string $tenantId,
         string $userToken = '',
+        string $authMitraId = '',
     ) {
         $this->userToken = $userToken;
+        $this->authMitraId = $authMitraId;
         $this->onQueue('bulk-multiguna');
     }
 
@@ -156,6 +160,7 @@ class DispatchPenjaminanMultigunaBulkChunksJob implements ShouldQueue
             $this->mitraId,
             $this->tenantId,
             $this->userToken,
+            $this->authMitraId,
         );
     }
 }

@@ -50,6 +50,8 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
 
     public string $userToken = '';
 
+    public string $authMitraId = '';
+
     public function __construct(
         public readonly string $bulkNo,
         public readonly int $chunkNumber,
@@ -59,8 +61,10 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
         public readonly string $mitraId,
         public readonly string $tenantId,
         string $userToken = '',
+        string $authMitraId = '',
     ) {
         $this->userToken = $userToken;
+        $this->authMitraId = $authMitraId;
         $this->onQueue('bulk-multiguna');
     }
 
@@ -89,7 +93,12 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
             $trxNo = $this->processRecord($record);
 
             if ($trxNo !== null) {
-                app(PenjaminanMultigunaRabbitPublisher::class)->dispatchRegistration($trxNo, $this->bulkNo, $this->userToken);
+                app(PenjaminanMultigunaRabbitPublisher::class)->dispatchRegistration(
+                    $trxNo,
+                    $this->bulkNo,
+                    $this->userToken,
+                    $this->authMitraId,
+                );
             }
         }
 

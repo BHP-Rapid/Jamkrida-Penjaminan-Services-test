@@ -22,7 +22,7 @@ class PenjaminanMultigunaRabbitPublisher
     ) {
     }
 
-    public function dispatchRegistration(string $trxNo, string $bulkNo, string $userToken): void
+    public function dispatchRegistration(string $trxNo, string $bulkNo, string $userToken, string $authMitraId = ''): void
     {
         $penjaminan = PenjaminanTransaction::query()
             ->join('multiguna_transaction as mt', 'transaction_penjaminan_header.trx_no', '=', 'mt.trx_no')
@@ -45,7 +45,7 @@ class PenjaminanMultigunaRabbitPublisher
 
         $correlationId = (string) Str::uuid();
         $sentAt = now()->toISOString();
-        $payload = $this->buildRegistrationPayload($penjaminan, $userToken);
+        $payload = $this->buildRegistrationPayload($penjaminan, $userToken, $authMitraId);
 
         $message = [
             'type' => 'in',
@@ -97,7 +97,7 @@ class PenjaminanMultigunaRabbitPublisher
         ]);
     }
 
-    public function buildRegistrationPayload(object $penjaminan, string $userToken): array
+    public function buildRegistrationPayload(object $penjaminan, string $userToken, string $authMitraId = ''): array
     {
         $debiturs = MultigunaDebitur::query()
             ->where('multiguna_trx_id', $penjaminan->id_multiguna)
@@ -109,7 +109,10 @@ class PenjaminanMultigunaRabbitPublisher
             ->get()
             ->keyBy('institution_id');
 
-        $tenantMitra = $this->getTenantMitraFromAuthMaster((string) $penjaminan->mitra_id, $userToken);
+        $tenantMitraLookupId = trim($authMitraId) !== ''
+            ? $authMitraId
+            : (string) $penjaminan->mitra_id;
+        $tenantMitra = $this->getTenantMitraFromAuthMaster($tenantMitraLookupId, $userToken);
 
         $nowJakarta = Carbon::now('Asia/Jakarta');
 
