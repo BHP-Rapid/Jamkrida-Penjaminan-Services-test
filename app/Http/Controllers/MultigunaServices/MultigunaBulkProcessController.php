@@ -34,8 +34,16 @@ class MultigunaBulkProcessController extends Controller
             $bulkNo = $payload['bulk_no'];
             $userId = (string) ($authUser['user_id'] ?? $payload['user_id']);
             $userName = (string) ($authUser['name'] ?? $payload['user_name']);
-            $tenantId = (string) ($authUser['tenant_id'] ?? $payload['tenant_id']);
-            $mitraId = (string) ($authUser['mitra_id'] ?? $payload['mitra_id']);
+            $authMitraId = (string) ($authUser['mitra_id'] ?? '');
+            $tenantMitra = [];
+
+            if ($authMitraId !== '' && $userToken !== '') {
+                $tenantMitraResponse = app(AuthInternalClient::class)->getTenantMitra($authMitraId, $userToken);
+                $tenantMitra = is_array($tenantMitraResponse['data'] ?? null) ? $tenantMitraResponse['data'] : [];
+            }
+
+            $tenantId = (string) ($tenantMitra['tenant_id'] ?? $authUser['tenant_id'] ?? $payload['tenant_id']);
+            $mitraId = (string) ($tenantMitra['alias'] ?? $payload['mitra_id']);
 
             $query = BulkStgMultigunaModel::query()
                 ->where('tenant_id', $tenantId)
@@ -73,6 +81,7 @@ class MultigunaBulkProcessController extends Controller
                         $mitraId,
                         $tenantId,
                         $userToken,
+                        $authMitraId,
                     ),
                 ])
                     ->name('Bulk Penjaminan Multiguna '.$bulkNo)
