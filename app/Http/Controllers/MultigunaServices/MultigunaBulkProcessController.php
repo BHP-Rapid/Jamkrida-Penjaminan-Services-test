@@ -5,8 +5,8 @@ namespace App\Http\Controllers\MultigunaServices;
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Jobs\DispatchPenjaminanMultigunaBulkChunksJob;
-use App\Models\NotifMitra;
 use App\Models\v2\BulkStgMultigunaModel;
+use App\Services\AuthInternalClient;
 use Carbon\Carbon;
 use Illuminate\Bus\Batch;
 use Illuminate\Http\Request;
@@ -28,11 +28,14 @@ class MultigunaBulkProcessController extends Controller
                 'mitra_id' => ['required', 'string'],
             ]);
 
+            $authUser = $request->attributes->get('auth_user', []);
+            $authUser = is_array($authUser) ? $authUser : [];
+            $userToken = (string) ($request->attributes->get('auth_token') ?: $request->bearerToken());
             $bulkNo = $payload['bulk_no'];
-            $userId = $payload['user_id'];
-            $userName = $payload['user_name'];
-            $tenantId = $payload['tenant_id'];
-            $mitraId = $payload['mitra_id'];
+            $userId = (string) ($authUser['user_id'] ?? $payload['user_id']);
+            $userName = (string) ($authUser['name'] ?? $payload['user_name']);
+            $tenantId = (string) ($authUser['tenant_id'] ?? $payload['tenant_id']);
+            $mitraId = (string) ($authUser['mitra_id'] ?? $payload['mitra_id']);
 
             $query = BulkStgMultigunaModel::query()
                 ->where('tenant_id', $tenantId)
@@ -69,11 +72,12 @@ class MultigunaBulkProcessController extends Controller
                         $userId,
                         $mitraId,
                         $tenantId,
+                        $userToken,
                     ),
                 ])
                     ->name('Bulk Penjaminan Multiguna '.$bulkNo)
                     ->onQueue('bulk-multiguna')
-                    ->then(static function (Batch $batch) use ($bulkNo, $mitraId, $tenantId, $userId): void {
+                    ->then(static function (Batch $batch) use ($bulkNo, $mitraId, $tenantId, $userId, $userToken): void {
                         Log::info('Bulk penjaminan multiguna batch completed.', [
                             'bulk_no' => $bulkNo,
                             'batch_id' => $batch->id,
@@ -81,13 +85,22 @@ class MultigunaBulkProcessController extends Controller
                             'mitra_id' => $mitraId,
                         ]);
 
-                        NotifMitra::create([
-                            'mitra_user_id' => $userId,
-                            'title' => 'Bulk Penjaminan Process Completed',
-                            'message' => 'Bulk '.$bulkNo.' finished processing.',
-                            'type' => 'Penjaminan Process',
-                            'is_read' => false,
-                        ]);
+                        try {
+                            app(AuthInternalClient::class)->createMitraNotification(
+                                $userId,
+                                'Bulk Penjaminan Process Completed',
+                                'Bulk '.$bulkNo.' finished processing.',
+                                $userToken,
+                            );
+                        } catch (Throwable $exception) {
+                            Log::warning('Failed to create bulk penjaminan multiguna success notification in Auth Master.', [
+                                'bulk_no' => $bulkNo,
+                                'tenant_id' => $tenantId,
+                                'mitra_id' => $mitraId,
+                                'user_id' => $userId,
+                                'message' => $exception->getMessage(),
+                            ]);
+                        }
 
                         BulkStgMultigunaModel::query()
                             ->where('tenant_id', $tenantId)
@@ -95,7 +108,7 @@ class MultigunaBulkProcessController extends Controller
                             ->where('bulk_no', $bulkNo)
                             ->delete();
                     })
-                    ->catch(static function (Batch $batch, Throwable $exception) use ($bulkNo, $mitraId, $tenantId, $userId): void {
+                    ->catch(static function (Batch $batch, Throwable $exception) use ($bulkNo, $mitraId, $tenantId, $userId, $userToken): void {
                         Log::error('Bulk penjaminan multiguna batch failed.', [
                             'bulk_no' => $bulkNo,
                             'batch_id' => $batch->id,
@@ -114,13 +127,22 @@ class MultigunaBulkProcessController extends Controller
                                 'updated_at' => Carbon::now('Asia/Jakarta'),
                             ]);
 
-                        NotifMitra::create([
-                            'mitra_user_id' => $userId,
-                            'title' => 'Bulk Penjaminan Process Failed',
-                            'message' => 'Bulk '.$bulkNo.' error processing. '.$exception->getMessage(),
-                            'type' => 'ERROR Penjaminan Process',
-                            'is_read' => false,
-                        ]);
+                        try {
+                            app(AuthInternalClient::class)->createMitraNotification(
+                                $userId,
+                                'Bulk Penjaminan Process Failed',
+                                'Bulk '.$bulkNo.' error processing. '.$exception->getMessage(),
+                                $userToken,
+                            );
+                        } catch (Throwable $notificationException) {
+                            Log::warning('Failed to create bulk penjaminan multiguna failure notification in Auth Master.', [
+                                'bulk_no' => $bulkNo,
+                                'tenant_id' => $tenantId,
+                                'mitra_id' => $mitraId,
+                                'user_id' => $userId,
+                                'message' => $notificationException->getMessage(),
+                            ]);
+                        }
                     })
                     ->dispatch();
             } catch (Throwable $exception) {

@@ -49,13 +49,15 @@ class MultigunaBulkProcessControllerTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $response = $this->postJson('/api/v2/penjaminan/multiguna/bulk-process', [
-            'bulk_no' => 'BPM202606030001',
-            'user_id' => 'USR001',
-            'user_name' => 'Samuel',
-            'tenant_id' => 'JDKI01',
-            'mitra_id' => 'MDR',
-        ]);
+        $response = $this
+            ->withHeader('Authorization', 'Bearer forwarded-user-token')
+            ->postJson('/api/v2/penjaminan/multiguna/bulk-process', [
+                'bulk_no' => 'BPM202606030001',
+                'user_id' => 'USR001',
+                'user_name' => 'Samuel',
+                'tenant_id' => 'JDKI01',
+                'mitra_id' => 'MDR',
+            ]);
 
         $response
             ->assertAccepted()
@@ -77,7 +79,8 @@ class MultigunaBulkProcessControllerTest extends TestCase
                 && $job->userId === 'USR001'
                 && $job->userName === 'Samuel'
                 && $job->tenantId === 'JDKI01'
-                && $job->mitraId === 'MDR',
+                && $job->mitraId === 'MDR'
+                && $job->userToken === 'forwarded-user-token',
         ]);
     }
 

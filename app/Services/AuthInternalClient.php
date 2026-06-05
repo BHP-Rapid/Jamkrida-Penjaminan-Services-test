@@ -46,6 +46,27 @@ class AuthInternalClient
             ->json();
     }
 
+    public function getTenantMitra(string $mitraId, string $userToken): array
+    {
+        return $this->client($userToken)
+            ->get($this->baseUrl() . '/api/int/tenant-mitra/get-by-id/' . rawurlencode($mitraId))
+            ->throw()
+            ->json();
+    }
+
+    public function createMitraNotification(string $userId, string $title, string $message, string $userToken): array
+    {
+        return $this->client($userToken)
+            ->post($this->baseUrl() . '/api/int/notif-admin', [
+                'title' => $title,
+                'message' => $message,
+                'recipientType' => 'selected',
+                'recipient' => [$userId],
+            ])
+            ->throw()
+            ->json();
+    }
+
     protected function normalizePermissionActions(string|array $actions): array
     {
         $items = is_array($actions) ? $actions : explode(',', $actions);

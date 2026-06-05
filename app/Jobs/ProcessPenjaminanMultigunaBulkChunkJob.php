@@ -48,6 +48,8 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
 
     public int $timeout = 1200;
 
+    public string $userToken = '';
+
     public function __construct(
         public readonly string $bulkNo,
         public readonly int $chunkNumber,
@@ -56,7 +58,9 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
         public readonly string $userId,
         public readonly string $mitraId,
         public readonly string $tenantId,
+        string $userToken = '',
     ) {
+        $this->userToken = $userToken;
         $this->onQueue('bulk-multiguna');
     }
 
@@ -85,7 +89,7 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
             $trxNo = $this->processRecord($record);
 
             if ($trxNo !== null) {
-                app(PenjaminanMultigunaRabbitPublisher::class)->dispatchRegistration($trxNo, $this->bulkNo);
+                app(PenjaminanMultigunaRabbitPublisher::class)->dispatchRegistration($trxNo, $this->bulkNo, $this->userToken);
             }
         }
 

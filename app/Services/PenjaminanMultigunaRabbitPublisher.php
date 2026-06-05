@@ -6,7 +6,6 @@ use App\Helpers\RabbitMQHelper;
 use App\Models\Institution;
 use App\Models\MultigunaDebitur;
 use App\Models\PenjaminanTransaction;
-use App\Models\TenantMitra;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -18,7 +17,12 @@ class PenjaminanMultigunaRabbitPublisher
 
     private const REGISTRASI_PATH = '/0/rest/PermohonanPenjaminan/RegistrasiMultiguna';
 
-    public function dispatchRegistration(string $trxNo, string $bulkNo): void
+    public function __construct(
+        private AuthInternalClient $authInternalClient,
+    ) {
+    }
+
+    public function dispatchRegistration(string $trxNo, string $bulkNo, string $userToken): void
     {
         $penjaminan = PenjaminanTransaction::query()
             ->join('multiguna_transaction as mt', 'transaction_penjaminan_header.trx_no', '=', 'mt.trx_no')
@@ -41,7 +45,7 @@ class PenjaminanMultigunaRabbitPublisher
 
         $correlationId = (string) Str::uuid();
         $sentAt = now()->toISOString();
-        $payload = $this->buildRegistrationPayload($penjaminan);
+        $payload = $this->buildRegistrationPayload($penjaminan, $userToken);
 
         $message = [
             'type' => 'in',
@@ -93,7 +97,7 @@ class PenjaminanMultigunaRabbitPublisher
         ]);
     }
 
-    public function buildRegistrationPayload(object $penjaminan): array
+    public function buildRegistrationPayload(object $penjaminan, string $userToken): array
     {
         $debiturs = MultigunaDebitur::query()
             ->where('multiguna_trx_id', $penjaminan->id_multiguna)
@@ -105,10 +109,7 @@ class PenjaminanMultigunaRabbitPublisher
             ->get()
             ->keyBy('institution_id');
 
-        $tenantMitra = TenantMitra::query()
-            ->where('alias', $penjaminan->mitra_id)
-            ->orWhere('mitra_id', $penjaminan->mitra_id)
-            ->first();
+        $tenantMitra = $this->getTenantMitraFromAuthMaster((string) $penjaminan->mitra_id, $userToken);
 
         $nowJakarta = Carbon::now('Asia/Jakarta');
 
@@ -125,7 +126,7 @@ class PenjaminanMultigunaRabbitPublisher
                     'BankCabang' => trim(($penjaminan->bank_code ?? '').' - '.($penjaminan->bank_name ?? ''), ' -'),
                     'FeeBasePercentage' => $this->numericValue($penjaminan->fee_base_percentage),
                     'TeksPercentagePenjaminandiSP' => $this->numericValue($penjaminan->text_certified),
-                    'IsConven' => (bool) ($tenantMitra?->is_conventional ?? false),
+                    'IsConven' => (bool) ($tenantMitra['is_conventional'] ?? false),
                     'ListDebitur' => $debiturs
                         ->map(function (MultigunaDebitur $debitur) use ($institutionsById, $nowJakarta): array {
                             $institution = $institutionsById->get($debitur->institution_id);
@@ -159,6 +160,22 @@ class PenjaminanMultigunaRabbitPublisher
                 ],
             ],
         ];
+    }
+
+    private function getTenantMitraFromAuthMaster(string $mitraId, string $userToken): array
+    {
+        if (trim($userToken) === '') {
+            throw new RuntimeException('User token is required to get tenant mitra from Auth Master.');
+        }
+
+        $response = $this->authInternalClient->getTenantMitra($mitraId, $userToken);
+        $data = $response['data'] ?? null;
+
+        if (! is_array($data)) {
+            throw new RuntimeException('Invalid tenant mitra response from Auth Master.');
+        }
+
+        return $data;
     }
 
     private function dateString(mixed $value): ?string
