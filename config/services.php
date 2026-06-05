@@ -61,6 +61,19 @@ return [
         'password' => env('CREATIO_PASSWORD'),
     ],
 
+    'rabbitmq' => [
+        'host' => env('RABBITMQ_HOST', '127.0.0.1'),
+        'port' => env('RABBITMQ_PORT', 5672),
+        'user' => env('RABBITMQ_USER', 'guest'),
+        'password' => env('RABBITMQ_PASSWORD', 'guest'),
+        'vhost' => env('RABBITMQ_VHOST', '/'),
+        'exchange' => env('RABBITMQ_EXCHANGE', 'integration.exchange'),
+        'queue' => env('RABBITMQ_QUEUE', 'integration.in'),
+        'routing_key' => env('RABBITMQ_ROUTING_KEY', 'in'),
+        'persistent' => env('RABBITMQ_PERSISTENT', true),
+        'throw_on_error' => env('RABBITMQ_THROW_ON_ERROR', false),
+    ],
+
     'file_internal' => [
         'url' => env('FILE_SERVICE_URL', 'http://localhost:8000'),
     ],
