@@ -15,6 +15,8 @@ class MultigunaBulkProcessControllerTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutMiddleware();
+
         Schema::dropIfExists('bulk_stg_penjaminan_multiguna');
         Schema::create('bulk_stg_penjaminan_multiguna', function (Blueprint $table): void {
             $table->string('tenant_id');
