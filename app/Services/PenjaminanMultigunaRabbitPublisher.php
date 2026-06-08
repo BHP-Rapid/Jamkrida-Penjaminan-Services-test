@@ -133,14 +133,14 @@ class PenjaminanMultigunaRabbitPublisher
                         ->map(function (MultigunaDebitur $debitur) use ($institutionsById, $nowJakarta): array {
                             $institution = $institutionsById->get($debitur->institution_id);
                             $jenisPenjamin = $debitur->jenis_penjamin ?? $debitur->jenis_makful_anhu;
-                            $nilaiPlafonPembiayaan = $debitur->nilai_plafon_pembiayaan ?? $debitur->nilai_kafalah;
+                            $nilaiPlafondPembiayaan = $debitur->nilai_plafond_pembiayaan ?? $debitur->nilai_plafon_pembiayaan ?? $debitur->nilai_kafalah;
 
                             return [
                                 'Name' => $debitur->debitur_name,
                                 'Nik' => $debitur->nik,
                                 'NamaMakhfulAnhu' => $jenisPenjamin,
                                 'TanggalLahir' => $this->dateString($institution?->birth_date),
-                                'NilaiKafalah' => $this->numericValue($nilaiPlafonPembiayaan),
+                                'NilaiKafalah' => $this->numericValue($nilaiPlafondPembiayaan),
                                 'TanggalRealisasi' => $this->dateString($debitur->tanggal_realisasi),
                                 'NilaiAgunan' => $this->numericValue($debitur->nilai_agunan),
                                 'JenisAgunan' => $debitur->jenis_agunan,

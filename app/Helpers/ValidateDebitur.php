@@ -70,7 +70,7 @@ class ValidateDebitur
                     'debitur_name' => $debiturName,
                     'nik' => $nik,
                     'plafond_pembiayaan_rp' => $debitur['plafond_pembiayaan_rp'] ?? null,
-                    'nilai_plafon_pembiayaan' => $debitur['nilai_plafon_pembiayaan'] ?? $debitur['nilai_kafalah'] ?? null,
+                    'nilai_plafond_pembiayaan' => $debitur['nilai_plafond_pembiayaan'] ?? $debitur['nilai_plafon_pembiayaan'] ?? $debitur['nilai_kafalah'] ?? null,
                     'reason' => 'NIK does not registered on PKS',
                 ];
                 continue;
@@ -86,7 +86,7 @@ class ValidateDebitur
                             'debitur_name' => $debiturName,
                             'nik' => $nik,
                             'plafond_pembiayaan_rp' => $debitur['plafond_pembiayaan_rp'] ?? null,
-                            'nilai_plafon_pembiayaan' => $debitur['nilai_plafon_pembiayaan'] ?? $debitur['nilai_kafalah'] ?? null,
+                            'nilai_plafond_pembiayaan' => $debitur['nilai_plafond_pembiayaan'] ?? $debitur['nilai_plafon_pembiayaan'] ?? $debitur['nilai_kafalah'] ?? null,
                             'reason' => 'Tanggal jatuh tempo harus lebih dari hari ini',
                         ];
                         continue;
@@ -96,7 +96,7 @@ class ValidateDebitur
                         'debitur_name' => $debiturName,
                         'nik' => $nik,
                         'plafond_pembiayaan_rp' => $debitur['plafond_pembiayaan_rp'] ?? null,
-                        'nilai_plafon_pembiayaan' => $debitur['nilai_plafon_pembiayaan'] ?? $debitur['nilai_kafalah'] ?? null,
+                        'nilai_plafond_pembiayaan' => $debitur['nilai_plafond_pembiayaan'] ?? $debitur['nilai_plafon_pembiayaan'] ?? $debitur['nilai_kafalah'] ?? null,
                         'reason' => 'Format tanggal jatuh tempo tidak valid',
                     ];
                     continue;
@@ -112,7 +112,7 @@ class ValidateDebitur
                             'debitur_name' => $debiturName,
                             'nik' => $nik,
                             'plafond_pembiayaan_rp' => $debitur['plafond_pembiayaan_rp'] ?? null,
-                            'nilai_plafon_pembiayaan' => $debitur['nilai_plafon_pembiayaan'] ?? $debitur['nilai_kafalah'] ?? null,
+                            'nilai_plafond_pembiayaan' => $debitur['nilai_plafond_pembiayaan'] ?? $debitur['nilai_plafon_pembiayaan'] ?? $debitur['nilai_kafalah'] ?? null,
                             'reason' => 'Tanggal realisasi harus lebih dari hari ini',
                         ];
                         continue;
@@ -122,7 +122,7 @@ class ValidateDebitur
                         'debitur_name' => $debiturName,
                         'nik' => $nik,
                         'plafond_pembiayaan_rp' => $debitur['plafond_pembiayaan_rp'] ?? null,
-                        'nilai_plafon_pembiayaan' => $debitur['nilai_plafon_pembiayaan'] ?? $debitur['nilai_kafalah'] ?? null,
+                        'nilai_plafond_pembiayaan' => $debitur['nilai_plafond_pembiayaan'] ?? $debitur['nilai_plafon_pembiayaan'] ?? $debitur['nilai_kafalah'] ?? null,
                         'reason' => 'Format tanggal realisasi tidak valid',
                     ];
                     continue;
@@ -140,10 +140,10 @@ class ValidateDebitur
             }
 
             $plafondPembiayaan = self::toNumber($debitur['plafond_pembiayaan_rp'] ?? 0);
-            $nilaiPlafonPembiayaan = $plafondPembiayaan * ($riskPercentage / 100);
+            $nilaiPlafondPembiayaan = $plafondPembiayaan * ($riskPercentage / 100);
 
-            $debitur['nilai_plafon_pembiayaan'] = $nilaiPlafonPembiayaan;
-            unset($debitur['nilai_kafalah']);
+            $debitur['nilai_plafond_pembiayaan'] = $nilaiPlafondPembiayaan;
+            unset($debitur['nilai_plafon_pembiayaan'], $debitur['nilai_kafalah']);
             $debitur['jenis_penjaminan'] = $plafondPembiayaan > $maxAmount ? 'CBC' : 'CAC';
             $debitur['status_debitur'] = $plafondPembiayaan > $maxAmount ? 'Submitted' : 'Approved';
 
@@ -157,7 +157,7 @@ class ValidateDebitur
                     'nik' => $nik,
                     'plafond_pembiayaan_rp' => $debitur['plafond_pembiayaan_rp'],
                     'plafond_max_pembiayaan' => $debitur['plafond_max_pembiayaan'],
-                    'nilai_plafon_pembiayaan' => $nilaiPlafonPembiayaan,
+                    'nilai_plafond_pembiayaan' => $nilaiPlafondPembiayaan,
                     'jenis_penjaminan' => $debitur['jenis_penjaminan'],
                     'status_debitur' => $debitur['status_debitur'],
                     'reason' => 'Plafond Pembiayaan RP greater than Plafond Max Pembiayaan',
