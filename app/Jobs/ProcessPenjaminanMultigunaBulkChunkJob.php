@@ -114,6 +114,12 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
     private function processRecord(BulkStgMultigunaModel $data): ?string
     {
         return DB::transaction(function () use ($data): ?string {
+            $currentYear = date('Y');
+            $currentMonth = date('m');
+            $permohonanDate = $this->dateValue($data->tgl_surat_pengajuan, true);
+            $nowJakarta = Carbon::now('Asia/Jakarta');
+            $debiturList = $this->decodeDebiturList($data->debitur);
+
             $existing = PenjaminanTransaction::query()
                 ->where('mitra_id', $this->mitraId)
                 ->where('product', 'mlt')
@@ -123,28 +129,43 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
                 ->first();
 
             if ($existing) {
-                $hasMultigunaDetail = MultigunaTransaction::query()
+                $multigunaDetail = MultigunaTransaction::query()
                     ->where('trx_no', $existing->trx_no)
-                    ->exists();
+                    ->lockForUpdate()
+                    ->first();
 
-                Log::warning('Bulk penjaminan multiguna record skipped because transaction already exists.', [
+                Log::warning('Bulk penjaminan multiguna transaction already exists.', [
                     'bulk_no' => $this->bulkNo,
                     'trx_no' => $existing->trx_no,
                     'nomor_surat_permohonan' => $data->nomor_surat_permohonan,
                     'mitra_id' => $this->mitraId,
-                    'has_multiguna_detail' => $hasMultigunaDetail,
+                    'has_multiguna_detail' => $multigunaDetail !== null,
                     'status_sync_creatio' => $existing->status_sync_creatio,
                 ]);
 
-                if (! $hasMultigunaDetail || (int) ($existing->status_sync_creatio ?? 0) === 1) {
-                    return null;
+                if ($multigunaDetail !== null) {
+                    return (int) ($existing->status_sync_creatio ?? 0) === 1 ? null : $existing->trx_no;
                 }
+
+                Log::warning('Recovering bulk penjaminan multiguna orphan header by creating missing detail rows.', [
+                    'bulk_no' => $this->bulkNo,
+                    'trx_no' => $existing->trx_no,
+                    'nomor_surat_permohonan' => $data->nomor_surat_permohonan,
+                    'mitra_id' => $this->mitraId,
+                ]);
+
+                PenjaminanTransaction::query()
+                    ->where('trx_no', $existing->trx_no)
+                    ->update([
+                        'status_sync_creatio' => 0,
+                        'updated_at' => $nowJakarta,
+                    ]);
+
+                $this->createMultigunaDetails($existing->trx_no, $data, $debiturList, $nowJakarta, $currentYear);
 
                 return $existing->trx_no;
             }
 
-            $currentYear = date('Y');
-            $currentMonth = date('m');
             $lastTrx = PenjaminanTransaction::lockForUpdate()
                 ->where('trx_no', 'like', 'PNJ-'.$currentYear.'-'.$currentMonth.'%')
                 ->orderBy('trx_no', 'desc')
@@ -152,9 +173,6 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
 
             $nextSeq = $lastTrx ? intval(substr($lastTrx, -4)) + 1 : 1;
             $trxNo = 'PNJ-'.$currentYear.'-'.$currentMonth.'-'.str_pad((string) $nextSeq, 4, '0', STR_PAD_LEFT);
-            $permohonanDate = $this->dateValue($data->tgl_surat_pengajuan, true);
-            $nowJakarta = Carbon::now('Asia/Jakarta');
-            $debiturList = $this->decodeDebiturList($data->debitur);
 
             PenjaminanTransaction::create([
                 'trx_no' => $trxNo,
@@ -171,134 +189,144 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
                 'no_rek' => '012312',
             ]);
 
-            $multiguna = MultigunaTransaction::create([
-                'trx_no' => $trxNo,
-                'jenis_product_description' => 'Multiguna',
-                'pks_number' => $data->nomor_pks,
-                'fee_base_number' => $data->fee_base,
-                'fee_base_percentage' => $data->fee_base,
-                'bank_name' => $data->bank_cabang,
-                'bank_code' => $data->bank,
-                'text_certified' => $data->teks_penjaminan,
-                'created_at' => $nowJakarta,
-            ]);
-
-            $multigunaId = $multiguna->getKey();
-            $mitraId = strtoupper($this->mitraId);
-            $prefix = $mitraId.$currentYear;
-            $lastLoan = MultigunaDebitur::lockForUpdate()
-                ->where('loan_number', 'like', $prefix.'%')
-                ->orderBy('loan_number', 'desc')
-                ->value('loan_number');
-            $startSeq = $lastLoan ? ((int) substr($lastLoan, -4)) + 1 : 1;
-
-            $institutionMap = [];
-            $key = base64_decode((string) config('services.secure.key'));
-            $hashKey = (string) config('services.secure.hash_key');
-            $enc = fn (mixed $value): ?string => $this->encryptValue($value, $key);
-
-            $rowsInstitutions = collect($debiturList)
-                ->filter(fn (mixed $debitur): bool => is_array($debitur))
-                ->map(function (array $debitur) use ($nowJakarta, &$institutionMap, $enc, $hashKey): array {
-                    $nikRaw = $this->nikValue($debitur);
-                    $instId = (string) Str::uuid();
-
-                    if ($nikRaw !== null) {
-                        $institutionMap[$nikRaw] = $instId;
-                    }
-
-                    return [
-                        'category' => 'P',
-                        'mitra_id' => strtoupper($this->mitraId),
-                        'tenant_id' => $this->tenantId,
-                        'id_issued_location' => '-',
-                        'id_add_issued_location' => '-',
-                        'id_add_type' => '-',
-                        'created_by' => $this->userId,
-                        'full_name' => $debitur['namaMakfulAnhu'] ?? $debitur['full_name'] ?? null,
-                        'home_province' => $debitur['provinsiMakfulAnhu'] ?? null,
-                        'home_city' => $debitur['kotaKabupatenMakfulAnhu'] ?? 0,
-                        'home_district' => $debitur['kecamatanMakfulAnhu'] ?? null,
-                        'home_sub_district' => $debitur['kelurahanMakfulAnhu'] ?? null,
-                        'home_zipcode' => $debitur['kodePosMakfulAnhu'] ?? null,
-                        'birth_place' => $debitur['tempatLahir'] ?? null,
-                        'birth_date' => $enc($debitur['tanggalLahir'] ?? null),
-                        'gender' => $debitur['jenisKelamin'] ?? null,
-                        'id_type' => $debitur['jenisIdentitas'] ?? null,
-                        'id_number' => $enc($nikRaw),
-                        'id_number_hash' => $nikRaw !== null ? hash_hmac('sha256', $nikRaw, $hashKey) : null,
-                        'job_id' => $debitur['kategoriPekerjaan'] ?? null,
-                        'job_level' => $debitur['jabatan'] ?? null,
-                        'job_employer_name' => $debitur['namaPemberiKerja'] ?? null,
-                        'job_start_date' => $this->dateValue($debitur['tanggalMulaiBekerja'] ?? null),
-                        'job_industry_type' => $debitur['kodeIndustriInternalPemberiKerja'] ?? null,
-                        'current_salary_amount' => $enc($debitur['current_salary_amount'] ?? null),
-                        'phone_1' => $enc($debitur['nomorTelepon'] ?? $debitur['phone_1'] ?? null),
-                        'email_1' => $enc($debitur['email'] ?? $debitur['email_1'] ?? null),
-                        'tax_id' => $enc($debitur['npwpGiro'] ?? $debitur['npwp'] ?? null),
-                        'current_salary_currency' => $debitur['kodeValutaIdrUsd'] ?? $debitur['current_salary_currency'] ?? null,
-                        'tax_type' => 'npwp',
-                        'institution_id' => $instId,
-                        'created_at' => $nowJakarta,
-                    ];
-                })
-                ->values()
-                ->all();
-
-            $this->insertInChunks(Institution::class, $rowsInstitutions);
-
-            $countDebitur = count($debiturList);
-            $debiturs = collect($debiturList)
-                ->filter(fn (mixed $debitur): bool => is_array($debitur))
-                ->map(function (array $debitur, int $idx) use ($nowJakarta, $multigunaId, $prefix, $startSeq, $institutionMap, $enc, $data, $countDebitur): array {
-                    $spSequence = $idx + 1;
-                    $baseSp = $data->nomor_surat_permohonan;
-                    $seq = $startSeq + $idx;
-                    $loanNumber = $prefix.str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
-                    $nik = $this->nikValue($debitur);
-
-                    return [
-                        'multiguna_trx_id' => $multigunaId,
-                        'debitur_name' => $debitur['namaMakfulAnhu'] ?? null,
-                        'debitur_address' => $this->debiturAddress($debitur),
-                        'no_sp_detail' => $countDebitur > 1 ? $baseSp.'-'.$spSequence : null,
-                        'penggunaan_pembiayaan' => $debitur['penggunaanPembiayaan'] ?? 0,
-                        'status_debitur' => $debitur['status_debitur'] ?? 'Approved',
-                        'ijk' => $this->decimalValue($debitur['ijk'] ?? null, null),
-                        'nik' => $enc($nik),
-                        'jenis_agunan' => $debitur['jenisAgunan'] ?? $this->decimalValue($debitur['nilaiKafalah'] ?? null, null),
-                        'nilai_agunan' => $this->decimalValue($debitur['nilaiAgunan'] ?? null, null),
-                        'nilai_kafalah' => $this->decimalValue($debitur['nilaiKafalah'] ?? null, null),
-                        'plafond_pembiayaan' => $this->decimalValue($debitur['plafondPembiayaan'] ?? null, null),
-                        'tanggal_realisasi' => $this->dateValue($debitur['tanggalRealisasi'] ?? null),
-                        'tanggal_jatuh_tempo' => $this->dateValue($debitur['tanggalJatuhTempo'] ?? null),
-                        'jenis_penjaminan' => $debitur['jenisPenjaminan'] ?? null,
-                        'jenis_makful_anhu' => $debitur['jenisMakfulAnhu'] ?? null,
-                        'jw_bulan' => (int) ($debitur['jwBulan'] ?? 0),
-                        'loan_number' => $loanNumber,
-                        'margin' => $this->decimalValue($debitur['marginBagiHasilUjrahThn'] ?? null, 0),
-                        'tenaga_kerja' => $debitur['jenisMakfulAnhu'] ?? null,
-                        'institution_id' => $nik !== null ? ($institutionMap[$nik] ?? null) : null,
-                        'created_at' => $nowJakarta,
-                        'plafond_max_debitur' => $this->decimalValue($debitur['MaksimalNilaiPlafond'] ?? null, 0),
-                    ];
-                })
-                ->values()
-                ->all();
-
-            $this->insertInChunks(MultigunaDebitur::class, $debiturs);
-
-            PenjaminanFlow::create([
-                'trx_no' => $trxNo,
-                'trx_status' => 'NA',
-                'created_at' => $nowJakarta,
-                'created_by_id' => $this->userId,
-                'created_by_name' => $this->userName,
-                'updated_at' => null,
-            ]);
+            $this->createMultigunaDetails($trxNo, $data, $debiturList, $nowJakarta, $currentYear);
 
             return $trxNo;
         }, 3);
+    }
+
+    private function createMultigunaDetails(
+        string $trxNo,
+        BulkStgMultigunaModel $data,
+        array $debiturList,
+        Carbon $nowJakarta,
+        string $currentYear,
+    ): void {
+        $multiguna = MultigunaTransaction::create([
+            'trx_no' => $trxNo,
+            'jenis_product_description' => 'Multiguna',
+            'pks_number' => $data->nomor_pks,
+            'fee_base_number' => $data->fee_base,
+            'fee_base_percentage' => $data->fee_base,
+            'bank_name' => $data->bank_cabang,
+            'bank_code' => $data->bank,
+            'text_certified' => $data->teks_penjaminan,
+            'created_at' => $nowJakarta,
+        ]);
+
+        $multigunaId = $multiguna->getKey();
+        $mitraId = strtoupper($this->mitraId);
+        $prefix = $mitraId.$currentYear;
+        $lastLoan = MultigunaDebitur::lockForUpdate()
+            ->where('loan_number', 'like', $prefix.'%')
+            ->orderBy('loan_number', 'desc')
+            ->value('loan_number');
+        $startSeq = $lastLoan ? ((int) substr($lastLoan, -4)) + 1 : 1;
+
+        $institutionMap = [];
+        $key = base64_decode((string) config('services.secure.key'));
+        $hashKey = (string) config('services.secure.hash_key');
+        $enc = fn (mixed $value): ?string => $this->encryptValue($value, $key);
+
+        $rowsInstitutions = collect($debiturList)
+            ->filter(fn (mixed $debitur): bool => is_array($debitur))
+            ->map(function (array $debitur) use ($nowJakarta, &$institutionMap, $enc, $hashKey): array {
+                $nikRaw = $this->nikValue($debitur);
+                $instId = (string) Str::uuid();
+
+                if ($nikRaw !== null) {
+                    $institutionMap[$nikRaw] = $instId;
+                }
+
+                return [
+                    'category' => 'P',
+                    'mitra_id' => strtoupper($this->mitraId),
+                    'tenant_id' => $this->tenantId,
+                    'id_issued_location' => '-',
+                    'id_add_issued_location' => '-',
+                    'id_add_type' => '-',
+                    'created_by' => $this->userId,
+                    'full_name' => $debitur['namaMakfulAnhu'] ?? $debitur['full_name'] ?? null,
+                    'home_province' => $debitur['provinsiMakfulAnhu'] ?? null,
+                    'home_city' => $debitur['kotaKabupatenMakfulAnhu'] ?? 0,
+                    'home_district' => $debitur['kecamatanMakfulAnhu'] ?? null,
+                    'home_sub_district' => $debitur['kelurahanMakfulAnhu'] ?? null,
+                    'home_zipcode' => $debitur['kodePosMakfulAnhu'] ?? null,
+                    'birth_place' => $debitur['tempatLahir'] ?? null,
+                    'birth_date' => $enc($debitur['tanggalLahir'] ?? null),
+                    'gender' => $debitur['jenisKelamin'] ?? null,
+                    'id_type' => $debitur['jenisIdentitas'] ?? null,
+                    'id_number' => $enc($nikRaw),
+                    'id_number_hash' => $nikRaw !== null ? hash_hmac('sha256', $nikRaw, $hashKey) : null,
+                    'job_id' => $debitur['kategoriPekerjaan'] ?? null,
+                    'job_level' => $debitur['jabatan'] ?? null,
+                    'job_employer_name' => $debitur['namaPemberiKerja'] ?? null,
+                    'job_start_date' => $this->dateValue($debitur['tanggalMulaiBekerja'] ?? null),
+                    'job_industry_type' => $debitur['kodeIndustriInternalPemberiKerja'] ?? null,
+                    'current_salary_amount' => $enc($debitur['current_salary_amount'] ?? null),
+                    'phone_1' => $enc($debitur['nomorTelepon'] ?? $debitur['phone_1'] ?? null),
+                    'email_1' => $enc($debitur['email'] ?? $debitur['email_1'] ?? null),
+                    'tax_id' => $enc($debitur['npwpGiro'] ?? $debitur['npwp'] ?? null),
+                    'current_salary_currency' => $debitur['kodeValutaIdrUsd'] ?? $debitur['current_salary_currency'] ?? null,
+                    'tax_type' => 'npwp',
+                    'institution_id' => $instId,
+                    'created_at' => $nowJakarta,
+                ];
+            })
+            ->values()
+            ->all();
+
+        $this->insertInChunks(Institution::class, $rowsInstitutions);
+
+        $countDebitur = count($debiturList);
+        $debiturs = collect($debiturList)
+            ->filter(fn (mixed $debitur): bool => is_array($debitur))
+            ->map(function (array $debitur, int $idx) use ($nowJakarta, $multigunaId, $prefix, $startSeq, $institutionMap, $enc, $data, $countDebitur): array {
+                $spSequence = $idx + 1;
+                $baseSp = $data->nomor_surat_permohonan;
+                $seq = $startSeq + $idx;
+                $loanNumber = $prefix.str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
+                $nik = $this->nikValue($debitur);
+
+                return [
+                    'multiguna_trx_id' => $multigunaId,
+                    'debitur_name' => $debitur['namaMakfulAnhu'] ?? null,
+                    'debitur_address' => $this->debiturAddress($debitur),
+                    'no_sp_detail' => $countDebitur > 1 ? $baseSp.'-'.$spSequence : null,
+                    'penggunaan_pembiayaan' => $debitur['penggunaanPembiayaan'] ?? 0,
+                    'status_debitur' => $debitur['status_debitur'] ?? 'Approved',
+                    'ijk' => $this->decimalValue($debitur['ijk'] ?? null, null),
+                    'nik' => $enc($nik),
+                    'jenis_agunan' => $debitur['jenisAgunan'] ?? $this->decimalValue($debitur['nilaiKafalah'] ?? null, null),
+                    'nilai_agunan' => $this->decimalValue($debitur['nilaiAgunan'] ?? null, null),
+                    'nilai_kafalah' => $this->decimalValue($debitur['nilaiKafalah'] ?? null, null),
+                    'plafond_pembiayaan' => $this->decimalValue($debitur['plafondPembiayaan'] ?? null, null),
+                    'tanggal_realisasi' => $this->dateValue($debitur['tanggalRealisasi'] ?? null),
+                    'tanggal_jatuh_tempo' => $this->dateValue($debitur['tanggalJatuhTempo'] ?? null),
+                    'jenis_penjaminan' => $debitur['jenisPenjaminan'] ?? null,
+                    'jenis_makful_anhu' => $debitur['jenisMakfulAnhu'] ?? null,
+                    'jw_bulan' => (int) ($debitur['jwBulan'] ?? 0),
+                    'loan_number' => $loanNumber,
+                    'margin' => $this->decimalValue($debitur['marginBagiHasilUjrahThn'] ?? null, 0),
+                    'tenaga_kerja' => $debitur['jenisMakfulAnhu'] ?? null,
+                    'institution_id' => $nik !== null ? ($institutionMap[$nik] ?? null) : null,
+                    'created_at' => $nowJakarta,
+                    'plafond_max_debitur' => $this->decimalValue($debitur['MaksimalNilaiPlafond'] ?? null, 0),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $this->insertInChunks(MultigunaDebitur::class, $debiturs);
+
+        PenjaminanFlow::create([
+            'trx_no' => $trxNo,
+            'trx_status' => 'NA',
+            'created_at' => $nowJakarta,
+            'created_by_id' => $this->userId,
+            'created_by_name' => $this->userName,
+            'updated_at' => null,
+        ]);
     }
 
     private function decodeDebiturList(mixed $debitur): array
