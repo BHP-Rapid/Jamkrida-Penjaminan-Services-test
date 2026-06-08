@@ -118,17 +118,27 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
                 ->where('mitra_id', $this->mitraId)
                 ->where('product', 'mlt')
                 ->where('no_surat_permohonan', $data->nomor_surat_permohonan)
-                ->select('trx_no')
+                ->select('trx_no', 'status_sync_creatio')
                 ->lockForUpdate()
                 ->first();
 
             if ($existing) {
+                $hasMultigunaDetail = MultigunaTransaction::query()
+                    ->where('trx_no', $existing->trx_no)
+                    ->exists();
+
                 Log::warning('Bulk penjaminan multiguna record skipped because transaction already exists.', [
                     'bulk_no' => $this->bulkNo,
                     'trx_no' => $existing->trx_no,
                     'nomor_surat_permohonan' => $data->nomor_surat_permohonan,
                     'mitra_id' => $this->mitraId,
+                    'has_multiguna_detail' => $hasMultigunaDetail,
+                    'status_sync_creatio' => $existing->status_sync_creatio,
                 ]);
+
+                if (! $hasMultigunaDetail || (int) ($existing->status_sync_creatio ?? 0) === 1) {
+                    return null;
+                }
 
                 return $existing->trx_no;
             }
