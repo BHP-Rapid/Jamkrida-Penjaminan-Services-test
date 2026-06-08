@@ -480,7 +480,7 @@ class PenjaminanService
                                 "Nik" => $d['nik'] ?? '1231231231231231',
                                 "NamaMakhfulAnhu" => $d['jenis_penjamin'] ?? $d['jenis_makful_anhu'] ?? 'Testing',
                                 "TanggalLahir" => $d['birth_date'] ?? '1995-08-29',
-                                "NilaiKafalah" => (int)  ($d['nilai_plafon_pembiayaan'] ?? $d['nilai_kafalah'] ?? 70000000),
+                                "NilaiKafalah" => (int)  ($d['nilai_plafond_pembiayaan'] ?? $d['nilai_plafon_pembiayaan'] ?? $d['nilai_kafalah'] ?? 70000000),
                                 "TanggalRealisasi" => $d['tanggal_realisasi'] ?? '2028-08-29',
                                 "NilaiAgunan" => (int) $d['nilai_agunan'] ?? 10000000,
                                 "JenisAgunan" => $d['jenis_agunan'] ?? 'IJK',

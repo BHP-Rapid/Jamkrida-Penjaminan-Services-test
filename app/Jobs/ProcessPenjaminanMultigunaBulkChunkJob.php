@@ -267,7 +267,7 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
                 $nik = $this->nikValue($debitur);
 
                 $jenisPenjamin = $this->jenisPenjaminValue($debitur);
-                $nilaiPlafonPembiayaan = $this->nilaiPlafonPembiayaanValue($debitur);
+                $nilaiPlafondPembiayaan = $this->nilaiPlafondPembiayaanValue($debitur);
 
                 return [
                     'multiguna_trx_id' => $multigunaId,
@@ -278,9 +278,9 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
                     'status_debitur' => $debitur['status_debitur'] ?? 'Approved',
                     'ijk' => $this->decimalValue($debitur['ijk'] ?? null, null),
                     'nik' => $enc($nik),
-                    'jenis_agunan' => $debitur['jenisAgunan'] ?? $nilaiPlafonPembiayaan,
+                    'jenis_agunan' => $debitur['jenisAgunan'] ?? $nilaiPlafondPembiayaan,
                     'nilai_agunan' => $this->decimalValue($debitur['nilaiAgunan'] ?? null, null),
-                    'nilai_plafon_pembiayaan' => $nilaiPlafonPembiayaan,
+                    'nilai_plafond_pembiayaan' => $nilaiPlafondPembiayaan,
                     'plafond_pembiayaan' => $this->decimalValue($debitur['plafondPembiayaan'] ?? null, null),
                     'tanggal_realisasi' => $this->dateValue($debitur['tanggalRealisasi'] ?? null),
                     'tanggal_jatuh_tempo' => $this->dateValue($debitur['tanggalJatuhTempo'] ?? null),
@@ -411,9 +411,9 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
         return null;
     }
 
-    private function nilaiPlafonPembiayaanValue(array $debitur): float|int|null
+    private function nilaiPlafondPembiayaanValue(array $debitur): float|int|null
     {
-        foreach (['nilaiPlafonPembiayaan', 'nilai_plafon_pembiayaan', 'nilaiKafalah', 'nilai_kafalah'] as $key) {
+        foreach (['nilaiPlafondPembiayaan', 'nilai_plafond_pembiayaan', 'nilaiPlafonPembiayaan', 'nilai_plafon_pembiayaan', 'nilaiKafalah', 'nilai_kafalah'] as $key) {
             if (! array_key_exists($key, $debitur)) {
                 continue;
             }
