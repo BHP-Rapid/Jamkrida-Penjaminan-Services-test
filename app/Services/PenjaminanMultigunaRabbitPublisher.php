@@ -19,8 +19,7 @@ class PenjaminanMultigunaRabbitPublisher
 
     public function __construct(
         private AuthInternalClient $authInternalClient,
-    ) {
-    }
+    ) {}
 
     public function dispatchRegistration(string $trxNo, string $bulkNo, string $userToken, string $authMitraId = ''): void
     {
@@ -133,17 +132,18 @@ class PenjaminanMultigunaRabbitPublisher
                     'ListDebitur' => $debiturs
                         ->map(function (MultigunaDebitur $debitur) use ($institutionsById, $nowJakarta): array {
                             $institution = $institutionsById->get($debitur->institution_id);
+                            $jenisPenjamin = $debitur->jenis_penjamin ?? $debitur->jenis_makful_anhu;
 
                             return [
                                 'Name' => $debitur->debitur_name,
                                 'Nik' => $debitur->nik,
-                                'NamaMakhfulAnhu' => $debitur->jenis_makful_anhu,
+                                'NamaMakhfulAnhu' => $jenisPenjamin,
                                 'TanggalLahir' => $this->dateString($institution?->birth_date),
                                 'NilaiKafalah' => $this->numericValue($debitur->nilai_kafalah),
                                 'TanggalRealisasi' => $this->dateString($debitur->tanggal_realisasi),
                                 'NilaiAgunan' => $this->numericValue($debitur->nilai_agunan),
                                 'JenisAgunan' => $debitur->jenis_agunan,
-                                'JenisMakhfulAnhu' => $debitur->jenis_makful_anhu,
+                                'JenisMakhfulAnhu' => $jenisPenjamin,
                                 'InstansiPekerjaanTerjamin' => $institution?->job_employer_name,
                                 'JwBulan' => (int) ($debitur->jw_bulan ?? 0),
                                 'JenisKelamin' => $this->genderLabel($institution?->gender),

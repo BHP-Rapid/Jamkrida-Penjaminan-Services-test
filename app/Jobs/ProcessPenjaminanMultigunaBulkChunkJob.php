@@ -142,29 +142,6 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
                     'has_multiguna_detail' => $multigunaDetail !== null,
                     'status_sync_creatio' => $existing->status_sync_creatio,
                 ]);
-
-                if ($multigunaDetail !== null) {
-                    return (int) ($existing->status_sync_creatio ?? 0) === 1 ? null : $existing->trx_no;
-                }
-
-                Log::warning('Recovering bulk penjaminan multiguna orphan header by creating missing detail rows.', [
-                    'bulk_no' => $this->bulkNo,
-                    'trx_no' => $existing->trx_no,
-                    'nomor_surat_permohonan' => $data->nomor_surat_permohonan,
-                    'mitra_id' => $this->mitraId,
-                    'debitur_count' => count($debiturList),
-                ]);
-
-                PenjaminanTransaction::query()
-                    ->where('trx_no', $existing->trx_no)
-                    ->update([
-                        'status_sync_creatio' => 0,
-                        'updated_at' => $nowJakarta,
-                    ]);
-
-                $this->createMultigunaDetails($existing->trx_no, $data, $debiturList, $nowJakarta, $currentYear);
-
-                return $existing->trx_no;
             }
 
             $lastTrx = PenjaminanTransaction::lockForUpdate()
@@ -289,6 +266,8 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
                 $loanNumber = $prefix.str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
                 $nik = $this->nikValue($debitur);
 
+                $jenisPenjamin = $this->jenisPenjaminValue($debitur);
+
                 return [
                     'multiguna_trx_id' => $multigunaId,
                     'debitur_name' => $debitur['namaMakfulAnhu'] ?? null,
@@ -305,11 +284,11 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
                     'tanggal_realisasi' => $this->dateValue($debitur['tanggalRealisasi'] ?? null),
                     'tanggal_jatuh_tempo' => $this->dateValue($debitur['tanggalJatuhTempo'] ?? null),
                     'jenis_penjaminan' => $debitur['jenisPenjaminan'] ?? null,
-                    'jenis_makful_anhu' => $debitur['jenisMakfulAnhu'] ?? null,
+                    'jenis_penjamin' => $jenisPenjamin,
                     'jw_bulan' => (int) ($debitur['jwBulan'] ?? 0),
                     'loan_number' => $loanNumber,
                     'margin' => $this->decimalValue($debitur['marginBagiHasilUjrahThn'] ?? null, 0),
-                    'tenaga_kerja' => $debitur['jenisMakfulAnhu'] ?? null,
+                    'tenaga_kerja' => $jenisPenjamin,
                     'institution_id' => $nik !== null ? ($institutionMap[$nik] ?? null) : null,
                     'created_at' => $nowJakarta,
                     'plafond_max_debitur' => $this->decimalValue($debitur['MaksimalNilaiPlafond'] ?? null, 0),
@@ -416,6 +395,19 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
         ], fn (mixed $value): bool => trim((string) $value) !== '');
 
         return $parts !== [] ? implode(', ', $parts) : null;
+    }
+
+    private function jenisPenjaminValue(array $debitur): ?string
+    {
+        foreach (['jenisPenjamin', 'jenis_penjamin', 'jenisMakfulAnhu', 'jenis_makful_anhu'] as $key) {
+            $value = trim((string) ($debitur[$key] ?? ''));
+
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     private function decimalValue(mixed $value, float|int|null $default = 0): float|int|null
