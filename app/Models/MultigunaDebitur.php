@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Model;
 class MultigunaDebitur extends Model
 {
     use HasFactory;
+
     protected $table = 'multiguna_debitur';
+
     protected $primaryKey = 'id_trx_debitur';
 
     protected $fillable = [
@@ -22,6 +24,7 @@ class MultigunaDebitur extends Model
         'debitur_address',
         'tgl_lahir',
         'jenis_agunan',
+        'jenis_penjamin',
         'jenis_makful_anhu',
         'jw_bulan',
         'marginbagi_hasilujrah_thn',
@@ -37,14 +40,13 @@ class MultigunaDebitur extends Model
         'tenaga_kerja',
         'penggunaan_pembiayaan',
         'jenis_penjaminan',
-        'status_debitur'
+        'status_debitur',
     ];
 
     public function multigunaTransaction()
     {
         return $this->belongsTo(MultigunaTransaction::class, 'multiguna_trx_id', 'id_multiguna');
     }
-
 
     public function paymentDebitur()
     {
@@ -66,8 +68,8 @@ class MultigunaDebitur extends Model
         $key = base64_decode(config('services.secure.key'));
 
         return Attribute::make(
-            get: fn($value) => $value ? HelperAesHelper::decrypt($value, $key) : null,
-            set: fn($value) => $value ? HelperAesHelper::encrypt($value, $key) : null,
+            get: fn ($value) => $value ? HelperAesHelper::decrypt($value, $key) : null,
+            set: fn ($value) => $value ? HelperAesHelper::encrypt($value, $key) : null,
         );
     }
 
@@ -76,8 +78,16 @@ class MultigunaDebitur extends Model
         $key = base64_decode(config('services.secure.key'));
 
         return Attribute::make(
-            get: fn($value) => $value ? HelperAesHelper::decrypt($value, $key) : null,
-            set: fn($value) => $value ? HelperAesHelper::encrypt($value, $key) : null,
+            get: fn ($value) => $value ? HelperAesHelper::decrypt($value, $key) : null,
+            set: fn ($value) => $value ? HelperAesHelper::encrypt($value, $key) : null,
+        );
+    }
+
+    protected function jenisMakfulAnhu(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value, array $attributes) => $attributes['jenis_penjamin'] ?? $value,
+            set: fn ($value) => ['jenis_penjamin' => $value],
         );
     }
 }

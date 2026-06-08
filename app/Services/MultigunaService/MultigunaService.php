@@ -306,7 +306,7 @@ class MultigunaService
                         'plafond_max_debitur' => $d['plafond_max_pembiayaan'] ?? 0,
                         'tanggal_realisasi' => $d['tanggal_realisasi'] ?? null,
                         'tanggal_jatuh_tempo' => $d['tanggal_jatuh_tempo'] ?? null,
-                        'jenis_makful_anhu' => $d['jenis_makful_anhu'] ?? null,
+                        'jenis_penjamin' => $d['jenis_penjamin'] ?? $d['jenis_makful_anhu'] ?? null,
                         'jw_bulan' => $d['jw_bulan'] ?? null,
                         'loan_number' => $loanNumber,
                         'margin' => $d['marginbagi_hasilujrah_thn'] ?? 0,
