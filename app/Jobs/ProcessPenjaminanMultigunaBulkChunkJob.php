@@ -152,6 +152,7 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
                     'trx_no' => $existing->trx_no,
                     'nomor_surat_permohonan' => $data->nomor_surat_permohonan,
                     'mitra_id' => $this->mitraId,
+                    'debitur_count' => count($debiturList),
                 ]);
 
                 PenjaminanTransaction::query()
