@@ -32,6 +32,7 @@ class MultigunaDebitur extends Model
         'is_active',
         'nik',
         'nilai_agunan',
+        'nilai_plafon_pembiayaan',
         'nilai_kafalah',
         'plafond_pembiayaan',
         'plafond_max_debitur',
@@ -88,6 +89,21 @@ class MultigunaDebitur extends Model
         return Attribute::make(
             get: fn ($value, array $attributes) => $attributes['jenis_penjamin'] ?? $value,
             set: fn ($value) => ['jenis_penjamin' => $value],
+        );
+    }
+
+    protected function nilaiKafalah(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value, array $attributes) => $attributes['nilai_plafon_pembiayaan'] ?? $value,
+            set: fn ($value) => ['nilai_plafon_pembiayaan' => $value],
+        );
+    }
+
+    protected function nilaiPlafonPembiayaan(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value, array $attributes) => $value ?? $attributes['nilai_kafalah'] ?? null,
         );
     }
 }

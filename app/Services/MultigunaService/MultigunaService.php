@@ -301,7 +301,7 @@ class MultigunaService
                         'nik' => $enc($d['nik'] ?? null),
                         'jenis_agunan' => $d['jenis_agunan'] ?? null,
                         'nilai_agunan' => $d['nilai_agunan'] ?? null,
-                        'nilai_kafalah' => $d['nilai_kafalah'] ?? null,
+                        'nilai_plafon_pembiayaan' => $d['nilai_plafon_pembiayaan'] ?? $d['nilai_kafalah'] ?? null,
                         'plafond_pembiayaan' => $d['plafond_pembiayaan_rp'] ?? 0,
                         'plafond_max_debitur' => $d['plafond_max_pembiayaan'] ?? 0,
                         'tanggal_realisasi' => $d['tanggal_realisasi'] ?? null,
