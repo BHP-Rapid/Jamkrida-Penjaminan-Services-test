@@ -267,6 +267,7 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
                 $nik = $this->nikValue($debitur);
 
                 $jenisPenjamin = $this->jenisPenjaminValue($debitur);
+                $nilaiPlafonPembiayaan = $this->nilaiPlafonPembiayaanValue($debitur);
 
                 return [
                     'multiguna_trx_id' => $multigunaId,
@@ -277,9 +278,9 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
                     'status_debitur' => $debitur['status_debitur'] ?? 'Approved',
                     'ijk' => $this->decimalValue($debitur['ijk'] ?? null, null),
                     'nik' => $enc($nik),
-                    'jenis_agunan' => $debitur['jenisAgunan'] ?? $this->decimalValue($debitur['nilaiKafalah'] ?? null, null),
+                    'jenis_agunan' => $debitur['jenisAgunan'] ?? $nilaiPlafonPembiayaan,
                     'nilai_agunan' => $this->decimalValue($debitur['nilaiAgunan'] ?? null, null),
-                    'nilai_kafalah' => $this->decimalValue($debitur['nilaiKafalah'] ?? null, null),
+                    'nilai_plafon_pembiayaan' => $nilaiPlafonPembiayaan,
                     'plafond_pembiayaan' => $this->decimalValue($debitur['plafondPembiayaan'] ?? null, null),
                     'tanggal_realisasi' => $this->dateValue($debitur['tanggalRealisasi'] ?? null),
                     'tanggal_jatuh_tempo' => $this->dateValue($debitur['tanggalJatuhTempo'] ?? null),
@@ -404,6 +405,23 @@ class ProcessPenjaminanMultigunaBulkChunkJob implements ShouldQueue
 
             if ($value !== '') {
                 return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function nilaiPlafonPembiayaanValue(array $debitur): float|int|null
+    {
+        foreach (['nilaiPlafonPembiayaan', 'nilai_plafon_pembiayaan', 'nilaiKafalah', 'nilai_kafalah'] as $key) {
+            if (! array_key_exists($key, $debitur)) {
+                continue;
+            }
+
+            $value = trim((string) $debitur[$key]);
+
+            if ($value !== '') {
+                return $this->decimalValue($debitur[$key], null);
             }
         }
 
