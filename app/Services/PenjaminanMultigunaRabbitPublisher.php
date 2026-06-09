@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class PenjaminanMultigunaRabbitPublisher
 {
@@ -184,11 +185,33 @@ class PenjaminanMultigunaRabbitPublisher
 
     private function dateString(mixed $value): ?string
     {
-        if ($value === null || trim((string) $value) === '') {
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value)->format('Y-m-d');
+        }
+
+        $value = trim((string) $value);
+
+        if ($value === '') {
             return null;
         }
 
-        return Carbon::parse($value)->format('Y-m-d');
+        foreach (['Y-m-d', 'd/m/Y', 'd-m-Y', 'Y/m/d', 'm/d/Y', 'Y-m-d H:i:s', 'd/m/Y H:i:s'] as $format) {
+            try {
+                return Carbon::createFromFormat($format, $value, 'Asia/Jakarta')->format('Y-m-d');
+            } catch (Throwable) {
+                //
+            }
+        }
+
+        try {
+            return Carbon::parse($value, 'Asia/Jakarta')->format('Y-m-d');
+        } catch (Throwable) {
+            Log::warning('Skipping invalid date value for penjaminan multiguna RabbitMQ payload.', [
+                'value' => $value,
+            ]);
+
+            return null;
+        }
     }
 
     private function genderLabel(mixed $gender): ?string
