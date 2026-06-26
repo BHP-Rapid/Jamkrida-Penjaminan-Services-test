@@ -16,13 +16,11 @@ services:
     environment:
       QUEUE_CONNECTION: redis
       REDIS_CLIENT: phpredis
-      REDIS_HOST: redis
+      REDIS_HOST: redis-container
       REDIS_PORT: 6379
       REDIS_QUEUE: default
       HORIZON_BULK_MULTIGUNA_WORKERS: 2
       HORIZON_RABBITMQ_EVENT_WORKERS: 1
-    depends_on:
-      - redis
     networks:
       - laravel
 
@@ -41,24 +39,13 @@ services:
     environment:
       QUEUE_CONNECTION: redis
       REDIS_CLIENT: phpredis
-      REDIS_HOST: redis
+      REDIS_HOST: redis-container
       REDIS_PORT: 6379
       REDIS_QUEUE: default
       HORIZON_BULK_MULTIGUNA_WORKERS: 2
       HORIZON_RABBITMQ_EVENT_WORKERS: 1
     depends_on:
       - app
-      - redis
-    networks:
-      - laravel
-
-  redis:
-    image: redis:7-alpine
-    container_name: jjkt-penjaminan-redis-test
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis-data:/data
     networks:
       - laravel
 
@@ -68,4 +55,3 @@ networks:
 
 volumes:
   app-storage:
-  redis-data:
