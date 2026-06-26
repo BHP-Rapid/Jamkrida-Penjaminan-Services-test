@@ -45,7 +45,6 @@ return [
         'timeout' => env('AUTH_SERVICE_TIMEOUT', 10),
     ],
 
-
     'mailgun' => [
         'domain' => env('MAILGUN_DOMAIN'),
         'secret' => env('MAILGUN_SECRET'),
@@ -70,6 +69,15 @@ return [
         'exchange' => env('RABBITMQ_EXCHANGE', 'integration.exchange'),
         'queue' => env('RABBITMQ_QUEUE', 'integration.in'),
         'routing_key' => env('RABBITMQ_ROUTING_KEY', 'in'),
+        'consumer_queue' => env('RABBITMQ_CONSUMER_QUEUE', 'integration.out'),
+        'consumer_exchange' => env('RABBITMQ_CONSUMER_EXCHANGE', env('RABBITMQ_EXCHANGE', 'integration.exchange')),
+        'consumer_routing_key' => env('RABBITMQ_CONSUMER_ROUTING_KEY', 'out'),
+        'consumer_prefetch_count' => env('RABBITMQ_CONSUMER_PREFETCH_COUNT', 1),
+        'consumer_requeue_on_error' => env('RABBITMQ_CONSUMER_REQUEUE_ON_ERROR', false),
+        'consumer_job_queue' => env('RABBITMQ_CONSUMER_JOB_QUEUE', 'rabbitmq-events'),
+        'connection_timeout' => env('RABBITMQ_CONNECTION_TIMEOUT', 3),
+        'read_write_timeout' => env('RABBITMQ_READ_WRITE_TIMEOUT', 130),
+        'heartbeat' => env('RABBITMQ_HEARTBEAT', 60),
         'persistent' => env('RABBITMQ_PERSISTENT', true),
         'throw_on_error' => env('RABBITMQ_THROW_ON_ERROR', false),
     ],
