@@ -224,6 +224,20 @@ return [
             'timeout' => 300,
             'nice' => 0,
         ],
+        'supervisor-rabbitmq-events' => [
+            'connection' => 'redis',
+            'queue' => ['rabbitmq-events'],
+            'balance' => 'simple',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => (int) env('HORIZON_RABBITMQ_EVENT_WORKERS', 1),
+            'minProcesses' => (int) env('HORIZON_RABBITMQ_EVENT_WORKERS', 1),
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 3,
+            'timeout' => 300,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -234,12 +248,22 @@ return [
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
+            'supervisor-rabbitmq-events' => [
+                'maxProcesses' => (int) env('HORIZON_RABBITMQ_EVENT_WORKERS', 1),
+                'minProcesses' => (int) env('HORIZON_RABBITMQ_EVENT_WORKERS', 1),
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 3,
+            ],
         ],
 
         'local' => [
             'supervisor-bulk-multiguna' => [
                 'maxProcesses' => (int) env('HORIZON_BULK_MULTIGUNA_WORKERS', 2),
                 'minProcesses' => (int) env('HORIZON_BULK_MULTIGUNA_WORKERS', 2),
+            ],
+            'supervisor-rabbitmq-events' => [
+                'maxProcesses' => (int) env('HORIZON_RABBITMQ_EVENT_WORKERS', 1),
+                'minProcesses' => (int) env('HORIZON_RABBITMQ_EVENT_WORKERS', 1),
             ],
         ],
     ],
@@ -282,3 +306,4 @@ return [
         'password' => env('HORIZON_AUTH_PASSWORD'),
     ],
 ];
+

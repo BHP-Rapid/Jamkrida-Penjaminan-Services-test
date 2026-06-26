@@ -20,6 +20,7 @@ services:
       REDIS_PORT: 6379
       REDIS_QUEUE: default
       HORIZON_BULK_MULTIGUNA_WORKERS: 2
+      HORIZON_RABBITMQ_EVENT_WORKERS: 1
     depends_on:
       - redis
     networks:
@@ -44,6 +45,7 @@ services:
       REDIS_PORT: 6379
       REDIS_QUEUE: default
       HORIZON_BULK_MULTIGUNA_WORKERS: 2
+      HORIZON_RABBITMQ_EVENT_WORKERS: 1
     depends_on:
       - app
       - redis
