@@ -174,6 +174,8 @@ class ConsumeRabbitMqCommand extends Command
         }
 
         try {
+            $this->logIncomingPayloadForTesting($payload, $metadata);
+
             if ((bool) $this->option('dump')) {
                 $this->dumpMessage($payload, $metadata);
             }
@@ -225,6 +227,60 @@ class ConsumeRabbitMqCommand extends Command
         }
     }
 
+    private function logIncomingPayloadForTesting(array $payload, array $metadata): void
+    {
+        Log::info('TEMP TEST RabbitMQ incoming payload.', [
+            'queue' => $metadata['queue'] ?? null,
+            'message_id' => $metadata['message_id'] ?? null,
+            'correlation_id' => $metadata['correlation_id'] ?? null,
+            'metadata' => $metadata,
+            'payload' => $payload,
+        ]);
+
+        foreach ($this->groupedDataItems($payload) as $item) {
+            Log::info('TEMP TEST RabbitMQ incoming data item.', [
+                'queue' => $metadata['queue'] ?? null,
+                'message_id' => $metadata['message_id'] ?? null,
+                'correlation_id' => $metadata['correlation_id'] ?? null,
+                'group_index' => $item['group_index'],
+                'item_index' => $item['item_index'],
+                'produk' => $item['produk'],
+                'cara_bayar' => $item['cara_bayar'],
+                'data' => $item['data'],
+            ]);
+        }
+    }
+
+    /**
+     * @return array<int, array{group_index: int|string, item_index: int|string, produk: mixed, cara_bayar: mixed, data: mixed}>
+     */
+    private function groupedDataItems(array $payload): array
+    {
+        $groups = $payload['payload'] ?? $payload['Data'] ?? null;
+
+        if (! is_array($groups)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($groups as $groupIndex => $group) {
+            if (! is_array($group) || ! is_array($group['Data'] ?? null)) {
+                continue;
+            }
+
+            foreach ($group['Data'] as $itemIndex => $data) {
+                $items[] = [
+                    'group_index' => $groupIndex,
+                    'item_index' => $itemIndex,
+                    'produk' => $group['Produk'] ?? null,
+                    'cara_bayar' => $group['CaraBayar'] ?? null,
+                    'data' => $data,
+                ];
+            }
+        }
+
+        return $items;
+    }
     private function dumpMessage(mixed $payload, array $metadata): void
     {
         $this->line(json_encode([
