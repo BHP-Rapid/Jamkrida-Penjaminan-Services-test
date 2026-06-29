@@ -223,6 +223,32 @@ class ProcessInvoiceRabbitMqMessageTest extends TestCase
         ]);
     }
 
+    public function test_it_processes_installment_grouped_payload_with_tenor_sequence(): void
+    {
+        app(ProcessInvoiceRabbitMqMessage::class)->handle(
+            new RabbitMqMessageReceived($this->installmentPayload())
+        );
+
+        $this->assertDatabaseCount('custombond_tenor_schedule', 1);
+        $this->assertDatabaseHas('custombond_tenor_schedule', [
+            'external_invoice_id' => '9714c7f1-f80a-4f66-bcbf-bbb02f6d30df',
+            'id_bond' => 10,
+            'tenor_sequence' => 2,
+            'invoice_number' => 'INV-00003',
+            'amount' => 15000000,
+            'status' => 'Pending',
+        ]);
+
+        $this->assertDatabaseCount('multiguna_tenor_schedule', 1);
+        $this->assertDatabaseHas('multiguna_tenor_schedule', [
+            'id_trx_debitur' => 40,
+            'invoice_number' => 'INV-MLT2',
+            'tenor_sequence' => 3,
+            'amount' => 250000,
+            'status' => 'Pending',
+        ]);
+    }
+
     public function test_job_processes_payload_without_inbox_table(): void
     {
         (new HandleRabbitMqMessageJob($this->customBondPayload(), [
@@ -236,6 +262,54 @@ class ProcessInvoiceRabbitMqMessageTest extends TestCase
             'invoice_number' => 'INV-00001',
             'status' => 'Pending',
         ]);
+    }
+
+    private function installmentPayload(): array
+    {
+        return [
+            'Data' => [
+                [
+                    'Produk' => 'Custom Bond',
+                    'CaraBayar' => 'Installment',
+                    'Count' => 1,
+                    'Data' => [
+                        [
+                            'Id' => '9714c7f1-f80a-4f66-bcbf-bbb02f6d30df',
+                            'Name' => 'INV-00003',
+                            'NomorPermohonan' => '213',
+                            'TenorSequence' => 2,
+                            'TotalTagihan' => 15000000.00,
+                            'Tagihan' => 0.00,
+                            'TanggalJatuhTempo' => '2026-08-15T00:00:00',
+                            'TanggalPembayaran' => null,
+                            'Status' => ['Name' => 'Belum Lunas'],
+                        ],
+                    ],
+                ],
+                [
+                    'Produk' => 'Multiguna',
+                    'CaraBayar' => 'Installment',
+                    'Count' => 1,
+                    'Data' => [
+                        [
+                            'Id' => 'd5cd2dfb-ae6a-4ddb-8a5f-a91150d6d6ad',
+                            'Name' => 'INV-MLT2',
+                            'NomorPermohonan' => 'MDWR',
+                            'TotalTagihan' => 250000.00,
+                            'Tagihan' => 0.00,
+                            'TanggalJatuhTempo' => '2026-08-20T00:00:00',
+                            'TanggalPembayaran' => null,
+                            'Nasabah' => [
+                                'Nik' => '01014945',
+                                'Name' => 'Jamaludin',
+                                'tenor_sequence' => 3,
+                            ],
+                            'Status' => ['Name' => 'Belum Lunas'],
+                        ],
+                    ],
+                ],
+            ],
+        ];
     }
 
     private function customBondPayload(): array
@@ -350,4 +424,3 @@ class ProcessInvoiceRabbitMqMessageTest extends TestCase
         ];
     }
 }
-

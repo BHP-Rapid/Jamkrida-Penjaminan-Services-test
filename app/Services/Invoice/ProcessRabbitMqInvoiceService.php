@@ -69,7 +69,7 @@ class ProcessRabbitMqInvoiceService
             throw new InvalidArgumentException('Invoice group Count does not match the Data item count.');
         }
 
-        if ($payment !== 'full') {
+        if (! in_array($payment, ['full', 'installment'], true)) {
             throw new InvalidArgumentException("Unsupported payment method [{$group['CaraBayar']}].");
         }
 
@@ -79,9 +79,9 @@ class ProcessRabbitMqInvoiceService
             }
 
             match ($product) {
-                'srtb' => $this->processSuretyBond($invoice, $result),
-                'cstb' => $this->processCustomBond($invoice, $result),
-                'mlt' => $this->processMultiguna($invoice, $result),
+                'srtb' => $this->processSuretyBond($invoice, $result, $payment, $group),
+                'cstb' => $this->processCustomBond($invoice, $result, $payment, $group),
+                'mlt' => $this->processMultiguna($invoice, $result, $payment, $group),
                 default => throw new InvalidArgumentException("Unsupported invoice product [{$group['Produk']}]."),
             };
         }
@@ -90,13 +90,14 @@ class ProcessRabbitMqInvoiceService
     /**
      * @param array{inserted: int, updated: int, duplicates: int, unmatched: int, skipped: int, activated: int} $result
      */
-    private function processSuretyBond(array $invoice, array &$result): void
+    private function processSuretyBond(array $invoice, array &$result, string $payment, array $group): void
     {
         $externalInvoiceId = $this->text($invoice, ['Id', 'id']);
         $invoiceNumber = $this->requiredText($invoice, 'Name', 'Invoice Name');
         $noPermohonan = $this->requiredText($invoice, 'NomorPermohonan', 'Invoice NomorPermohonan');
         $amount = $this->amount($invoice, 'TotalTagihan', $invoiceNumber);
         $isCollateral = $this->isCollateralInvoice($invoice);
+        $tenorSequence = $this->tenorSequence($invoice, $payment, $invoiceNumber, $group);
 
         if ($externalInvoiceId !== null && ! Str::isUuid($externalInvoiceId)) {
             throw new InvalidArgumentException("Invoice [{$invoiceNumber}] Id must be a valid UUID.");
@@ -121,12 +122,19 @@ class ProcessRabbitMqInvoiceService
         $now = Carbon::now('Asia/Jakarta');
         $tenor = DB::table('suretybond_tenor_schedule')
             ->where('id_trx_product', $transaction->id_trx_product)
+            ->where(function ($query) use ($tenorSequence): void {
+                $query->where('tenor_sequence', $tenorSequence);
+
+                if ($tenorSequence === 0) {
+                    $query->orWhereNull('tenor_sequence');
+                }
+            })
             ->first();
 
         if (! $tenor) {
             $insertData = [
                 'id_trx_product' => $transaction->id_trx_product,
-                'tenor_sequence' => 0,
+                'tenor_sequence' => $tenorSequence,
                 'due_date' => $this->dateValue($invoice['TanggalJatuhTempo'] ?? null, $invoiceNumber),
                 'status' => 'Pending',
                 'created_at' => $now,
@@ -169,7 +177,7 @@ class ProcessRabbitMqInvoiceService
             $updateData += [
                 'status' => 'Pending',
                 'invoice_number' => $invoiceNumber,
-                'tenor_sequence' => 0,
+                'tenor_sequence' => $tenorSequence,
                 'amount' => $amount,
             ];
         }
@@ -183,12 +191,13 @@ class ProcessRabbitMqInvoiceService
     /**
      * @param array{inserted: int, updated: int, duplicates: int, unmatched: int, skipped: int, activated: int} $result
      */
-    private function processCustomBond(array $invoice, array &$result): void
+    private function processCustomBond(array $invoice, array &$result, string $payment, array $group): void
     {
         $externalInvoiceId = $this->requiredText($invoice, 'Id', 'Invoice Id');
         $invoiceNumber = $this->requiredText($invoice, 'Name', 'Invoice Name');
         $noPermohonan = $this->requiredText($invoice, 'NomorPermohonan', 'Invoice NomorPermohonan');
         $amount = $this->amount($invoice, 'TotalTagihan', $invoiceNumber);
+        $tenorSequence = $this->tenorSequence($invoice, $payment, $invoiceNumber, $group);
 
         if (! Str::isUuid($externalInvoiceId)) {
             throw new InvalidArgumentException("Invoice [{$invoiceNumber}] Id must be a valid UUID.");
@@ -222,7 +231,7 @@ class ProcessRabbitMqInvoiceService
         $this->insertCustomBondSchedule([
             'external_invoice_id' => $externalInvoiceId,
             'id_bond' => $transaction->id_bond,
-            'tenor_sequence' => 0,
+            'tenor_sequence' => $tenorSequence,
             'due_date' => $this->dateValue($invoice['TanggalJatuhTempo'] ?? null, $invoiceNumber),
             'invoice_number' => $invoiceNumber,
             'amount' => $amount,
@@ -235,12 +244,13 @@ class ProcessRabbitMqInvoiceService
     /**
      * @param array{inserted: int, updated: int, duplicates: int, unmatched: int, skipped: int, activated: int} $result
      */
-    private function processMultiguna(array $invoice, array &$result): void
+    private function processMultiguna(array $invoice, array &$result, string $payment, array $group): void
     {
         $externalInvoiceId = $this->text($invoice, ['Id', 'id']);
         $invoiceNumber = $this->requiredText($invoice, 'Name', 'Invoice Name');
         $noPermohonan = $this->requiredText($invoice, 'NomorPermohonan', 'Invoice NomorPermohonan');
         $amount = $this->amount($invoice, 'TotalTagihan', $invoiceNumber);
+        $tenorSequence = $this->tenorSequence($invoice, $payment, $invoiceNumber, $group);
         $payloadNik = is_array($invoice['Nasabah'] ?? null)
             ? $this->text($invoice['Nasabah'], ['NIK', 'nik', 'Nik'])
             : null;
@@ -306,7 +316,7 @@ class ProcessRabbitMqInvoiceService
                     'invoice_number' => $invoiceNumber,
                     'due_date' => $this->dateValue($invoice['TanggalJatuhTempo'] ?? null, $invoiceNumber),
                     'invoice_id' => null,
-                    'tenor_sequence' => 0,
+                    'tenor_sequence' => $tenorSequence,
                     'status' => 'Pending',
                     'amount' => $amount,
                     'created_at' => $now,
@@ -509,10 +519,81 @@ class ProcessRabbitMqInvoiceService
         };
     }
 
+    private function tenorSequence(array $invoice, string $payment, string $invoiceNumber, array $group): int
+    {
+        if ($payment === 'full') {
+            return 0;
+        }
+
+        $value = $this->sequenceValue($invoice)
+            ?? $this->sequenceValue($invoice['Nasabah'] ?? [])
+            ?? $this->sequenceValue($invoice['Debitur'] ?? [])
+            ?? $this->sequenceValue($group);
+
+        if ($value === null) {
+            throw new InvalidArgumentException("Invoice [{$invoiceNumber}] tenor_sequence is required for Installment payment.");
+        }
+
+        if (is_string($value)) {
+            $value = trim($value);
+        }
+
+        if (! is_numeric($value)) {
+            throw new InvalidArgumentException("Invoice [{$invoiceNumber}] tenor_sequence must be numeric.");
+        }
+
+        $number = (float) $value;
+        $sequence = (int) $number;
+
+        if ($sequence < 1 || $number !== (float) $sequence) {
+            throw new InvalidArgumentException("Invoice [{$invoiceNumber}] tenor_sequence must be a positive integer.");
+        }
+
+        return $sequence;
+    }
+
+    private function sequenceValue(mixed $data): int|float|string|null
+    {
+        if (! is_array($data)) {
+            return null;
+        }
+
+        foreach ([
+            'TenorSequence',
+            'tenor_sequence',
+            'Tenor',
+            'tenor',
+            'TenorKe',
+            'tenor_ke',
+            'TenorId',
+            'tenorId',
+            'AngsuranKe',
+            'angsuran_ke',
+            'InstallmentSequence',
+            'installment_sequence',
+            'InstallmentNo',
+            'installment_no',
+            'Sequence',
+            'sequence',
+        ] as $field) {
+            if (! array_key_exists($field, $data)) {
+                continue;
+            }
+
+            $value = $data[$field];
+            if (is_string($value) || is_numeric($value)) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
     private function paymentCode(string $payment): string
     {
         return match ($this->normalizeLabel($payment)) {
-            'full', 'full payment' => 'full',
+            'full', 'full payment', 'fullpayment' => 'full',
+            'installment', 'installment payment', 'installmentpayment', 'split', 'split payment', 'splitpayment', 'angsuran' => 'installment',
             default => '',
         };
     }
@@ -522,5 +603,3 @@ class ProcessRabbitMqInvoiceService
         return mb_strtolower(trim(preg_replace('/\s+/', ' ', $value) ?? $value));
     }
 }
-
-
